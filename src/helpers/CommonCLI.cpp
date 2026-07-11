@@ -4,6 +4,7 @@
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
+#include <CayenneLPP.h>
 
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
@@ -272,7 +273,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         strcpy(reply, "ERR: bad pubkey");
       }
     } else if (memcmp(command, "tempradio ", 10) == 0) {
-      strcpy(tmp, &command[10]);
+      StrHelper::strncpy(tmp, &command[10], sizeof(tmp));
       const char *parts[5];
       int num = mesh::Utils::parseTextParts(tmp, parts, 5);
       float freq  = num > 0 ? strtof(parts[0], nullptr) : 0.0f;
@@ -315,7 +316,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         strcpy(reply, "null");
       }
     } else if (memcmp(command, "sensor set ", 11) == 0) {
-      strcpy(tmp, &command[11]);
+      StrHelper::strncpy(tmp, &command[11], sizeof(tmp));
       const char *parts[2];
       int num = mesh::Utils::parseTextParts(tmp, parts, 2, ' ');
       const char *key = (num > 0) ? parts[0] : "";
@@ -349,6 +350,56 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         } else {
           *(dp-1) = 0; // remove last CR
         }
+      }
+    } else if (memcmp(command, "sensor read", 11) == 0) {
+      // Decode the live telemetry (the same CayenneLPP payload sent over the
+      // mesh) into a human-readable line. `sensor list` only exposes settings
+      // (e.g. gps on/off), never the measured values; this lets a console or
+      // bridge pull temperature, humidity, voltage, etc. as plain text.
+      CayenneLPP lpp(128);
+      lpp.reset();
+      _sensors->querySensors(0xFF, lpp);
+      const uint8_t* b = lpp.getBuffer();
+      int sz = lpp.getSize();
+      char* dp = reply;
+      *dp = 0;
+      int k = 0;
+      while (k + 2 <= sz && (dp - reply) < 120) {
+        uint8_t type = b[k + 1];
+        k += 2;
+        int rem = sz - k;
+        if (type == LPP_TEMPERATURE && rem >= 2) {
+          sprintf(dp, "temperature=%s ", StrHelper::ftoa((int16_t)((b[k]<<8)|b[k+1]) / 10.0f)); k += 2;
+        } else if (type == LPP_RELATIVE_HUMIDITY && rem >= 1) {
+          sprintf(dp, "humidity=%s ", StrHelper::ftoa(b[k] / 2.0f)); k += 1;
+        } else if (type == LPP_BAROMETRIC_PRESSURE && rem >= 2) {
+          sprintf(dp, "pressure=%s ", StrHelper::ftoa((uint16_t)((b[k]<<8)|b[k+1]) / 10.0f)); k += 2;
+        } else if (type == LPP_VOLTAGE && rem >= 2) {
+          sprintf(dp, "voltage=%s ", StrHelper::ftoa((uint16_t)((b[k]<<8)|b[k+1]) / 100.0f)); k += 2;
+        } else if (type == LPP_CURRENT && rem >= 2) {
+          sprintf(dp, "current=%s ", StrHelper::ftoa((uint16_t)((b[k]<<8)|b[k+1]) / 1000.0f)); k += 2;
+        } else if (type == LPP_ANALOG_INPUT && rem >= 2) {
+          sprintf(dp, "analog=%s ", StrHelper::ftoa((int16_t)((b[k]<<8)|b[k+1]) / 100.0f)); k += 2;
+        } else if (type == LPP_GPS && rem >= 9) {
+          int32_t lat = ((int32_t)b[k]<<16)|(b[k+1]<<8)|b[k+2];
+          int32_t lon = ((int32_t)b[k+3]<<16)|(b[k+4]<<8)|b[k+5];
+          int32_t alt = ((int32_t)b[k+6]<<16)|(b[k+7]<<8)|b[k+8];
+          if (lat & 0x800000) lat |= 0xFF000000;  // sign-extend 24-bit
+          if (lon & 0x800000) lon |= 0xFF000000;
+          if (alt & 0x800000) alt |= 0xFF000000;
+          sprintf(dp, "gps="); dp = strchr(dp, 0);
+          sprintf(dp, "%s,", StrHelper::ftoa(lat / 10000.0f)); dp = strchr(dp, 0);
+          sprintf(dp, "%s,", StrHelper::ftoa(lon / 10000.0f)); dp = strchr(dp, 0);
+          sprintf(dp, "%s ", StrHelper::ftoa(alt / 100.0f)); k += 9;
+        } else {
+          break;  // unknown type: data size unknown, stop to avoid misparsing
+        }
+        dp = strchr(dp, 0);
+      }
+      if (dp == reply) {
+        strcpy(reply, "no telemetry");
+      } else if (*(dp-1) == ' ') {
+        *(dp-1) = 0;  // trim trailing space
       }
     } else if (memcmp(command, "region", 6) == 0) {
       handleRegionCmd(command, reply);
@@ -569,7 +620,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _callbacks->setRxBoostedGain(_prefs->rx_boosted_gain);
 #endif
   } else if (memcmp(config, "radio ", 6) == 0) {
-    strcpy(tmp, &config[6]);
+    StrHelper::strncpy(tmp, &config[6], sizeof(tmp));
     const char *parts[4];
     int num = mesh::Utils::parseTextParts(tmp, parts, 4);
     float freq  = num > 0 ? strtof(parts[0], nullptr) : 0.0f;
