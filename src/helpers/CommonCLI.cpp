@@ -213,6 +213,33 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
   }
 }
 
+// CayenneLPP data-payload size (bytes) for a given type; -1 if unknown.
+// Lets `sensor read` skip a field it doesn't surface without losing sync
+// (silently dropping the rest of the buffer).
+static int cayenne_lpp_size(uint8_t type) {
+  switch (type) {
+    case LPP_DIGITAL_INPUT: case LPP_DIGITAL_OUTPUT: case LPP_PRESENCE:
+    case LPP_RELATIVE_HUMIDITY: case LPP_PERCENTAGE: case LPP_SWITCH:
+      return 1;
+    case LPP_ANALOG_INPUT: case LPP_ANALOG_OUTPUT: case LPP_LUMINOSITY:
+    case LPP_TEMPERATURE: case LPP_BAROMETRIC_PRESSURE: case LPP_VOLTAGE:
+    case LPP_CURRENT: case LPP_ALTITUDE: case LPP_CONCENTRATION:
+    case LPP_POWER: case LPP_DIRECTION:
+      return 2;
+    case LPP_COLOUR:
+      return 3;
+    case LPP_GENERIC_SENSOR: case LPP_FREQUENCY: case LPP_DISTANCE:
+    case LPP_ENERGY: case LPP_UNIXTIME:
+      return 4;
+    case LPP_ACCELEROMETER: case LPP_GYROMETER:
+      return 6;
+    case LPP_GPS:
+      return LPP_GPS_SIZE;
+    default:
+      return -1;
+  }
+}
+
 void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* reply) {
     if (memcmp(command, "poweroff", 8) == 0 || memcmp(command, "shutdown", 8) == 0) {
       _board->powerOff();  // doesn't return
@@ -358,43 +385,65 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       // bridge pull temperature, humidity, voltage, etc. as plain text.
       CayenneLPP lpp(128);
       lpp.reset();
+      // Mirror the node's own mesh telemetry so `sensor read` reflects reality:
+      // battery voltage + attached I2C sensors + built-in MCU temperature. Note
+      // the two temperatures (ambient sensor vs MCU) sit on different LPP
+      // channels, so each field below is keyed by channel to keep them distinct.
+      lpp.addVoltage(TELEM_CHANNEL_SELF, _board->getBattMilliVolts() / 1000.0f);
       _sensors->querySensors(0xFF, lpp);
+      float mcu_temp = _board->getMCUTemperature();
+      if (!isnan(mcu_temp)) lpp.addTemperature(TELEM_CHANNEL_SELF, mcu_temp);
+
       const uint8_t* b = lpp.getBuffer();
       int sz = lpp.getSize();
+      const int CAP = 158;   // reply buffer is ~160 bytes on all callers
       char* dp = reply;
       *dp = 0;
       int k = 0;
-      while (k + 2 <= sz && (dp - reply) < 120) {
+      while (k + 2 <= sz && (CAP - (int)(dp - reply)) > 44) {
+        uint8_t ch = b[k];
         uint8_t type = b[k + 1];
-        k += 2;
-        int rem = sz - k;
-        if (type == LPP_TEMPERATURE && rem >= 2) {
-          sprintf(dp, "temperature=%s ", StrHelper::ftoa((int16_t)((b[k]<<8)|b[k+1]) / 10.0f)); k += 2;
-        } else if (type == LPP_RELATIVE_HUMIDITY && rem >= 1) {
-          sprintf(dp, "humidity=%s ", StrHelper::ftoa(b[k] / 2.0f)); k += 1;
-        } else if (type == LPP_BAROMETRIC_PRESSURE && rem >= 2) {
-          sprintf(dp, "pressure=%s ", StrHelper::ftoa((uint16_t)((b[k]<<8)|b[k+1]) / 10.0f)); k += 2;
-        } else if (type == LPP_VOLTAGE && rem >= 2) {
-          sprintf(dp, "voltage=%s ", StrHelper::ftoa((uint16_t)((b[k]<<8)|b[k+1]) / 100.0f)); k += 2;
-        } else if (type == LPP_CURRENT && rem >= 2) {
-          sprintf(dp, "current=%s ", StrHelper::ftoa((uint16_t)((b[k]<<8)|b[k+1]) / 1000.0f)); k += 2;
-        } else if (type == LPP_ANALOG_INPUT && rem >= 2) {
-          sprintf(dp, "analog=%s ", StrHelper::ftoa((int16_t)((b[k]<<8)|b[k+1]) / 100.0f)); k += 2;
-        } else if (type == LPP_GPS && rem >= 9) {
-          int32_t lat = ((int32_t)b[k]<<16)|(b[k+1]<<8)|b[k+2];
-          int32_t lon = ((int32_t)b[k+3]<<16)|(b[k+4]<<8)|b[k+5];
-          int32_t alt = ((int32_t)b[k+6]<<16)|(b[k+7]<<8)|b[k+8];
-          if (lat & 0x800000) lat |= 0xFF000000;  // sign-extend 24-bit
-          if (lon & 0x800000) lon |= 0xFF000000;
-          if (alt & 0x800000) alt |= 0xFF000000;
-          sprintf(dp, "gps="); dp = strchr(dp, 0);
-          sprintf(dp, "%s,", StrHelper::ftoa(lat / 10000.0f)); dp = strchr(dp, 0);
-          sprintf(dp, "%s,", StrHelper::ftoa(lon / 10000.0f)); dp = strchr(dp, 0);
-          sprintf(dp, "%s ", StrHelper::ftoa(alt / 100.0f)); k += 9;
-        } else {
-          break;  // unknown type: data size unknown, stop to avoid misparsing
+        int dsz = cayenne_lpp_size(type);
+        if (dsz < 0 || k + 2 + dsz > sz) break;   // unknown type / truncated -> stop cleanly
+        const uint8_t* d = &b[k + 2];
+        int rem = CAP - (int)(dp - reply);
+        switch (type) {
+          case LPP_TEMPERATURE:
+            snprintf(dp, rem, "temperature.%d=%s ", ch, StrHelper::ftoa((int16_t)((d[0]<<8)|d[1]) / 10.0f)); break;
+          case LPP_RELATIVE_HUMIDITY:
+            snprintf(dp, rem, "humidity.%d=%s ", ch, StrHelper::ftoa(d[0] / 2.0f)); break;
+          case LPP_BAROMETRIC_PRESSURE:
+            snprintf(dp, rem, "pressure.%d=%s ", ch, StrHelper::ftoa((uint16_t)((d[0]<<8)|d[1]) / 10.0f)); break;
+          case LPP_VOLTAGE:
+            snprintf(dp, rem, "voltage.%d=%s ", ch, StrHelper::ftoa((uint16_t)((d[0]<<8)|d[1]) / 100.0f)); break;
+          case LPP_CURRENT:
+            snprintf(dp, rem, "current.%d=%s ", ch, StrHelper::ftoa((uint16_t)((d[0]<<8)|d[1]) / 1000.0f)); break;
+          case LPP_POWER:
+            snprintf(dp, rem, "power.%d=%d ", ch, (int)(uint16_t)((d[0]<<8)|d[1])); break;
+          case LPP_PERCENTAGE:
+            snprintf(dp, rem, "percent.%d=%d ", ch, (int)d[0]); break;
+          case LPP_ALTITUDE:
+            snprintf(dp, rem, "altitude.%d=%d ", ch, (int)(int16_t)((d[0]<<8)|d[1])); break;
+          case LPP_ANALOG_INPUT:
+            snprintf(dp, rem, "analog.%d=%s ", ch, StrHelper::ftoa((int16_t)((d[0]<<8)|d[1]) / 100.0f)); break;
+          case LPP_LUMINOSITY:
+            snprintf(dp, rem, "lux.%d=%d ", ch, (int)(uint16_t)((d[0]<<8)|d[1])); break;
+          case LPP_GPS: {
+            int32_t lat = ((int32_t)d[0]<<16)|(d[1]<<8)|d[2];
+            int32_t lon = ((int32_t)d[3]<<16)|(d[4]<<8)|d[5];
+            int32_t alt = ((int32_t)d[6]<<16)|(d[7]<<8)|d[8];
+            if (lat & 0x800000) lat |= 0xFF000000;  // sign-extend 24-bit
+            if (lon & 0x800000) lon |= 0xFF000000;
+            if (alt & 0x800000) alt |= 0xFF000000;
+            snprintf(dp, rem, "gps.%d=", ch); dp = strchr(dp, 0);
+            snprintf(dp, CAP-(int)(dp-reply), "%s,", StrHelper::ftoa(lat / 10000.0f)); dp = strchr(dp, 0);
+            snprintf(dp, CAP-(int)(dp-reply), "%s,", StrHelper::ftoa(lon / 10000.0f)); dp = strchr(dp, 0);
+            snprintf(dp, CAP-(int)(dp-reply), "%s ", StrHelper::ftoa(alt / 100.0f)); break;
+          }
+          default: break;   // known size but not surfaced -> skip (already advanced)
         }
         dp = strchr(dp, 0);
+        k += 2 + dsz;
       }
       if (dp == reply) {
         strcpy(reply, "no telemetry");
