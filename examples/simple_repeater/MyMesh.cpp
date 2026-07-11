@@ -1258,6 +1258,12 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       strcpy(reply, "OK - Discover sent");
     }
   } else{
+#if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
+    // CUSTOM (TeTeHacko): `ble on|off|ble` — implemented in main.cpp (BLE console).
+    // Available from serial, the BLE console and remotely via MC (admin remote CLI).
+    extern bool bleConsoleHandleCommand(const char* command, char* reply);
+    if (bleConsoleHandleCommand(command, reply)) return;
+#endif
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
 }

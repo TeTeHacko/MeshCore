@@ -279,6 +279,21 @@ void NRF52Board::sleep(uint32_t secs) {
 
 // Temperature from NRF52 MCU
 float NRF52Board::getMCUTemperature() {
+  // With the SoftDevice enabled, TEMP is a SoftDevice-protected peripheral
+  // (the SD uses it for RC oscillator calibration). Direct register access
+  // raises an APP_MEMACC SoftDevice fault -> firmware reboot. This is why
+  // BLE-enabled repeater builds crashed on every telemetry request. Use the
+  // sd_temp_get() SVC in that case.
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    int32_t temp;
+    if (sd_temp_get(&temp) == NRF_SUCCESS) {
+      return temp * 0.25f; // Convert to *C
+    }
+    return NAN;
+  }
+
   NRF_TEMP->TASKS_START = 1; // Start temperature measurement
 
   long startTime = millis();  
