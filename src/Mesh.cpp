@@ -42,6 +42,10 @@ int Mesh::searchChannelsByHash(const uint8_t* hash, GroupChannel channels[], int
 DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
   if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_TRACE) {
     if (pkt->path_len < MAX_PATH_SIZE) {
+      // TRACE header is trace_tag(4)+auth_code(4)+flags(1) = 9 bytes. Without this
+      // guard a crafted short TRACE (payload_len < 9) underflows `len` below to a
+      // large value and steers the isHashMatch() read past the payload buffer.
+      if (pkt->payload_len < 9) return ACTION_RELEASE;
       uint8_t i = 0;
       uint32_t trace_tag;
       memcpy(&trace_tag, &pkt->payload[i], 4); i += 4;
@@ -56,7 +60,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint16_t offset = (uint16_t)pkt->path_len << path_sz;
       if (offset >= len) {   // TRACE has reached end of given path
         onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
-      } else if (self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->hasSeen(pkt)) {
+      } else if ((size_t)i + offset + (1u << path_sz) <= pkt->payload_len
+                 && self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->hasSeen(pkt)) {
         // append SNR (Not hash!)
         pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
 
@@ -161,14 +166,20 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 uint8_t hash_size = (path_len >> 6) + 1;
                 uint8_t hash_count = path_len & 63;
                 uint8_t* path = &data[k]; k += hash_size*hash_count;
-                uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
-                uint8_t* extra = &data[k];
-                uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
-                if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
-                  if (pkt->isRouteFlood()) {
-                    // send a reciprocal return path to sender, but send DIRECTLY!
-                    mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0);
-                    if (rpath) sendDirect(rpath, path, path_len, 500);
+                // path_len comes from the (decrypted) payload and is otherwise unchecked:
+                // without this guard `k` can jump past the `data` buffer (data[k] OOB read)
+                // and `extra_len = len - k` underflows. Require a valid path length and that
+                // the path + trailing extra_type byte fit within the decrypted length.
+                if (Packet::isValidPathLen(path_len) && k < len) {
+                  uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
+                  uint8_t* extra = &data[k];
+                  uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
+                  if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
+                    if (pkt->isRouteFlood()) {
+                      // send a reciprocal return path to sender, but send DIRECTLY!
+                      mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0);
+                      if (rpath) sendDirect(rpath, path, path_len, 500);
+                    }
                   }
                 }
               } else {
