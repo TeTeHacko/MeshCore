@@ -4,6 +4,8 @@ Generický BlueZ adaptér přes bleak (bez Nordic donglu).
 
 Fáze 1: připoj běžící APP, enable notify na 1531, zapiš 0x01 (buttonless) → reboot do bootloaderu.
 Fáze 2: reconnect na bootloader (advertuje 1530 DFU svc), proveď START/INIT/IMAGE(PRN)/VALIDATE/ACTIVATE.
+        BLE DFU je flaky (dropnutá receipt notif → přenos spadne). Fáze 2 se proto
+        auto-retryuje: po pádu pošle RESET (bootloader → čistý IDLE) a zkusí znovu.
 
 Použití: ble_dfu.py <zip> <ble-mac> [phase2]
   phase2  přeskočí fázi 1 (buttonless) — použij když uzel UŽ visí v bootloaderu
@@ -140,6 +142,32 @@ async def phase2_dfu(mac, fw_bin, fw_dat):
             log("   (ACTIVATE → disconnect, očekávané):", type(e).__name__)
     log("== HOTOVO: bootloader aktivoval nový firmware a rebootuje ==")
 
+async def reset_bootloader(mac):
+    """Poke a stuck bootloader with RESET (opcode 6) so it reboots into a clean
+    DFU IDLE. After an interrupted image transfer the Adafruit bootloader keeps
+    its 'receiving image' state, so a fresh START_DFU returns INVALID_STATE;
+    this soft-reset clears the state machine (the GPREGRET flag survives, so it
+    re-enters DFU) and lets the next attempt start clean."""
+    log("   RESET bootloaderu (opcode 6) → čistý DFU IDLE...")
+    for att in range(4):
+        try:
+            dev = await find(mac, want_dfu=True, timeout=12)
+            if not dev:
+                await asyncio.sleep(2); continue
+            async with BleakClient(dev, timeout=25) as c:
+                try: await c.start_notify(CP_UUID, lambda _h, _d: None)
+                except Exception: pass
+                try:
+                    await c.write_gatt_char(CP_UUID, bytes([RESET]), response=True)
+                    log("   RESET zapsán")
+                except Exception as e:
+                    log(f"   RESET write → {type(e).__name__} (reboot, očekávané)")
+            return True
+        except Exception as e:
+            log(f"   RESET pokus {att+1}: {type(e).__name__} {str(e)[:50]}")
+            await asyncio.sleep(2)
+    return False
+
 async def main():
     zippath, mac = sys.argv[1], sys.argv[2]
     skip_phase1 = len(sys.argv) > 3 and sys.argv[3] == "phase2"
@@ -150,6 +178,18 @@ async def main():
         log("== FÁZE 1 přeskočena (uzel už v bootloaderu) ==")
     else:
         await phase1_buttonless(mac)
-    await phase2_dfu(mac, fw_bin, fw_dat)
+    # BLE DFU je flaky — přenos občas spadne uprostřed (dropnutá receipt notif).
+    # Auto-retry: po pádu vyresetuj bootloader do IDLE a zkus phase2 znovu.
+    ATTEMPTS = 6
+    for i in range(ATTEMPTS):
+        try:
+            await phase2_dfu(mac, fw_bin, fw_dat)
+            return   # hotovo
+        except Exception as e:
+            log(f"!! DFU pokus {i+1}/{ATTEMPTS} selhal: {type(e).__name__}: {str(e)[:80]}")
+            if i == ATTEMPTS - 1:
+                raise
+            await reset_bootloader(mac)
+            await asyncio.sleep(6)
 
 asyncio.run(main())
