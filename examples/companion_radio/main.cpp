@@ -43,7 +43,8 @@ static uint32_t _atoi(const char* sp) {
     #endif
   #elif defined(BLE_PIN_CODE)
     #include <helpers/esp32/SerialBLEInterface.h>
-    SerialBLEInterface serial_interface;
+    #include <helpers/SerialDualInterface.h>
+    SerialDualInterface<SerialBLEInterface> serial_interface;
   #elif defined(SERIAL_RX)
     #include <helpers/ArduinoSerialInterface.h>
     ArduinoSerialInterface serial_interface;
@@ -72,8 +73,10 @@ static uint32_t _atoi(const char* sp) {
   #endif
 #elif defined(NRF52_PLATFORM)
   #ifdef BLE_PIN_CODE
+    // Backport upstream PR #1779: BLE companion dostupný i přes USB
     #include <helpers/nrf52/SerialBLEInterface.h>
-    SerialBLEInterface serial_interface;
+    #include <helpers/SerialDualInterface.h>
+    SerialDualInterface<SerialBLEInterface> serial_interface;
   #else
     #include <helpers/ArduinoSerialInterface.h>
     ArduinoSerialInterface serial_interface;
@@ -157,7 +160,7 @@ void setup() {
   );
 
 #ifdef BLE_PIN_CODE
-  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin(), Serial);
 #else
   serial_interface.begin(Serial);
 #endif
@@ -216,7 +219,7 @@ void setup() {
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
-  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin(), Serial);
 #elif defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
   companion_serial.begin(115200);
