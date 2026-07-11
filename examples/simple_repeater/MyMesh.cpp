@@ -164,9 +164,17 @@ void MyMesh::captureRx(const mesh::Packet* pkt) {
   r->seq = rxlog_next_seq++;
   if (rxlog_next_seq == 0) rxlog_next_seq = 1;   // wrap guard (seq 0 reserved for empty)
   r->when = getRTCClock()->getCurrentTime();
-  uint8_t h[MAX_HASH_SIZE];
-  pkt->calculatePacketHash(h);
-  memcpy(&r->pkt_hash, h, 4);
+  // Cheap deterministic frame id via FNV-1a over (type || payload) -- NOT a
+  // per-packet SHA-256. The mesh already computes the crypto packet hash once
+  // per frame (hasSeen); calling calculatePacketHash() here too would double
+  // the crypto load on the radio hot path for no benefit. FNV is a fraction of
+  // the cost and still lets nodes running this FW dedup / correlate the same
+  // frame. (This is NOT the MeshCore SHA packet-hash.)
+  uint32_t fnv = 2166136261u;
+  uint8_t t = pkt->getPayloadType();
+  fnv = (fnv ^ t) * 16777619u;
+  for (uint16_t k = 0; k < pkt->payload_len; k++) fnv = (fnv ^ pkt->payload[k]) * 16777619u;
+  r->pkt_hash = fnv;
   r->snr = pkt->_snr;
   r->rssi = (int8_t) pkt->getRSSI();
   r->header = pkt->header;

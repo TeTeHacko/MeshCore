@@ -119,7 +119,7 @@ struct HeardNode {
 struct RxLogRec {
   uint32_t seq;                    // monotonic capture sequence (0 = empty slot; also the paging cursor)
   uint32_t when;                   // epoch
-  uint32_t pkt_hash;               // low 4 bytes of the packet hash (dedup / cross-observer correlate)
+  uint32_t pkt_hash;               // FNV-1a of (type||payload) -- cheap dedup / cross-observer id (NOT the SHA packet-hash)
   int8_t   snr;                    // x4
   int8_t   rssi;                   // dBm
   uint8_t  header;                 // raw header byte (route|type|ver)

@@ -86,7 +86,7 @@ R,<seq>,<when>,<pkthash>,<hdr>,<snr>,<rssi>,<path>
 |-----------|--------------------------------------------------------------------|
 | `seq`     | monotonic capture sequence (the paging cursor)                     |
 | `when`    | capture time, epoch seconds (node RTC; may be wrong until GPS/clock sync) |
-| `pkthash` | low 4 bytes of the packet hash, hex (8 chars) — dedup / cross-observer correlation |
+| `pkthash` | FNV-1a hash of (type‖payload), hex (8 chars) — cheap dedup / correlation across nodes running this FW. **Not** the MeshCore SHA packet-hash (avoided to keep the radio hot path light). |
 | `hdr`     | raw header byte, hex. Decode: see §1.3                              |
 | `snr`     | SNR × 4 (0.25 dB units)                                            |
 | `rssi`    | RSSI in dBm, signed                                                |
