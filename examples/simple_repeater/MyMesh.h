@@ -68,6 +68,66 @@ struct NeighbourInfo {
   int8_t snr; // multiplied by 4, user should divide to get float value
 };
 
+// ---------------------------------------------------------------------------
+// CUSTOM (TeTeHacko): passive "mesh analyzer" data. Two independent, RAM-only
+// tables (both compiled out unless the build sets a non-zero size), fed from
+// the normal RX path and pulled out over the text console (serial / BLE) for a
+// map/bridge to consume:
+//   * heard_nodes[] -- one row per DISTINCT REPEATER / ROOM SERVER whose
+//     (verified) advert we heard (chat clients are intentionally skipped for
+//     privacy): pubkey prefix, name, type, position, last SNR/RSSI and the path
+//     the advert arrived by.  -> map dots + topology edges + link quality.
+//     Exposed by the `nodes [offset]` CLI command.
+//   * rxlog_ring[]  -- a circular firehose of EVERY parsed frame we hear:
+//     capture seq, time, packet hash, header (route|type), SNR/RSSI and the hop
+//     path.  -> live traffic / analyzer view.
+//     Exposed by the `rxlog [cursor]` CLI command.
+// Enable per-variant, e.g.:  -D MAX_HEARD_NODES=48 -D RXLOG_SIZE=96
+// ---------------------------------------------------------------------------
+#ifndef MAX_HEARD_NODES
+  #define MAX_HEARD_NODES 0
+#endif
+#ifndef RXLOG_SIZE
+  #define RXLOG_SIZE 0
+#endif
+#ifndef HEARD_NODE_NAME_LEN
+  #define HEARD_NODE_NAME_LEN 24
+#endif
+#ifndef HEARD_NODE_PREFIX
+  #define HEARD_NODE_PREFIX 6      // bytes of pub_key kept (resolve path hashes + registry cross-ref)
+#endif
+#ifndef ANALYZER_PATH_LEN
+  #define ANALYZER_PATH_LEN 16     // max hop-hash bytes kept per record
+#endif
+
+#if MAX_HEARD_NODES
+struct HeardNode {
+  uint8_t  pub_prefix[HEARD_NODE_PREFIX];
+  char     name[HEARD_NODE_NAME_LEN];
+  int32_t  lat, lon;               // degrees x 1e6, 0 = unknown
+  uint32_t heard_timestamp;        // epoch when last heard (0 = empty slot)
+  uint32_t advert_timestamp;       // advert's own timestamp (newest wins)
+  int8_t   snr;                    // x4
+  int8_t   rssi;                   // dBm
+  uint8_t  type;                   // ADV_TYPE_*
+  uint8_t  path_len;               // bit-packed (hash size|count) as heard
+  uint8_t  path[ANALYZER_PATH_LEN];
+};
+#endif
+
+#if RXLOG_SIZE
+struct RxLogRec {
+  uint32_t seq;                    // monotonic capture sequence (0 = empty slot; also the paging cursor)
+  uint32_t when;                   // epoch
+  uint32_t pkt_hash;               // low 4 bytes of the packet hash (dedup / cross-observer correlate)
+  int8_t   snr;                    // x4
+  int8_t   rssi;                   // dBm
+  uint8_t  header;                 // raw header byte (route|type|ver)
+  uint8_t  path_len;               // bit-packed (hash size|count)
+  uint8_t  path[ANALYZER_PATH_LEN];
+};
+#endif
+
 #ifndef FIRMWARE_BUILD_DATE
   #define FIRMWARE_BUILD_DATE   "6 Jun 2026"
 #endif
@@ -106,6 +166,14 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
+#if MAX_HEARD_NODES
+  HeardNode heard_nodes[MAX_HEARD_NODES];
+#endif
+#if RXLOG_SIZE
+  RxLogRec rxlog_ring[RXLOG_SIZE];
+  uint16_t rxlog_head;      // next slot to write
+  uint32_t rxlog_next_seq;  // next capture sequence to assign (starts at 1)
+#endif
   CayenneLPP telemetry;
   unsigned long set_radio_at, revert_radio_at;
   float pending_freq;
@@ -120,6 +188,16 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
+#if MAX_HEARD_NODES
+  void putHeardNode(const mesh::Identity& id, uint32_t advert_timestamp, uint8_t type,
+                    int32_t lat, int32_t lon, const char* name,
+                    int8_t snr, int8_t rssi, const mesh::Packet* pkt);
+  void formatNodesReply(char* reply, uint16_t offset);
+#endif
+#if RXLOG_SIZE
+  void captureRx(const mesh::Packet* pkt);
+  void formatRxLogReply(char* reply, uint32_t cursor);
+#endif
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);

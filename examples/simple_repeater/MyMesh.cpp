@@ -87,6 +87,137 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
 #endif
 }
 
+#if MAX_HEARD_NODES
+// CUSTOM (TeTeHacko): record/update one heard node in the analyzer registry.
+void MyMesh::putHeardNode(const mesh::Identity& id, uint32_t advert_timestamp, uint8_t type,
+                          int32_t lat, int32_t lon, const char* name,
+                          int8_t snr, int8_t rssi, const mesh::Packet* pkt) {
+  uint32_t now = getRTCClock()->getCurrentTime();
+  uint32_t oldest = 0xFFFFFFFF;
+  HeardNode* slot = &heard_nodes[0];
+  for (int i = 0; i < MAX_HEARD_NODES; i++) {
+    HeardNode* n = &heard_nodes[i];
+    if (n->heard_timestamp > 0 && memcmp(n->pub_prefix, id.pub_key, HEARD_NODE_PREFIX) == 0) {
+      slot = n; break;   // update existing entry
+    }
+    if (n->heard_timestamp < oldest) { oldest = n->heard_timestamp; slot = n; }   // else evict LRU
+  }
+  memcpy(slot->pub_prefix, id.pub_key, HEARD_NODE_PREFIX);
+  slot->advert_timestamp = advert_timestamp;
+  slot->heard_timestamp = now;
+  slot->type = type;
+  slot->lat = lat;
+  slot->lon = lon;
+  slot->snr = snr;
+  slot->rssi = rssi;
+  StrHelper::strncpy(slot->name, name ? name : "", sizeof(slot->name));
+  slot->path_len = (uint8_t) pkt->path_len;
+  uint8_t pb = pkt->getPathByteLen();
+  if (pb > ANALYZER_PATH_LEN) pb = ANALYZER_PATH_LEN;
+  memset(slot->path, 0, sizeof(slot->path));
+  if (pb) memcpy(slot->path, pkt->path, pb);
+}
+
+// `nodes [offset]` -> paged dump of the heard-node registry (newest first).
+// One text line per node:  N,<prefix-hex>,<type>,<lat*1e6>,<lon*1e6>,<snr*4>,<rssi>,<secs_ago>,<path-hex>,<name>
+// Trailer line:            E,<next_offset>,<total>
+void MyMesh::formatNodesReply(char* reply, uint16_t offset) {
+  char* dp = reply;
+  int total = 0;
+  HeardNode* sorted[MAX_HEARD_NODES];
+  for (int i = 0; i < MAX_HEARD_NODES; i++) {
+    if (heard_nodes[i].heard_timestamp > 0) sorted[total++] = &heard_nodes[i];
+  }
+  std::sort(sorted, sorted + total, [](const HeardNode* a, const HeardNode* b) {
+    return a->heard_timestamp > b->heard_timestamp;   // newest first
+  });
+
+  uint32_t now = getRTCClock()->getCurrentTime();
+  int i = offset;
+  char line[160];
+  for (; i < total; i++) {
+    HeardNode* n = sorted[i];
+    char prefix[HEARD_NODE_PREFIX * 2 + 1];
+    mesh::Utils::toHex(prefix, n->pub_prefix, HEARD_NODE_PREFIX);
+    char pathhex[ANALYZER_PATH_LEN * 2 + 1];
+    uint8_t cnt = n->path_len & 63, sz = (n->path_len >> 6) + 1;
+    uint8_t pb = cnt * sz; if (pb > ANALYZER_PATH_LEN) pb = ANALYZER_PATH_LEN;
+    if (pb) mesh::Utils::toHex(pathhex, n->path, pb); else pathhex[0] = 0;
+    snprintf(line, sizeof(line), "N,%s,%u,%ld,%ld,%d,%d,%lu,%s,%s\n",
+             prefix, (unsigned)n->type, (long)n->lat, (long)n->lon,
+             (int)n->snr, (int)n->rssi, (unsigned long)(now - n->heard_timestamp),
+             pathhex, n->name);
+    int ll = strlen(line);
+    if (i > offset && (dp - reply) + ll + 24 > 150) break;   // room for trailer; always emit >=1
+    memcpy(dp, line, ll); dp += ll;
+  }
+  dp += sprintf(dp, "E,%d,%d", i, total);
+  *dp = 0;
+}
+#endif
+
+#if RXLOG_SIZE
+// CUSTOM (TeTeHacko): append one heard frame to the analyzer firehose ring.
+void MyMesh::captureRx(const mesh::Packet* pkt) {
+  RxLogRec* r = &rxlog_ring[rxlog_head];
+  rxlog_head = (rxlog_head + 1) % RXLOG_SIZE;
+  r->seq = rxlog_next_seq++;
+  if (rxlog_next_seq == 0) rxlog_next_seq = 1;   // wrap guard (seq 0 reserved for empty)
+  r->when = getRTCClock()->getCurrentTime();
+  uint8_t h[MAX_HASH_SIZE];
+  pkt->calculatePacketHash(h);
+  memcpy(&r->pkt_hash, h, 4);
+  r->snr = pkt->_snr;
+  r->rssi = (int8_t) pkt->getRSSI();
+  r->header = pkt->header;
+  r->path_len = (uint8_t) pkt->path_len;
+  uint8_t pb = pkt->getPathByteLen();
+  if (pb > ANALYZER_PATH_LEN) pb = ANALYZER_PATH_LEN;
+  memset(r->path, 0, sizeof(r->path));
+  if (pb) memcpy(r->path, pkt->path, pb);
+}
+
+// `rxlog [cursor]` -> paged dump of frames with seq > cursor (oldest first).
+// One text line per record: R,<seq>,<when>,<pkthash-hex>,<hdr-hex>,<snr*4>,<rssi>,<path-hex>
+// Trailer line:             E,<last_returned_seq>,<oldest_seq_in_ring>,<newest_seq>
+void MyMesh::formatRxLogReply(char* reply, uint32_t cursor) {
+  char* dp = reply;
+  RxLogRec* recs[RXLOG_SIZE];
+  int n = 0;
+  uint32_t oldest = 0, newest = 0;
+  for (int i = 0; i < RXLOG_SIZE; i++) {
+    RxLogRec* r = &rxlog_ring[i];
+    if (r->seq == 0) continue;
+    if (oldest == 0 || r->seq < oldest) oldest = r->seq;
+    if (r->seq > newest) newest = r->seq;
+    if (r->seq > cursor) recs[n++] = r;
+  }
+  std::sort(recs, recs + n, [](const RxLogRec* a, const RxLogRec* b) {
+    return a->seq < b->seq;   // oldest unread first
+  });
+
+  uint32_t last = cursor;
+  char line[128];
+  for (int i = 0; i < n; i++) {
+    RxLogRec* r = recs[i];
+    char pathhex[ANALYZER_PATH_LEN * 2 + 1];
+    uint8_t cnt = r->path_len & 63, sz = (r->path_len >> 6) + 1;
+    uint8_t pb = cnt * sz; if (pb > ANALYZER_PATH_LEN) pb = ANALYZER_PATH_LEN;
+    if (pb) mesh::Utils::toHex(pathhex, r->path, pb); else pathhex[0] = 0;
+    snprintf(line, sizeof(line), "R,%lu,%lu,%08lX,%02X,%d,%d,%s\n",
+             (unsigned long)r->seq, (unsigned long)r->when,
+             (unsigned long)r->pkt_hash, (unsigned)r->header,
+             (int)r->snr, (int)r->rssi, pathhex);
+    int ll = strlen(line);
+    if (i > 0 && (dp - reply) + ll + 40 > 150) break;   // room for trailer; always emit >=1
+    memcpy(dp, line, ll); dp += ll;
+    last = r->seq;
+  }
+  dp += sprintf(dp, "E,%lu,%lu,%lu", (unsigned long)last, (unsigned long)oldest, (unsigned long)newest);
+  *dp = 0;
+}
+#endif
+
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
@@ -473,6 +604,12 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 }
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
+#if RXLOG_SIZE
+  // analyzer firehose: every parsed frame we hear. Called synchronously from
+  // Dispatcher::checkRecv (before any score-delay queueing), so getRSSI()/SNR
+  // on the packet still belong to THIS frame.
+  captureRx(pkt);
+#endif
 #ifdef WITH_BRIDGE
   if (_prefs.bridge_pkt_src == 1) {
     bridge.sendPacket(pkt);
@@ -638,13 +775,32 @@ void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32
                           const uint8_t *app_data, size_t app_data_len) {
   mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len); // chain to super impl
 
+  AdvertDataParser parser(app_data, app_data_len);
+
   // if this a zero hop advert (and not via 'Share'), add it to neighbours
   if (packet->getPathHashCount() == 0 && !isShare(packet)) {
-    AdvertDataParser parser(app_data, app_data_len);
     if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) { // just keep neigbouring Repeaters
       putNeighbour(id, timestamp, packet->getSNR());
     }
   }
+
+#if MAX_HEARD_NODES
+  // analyzer: record infrastructure nodes only -- REPEATERS and ROOM SERVERS,
+  // any hop count. Chat clients (and sensors) are deliberately NOT recorded:
+  // they are personal/mobile devices, so mapping them is a privacy concern and
+  // just churns the registry. The signature is already verified upstream
+  // (mesh::Mesh::onAdvertRecv only reaches here for valid adverts), so the
+  // identities/positions kept here are trustworthy.
+  uint8_t adv_type = parser.getType();
+  if (parser.isValid() && !isShare(packet)
+      && (adv_type == ADV_TYPE_REPEATER || adv_type == ADV_TYPE_ROOM)) {
+    putHeardNode(id, timestamp, adv_type,
+                 parser.hasLatLon() ? parser.getIntLat() : 0,
+                 parser.hasLatLon() ? parser.getIntLon() : 0,
+                 parser.hasName() ? parser.getName() : "",
+                 packet->_snr, (int8_t)packet->getRSSI(), packet);
+  }
+#endif
 }
 
 void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, const uint8_t *secret,
@@ -870,6 +1026,14 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
+#endif
+#if MAX_HEARD_NODES
+  memset(heard_nodes, 0, sizeof(heard_nodes));
+#endif
+#if RXLOG_SIZE
+  memset(rxlog_ring, 0, sizeof(rxlog_ring));
+  rxlog_head = 0;
+  rxlog_next_seq = 1;   // seq 0 is reserved for "empty slot" / initial cursor
 #endif
 
   // defaults
@@ -1257,6 +1421,18 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+#if MAX_HEARD_NODES
+  } else if (memcmp(command, "nodes", 5) == 0 && (command[5] == 0 || command[5] == ' ')) {
+    // analyzer: paged dump of heard repeaters/room servers (for a map/bridge)
+    uint16_t offset = (command[5] == ' ') ? (uint16_t) atoi(&command[6]) : 0;
+    formatNodesReply(reply, offset);
+#endif
+#if RXLOG_SIZE
+  } else if (memcmp(command, "rxlog", 5) == 0 && (command[5] == 0 || command[5] == ' ')) {
+    // analyzer: paged firehose of every frame heard, since <cursor> (0 = all)
+    uint32_t cursor = (command[5] == ' ') ? (uint32_t) strtoul(&command[6], NULL, 10) : 0;
+    formatRxLogReply(reply, cursor);
+#endif
   } else{
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
     // CUSTOM (TeTeHacko): `ble on|off|ble` — implemented in main.cpp (BLE console).
