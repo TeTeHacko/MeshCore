@@ -36,6 +36,26 @@
     }
   }
 
+  // CUSTOM (TeTeHacko): BLE connection tuning to stop the "reconnect every
+  // 15-30 s" churn. The Bluefruit default supervision timeout is only 2 s, and
+  // THIS node also relays heavy LoRa flood traffic, so the main loop / radio
+  // coexistence can stall well past 2 s and the central then drops the link.
+  // Widen the supervision timeout to 6 s (vs the companion's 2 s -- a repeater
+  // is far busier than a client) and, like the companion, request the params
+  // explicitly on 'secured' because some centrals ignore the advertised PPCP.
+  #define RPT_BLE_MIN_CONN_INTERVAL   12    // 15 ms  (1.25 ms units)
+  #define RPT_BLE_MAX_CONN_INTERVAL   24    // 30 ms
+  #define RPT_BLE_SLAVE_LATENCY        4
+  #define RPT_BLE_CONN_SUP_TIMEOUT   600    // 6000 ms (10 ms units)
+  static void bleOnSecured(uint16_t conn_handle) {
+    ble_gap_conn_params_t cp;
+    cp.min_conn_interval = RPT_BLE_MIN_CONN_INTERVAL;
+    cp.max_conn_interval = RPT_BLE_MAX_CONN_INTERVAL;
+    cp.slave_latency     = RPT_BLE_SLAVE_LATENCY;
+    cp.conn_sup_timeout  = RPT_BLE_CONN_SUP_TIMEOUT;
+    sd_ble_gap_conn_param_update(conn_handle, &cp);
+  }
+
   // CUSTOM (TeTeHacko): runtime BLE on/off via `ble on|off|ble` command
   // (works from serial, the BLE console AND REMOTELY from the MC app — admin
   // remote CLI). State is persistent (marker file in InternalFS), so BLE stays
@@ -211,6 +231,13 @@ void setup() {
   Bluefruit.setTxPower(8);   // +8 dBm = nRF52840 max (range to the dongle across the balcony)
   Bluefruit.setName(BLE_DEVICE_NAME);
   Bluefruit.Security.setPIN(_MC_STR(BLE_PIN_CODE));
+  // widen the BLE connection params so the busy LoRa loop can't trip the
+  // (default 2 s) supervision timeout -> no more reconnect churn. PPCP is
+  // advertised AND requested explicitly on 'secured' (bleOnSecured).
+  Bluefruit.Periph.setConnInterval(RPT_BLE_MIN_CONN_INTERVAL, RPT_BLE_MAX_CONN_INTERVAL);
+  Bluefruit.Periph.setConnSlaveLatency(RPT_BLE_SLAVE_LATENCY);
+  Bluefruit.Periph.setConnSupervisionTimeout(RPT_BLE_CONN_SUP_TIMEOUT);
+  Bluefruit.Security.setSecuredCallback(bleOnSecured);
   // Without setPermission the characteristics stay SECMODE_OPEN and the PIN is
   // never enforced -> the admin console would be open to anyone in range. Same
   // pattern as SerialBLEInterface.cpp (companion).
