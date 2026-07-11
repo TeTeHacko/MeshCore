@@ -1718,7 +1718,11 @@ void MyMesh::handleCmdFrame(size_t len) {
     out_frame[i++] = FIRMWARE_VER_CODE;
     out_frame[i++] = MAX_CONTACTS / 2;   // v3+
     out_frame[i++] = MAX_GROUP_CHANNELS; // v3+
-    memcpy(&out_frame[i], &_prefs.ble_pin, 4);
+    // Never reveal the BLE pairing PIN over an unauthenticated transport (USB):
+    // it would let a momentary physical connection learn the PIN and then pair
+    // over BLE remotely. Only report it to an already-paired BLE peer.
+    uint32_t reported_ble_pin = _serial->isConnectionSecure() ? _prefs.ble_pin : 0;
+    memcpy(&out_frame[i], &reported_ble_pin, 4);
     i += 4;
     memset(&out_frame[i], 0, 12);
     strcpy((char *)&out_frame[i], FIRMWARE_BUILD_DATE);
@@ -2186,10 +2190,15 @@ void MyMesh::handleCmdFrame(size_t len) {
     _serial->writeFrame(reply, i);
   } else if (cmd_frame[0] == CMD_EXPORT_PRIVATE_KEY) {
 #if ENABLE_PRIVATE_KEY_EXPORT
-    uint8_t reply[65];
-    reply[0] = RESP_CODE_PRIVATE_KEY;
-    self_id.writeTo(&reply[1], 64);
-    _serial->writeFrame(reply, 65);
+    if (!_serial->isConnectionSecure()) {
+      // never export the identity over an unauthenticated transport (USB)
+      writeDisabledFrame();
+    } else {
+      uint8_t reply[65];
+      reply[0] = RESP_CODE_PRIVATE_KEY;
+      self_id.writeTo(&reply[1], 64);
+      _serial->writeFrame(reply, 65);
+    }
 #else
     writeDisabledFrame();
 #endif
@@ -2506,17 +2515,22 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
   } else if (cmd_frame[0] == CMD_SET_DEVICE_PIN && len >= 5) {
 
-    // get pin from command frame
-    uint32_t pin;
-    memcpy(&pin, &cmd_frame[1], 4);
-
-    // ensure pin is zero, or a valid 6 digit pin
-    if (pin == 0 || (pin >= 100000 && pin <= 999999)) {
-      _prefs.ble_pin = pin;
-      savePrefs();
-      writeOKFrame();
-    } else {
+    if (!_serial->isConnectionSecure()) {
+      // don't let an unauthenticated transport (USB) change the BLE pairing PIN
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+    } else {
+      // get pin from command frame
+      uint32_t pin;
+      memcpy(&pin, &cmd_frame[1], 4);
+
+      // ensure pin is zero, or a valid 6 digit pin
+      if (pin == 0 || (pin >= 100000 && pin <= 999999)) {
+        _prefs.ble_pin = pin;
+        savePrefs();
+        writeOKFrame();
+      } else {
+        writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+      }
     }
   } else if (cmd_frame[0] == CMD_GET_CUSTOM_VARS) {
     out_frame[0] = RESP_CODE_CUSTOM_VARS;
