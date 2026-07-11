@@ -5,7 +5,9 @@ Generický BlueZ adaptér přes bleak (bez Nordic donglu).
 Fáze 1: připoj běžící APP, enable notify na 1531, zapiš 0x01 (buttonless) → reboot do bootloaderu.
 Fáze 2: reconnect na bootloader (advertuje 1530 DFU svc), proveď START/INIT/IMAGE(PRN)/VALIDATE/ACTIVATE.
 
-Použití: ble_dfu.py <zip> <ble-mac>
+Použití: ble_dfu.py <zip> <ble-mac> [phase2]
+  phase2  přeskočí fázi 1 (buttonless) — použij když uzel UŽ visí v bootloaderu
+          (advertuje SCAP_DFU), např. po přerušeném DFU. Zotavení bez power-cycle.
 """
 import asyncio, struct, sys, zipfile, io
 from bleak import BleakClient, BleakScanner
@@ -140,10 +142,14 @@ async def phase2_dfu(mac, fw_bin, fw_dat):
 
 async def main():
     zippath, mac = sys.argv[1], sys.argv[2]
+    skip_phase1 = len(sys.argv) > 3 and sys.argv[3] == "phase2"
     z = zipfile.ZipFile(zippath)
     fw_bin = z.read("firmware.bin"); fw_dat = z.read("firmware.dat")
     log(f"firmware.bin {len(fw_bin)} B, firmware.dat {len(fw_dat)} B, cíl {mac}")
-    await phase1_buttonless(mac)
+    if skip_phase1:
+        log("== FÁZE 1 přeskočena (uzel už v bootloaderu) ==")
+    else:
+        await phase1_buttonless(mac)
     await phase2_dfu(mac, fw_bin, fw_dat)
 
 asyncio.run(main())
