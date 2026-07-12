@@ -47,7 +47,11 @@
   // the advertised PPCP).
   #define RPT_BLE_MIN_CONN_INTERVAL   12    // 15 ms  (1.25 ms units)
   #define RPT_BLE_MAX_CONN_INTERVAL   24    // 30 ms
-  #define RPT_BLE_SLAVE_LATENCY        4
+  // latency 0 (not the companion's 4): the mast link is marginal (RSSI -75..-90)
+  // and the disconnects are HCI reason 0x3E (lost sync), not supervision timeout.
+  // With latency>0 the node may skip connection events -> the central loses sync
+  // sooner -> 0x3E. Responding every event maximises sync on a weak/busy link.
+  #define RPT_BLE_SLAVE_LATENCY        0
   #define RPT_BLE_CONN_SUP_TIMEOUT  1600    // 16000 ms (10 ms units); < 20 s HW watchdog
   static void bleOnSecured(uint16_t conn_handle) {
     ble_gap_conn_params_t cp;
