@@ -101,6 +101,27 @@ static uint32_t analyzer_frame_id(const mesh::Packet* pkt) {
   for (uint16_t k = 0; k < pkt->payload_len; k++) h = (h ^ pkt->payload[k]) * 16777619u;
   return h;
 }
+
+// Render a stored path as COLON-separated per-hop hashes. The path-hash width is
+// uniform per packet (1/2/3 B, top 2 bits of path_len) but not otherwise visible
+// in the hex, so delimit the hops: each token between ':' is one hop-hash and its
+// byte width is (token length / 2). 1-byte -> "36:2F:EC", 2-byte -> "362F:ECBD".
+// out must hold ANALYZER_PATH_LEN*3+1 bytes.
+static void analyzer_path_hex(char* out, const uint8_t* path, uint8_t path_len) {
+  static const char hexd[] = "0123456789ABCDEF";
+  uint8_t cnt = path_len & 63;
+  uint8_t sz  = (path_len >> 6) + 1;
+  char* p = out;
+  uint8_t off = 0;
+  for (uint8_t h = 0; h < cnt && off + sz <= ANALYZER_PATH_LEN; h++) {
+    if (h) *p++ = ':';
+    for (uint8_t b = 0; b < sz; b++, off++) {
+      *p++ = hexd[path[off] >> 4];
+      *p++ = hexd[path[off] & 0x0F];
+    }
+  }
+  *p = 0;
+}
 #endif
 
 #if MAX_HEARD_NODES
@@ -179,10 +200,8 @@ void MyMesh::formatNodesReply(char* reply, uint16_t offset) {
     HeardNode* n = sorted[i];
     char prefix[HEARD_NODE_PREFIX * 2 + 1];
     mesh::Utils::toHex(prefix, n->pub_prefix, HEARD_NODE_PREFIX);
-    char pathhex[ANALYZER_PATH_LEN * 2 + 1];
-    uint8_t cnt = n->path_len & 63, sz = (n->path_len >> 6) + 1;
-    uint8_t pb = cnt * sz; if (pb > ANALYZER_PATH_LEN) pb = ANALYZER_PATH_LEN;
-    if (pb) mesh::Utils::toHex(pathhex, n->path, pb); else pathhex[0] = 0;
+    char pathhex[ANALYZER_PATH_LEN * 3 + 1];
+    analyzer_path_hex(pathhex, n->path, n->path_len);   // colon-separated hops (width self-describing)
     snprintf(line, sizeof(line), "N,%s,%u,%ld,%ld,%d,%d,%lu,%08lX,%s,%s\n",
              prefix, (unsigned)n->type, (long)n->lat, (long)n->lon,
              (int)n->snr, (int)n->rssi, (unsigned long)(now - n->heard_timestamp),
@@ -238,10 +257,8 @@ void MyMesh::formatRxLogReply(char* reply, uint32_t cursor) {
   char line[128];
   for (int i = 0; i < n; i++) {
     RxLogRec* r = recs[i];
-    char pathhex[ANALYZER_PATH_LEN * 2 + 1];
-    uint8_t cnt = r->path_len & 63, sz = (r->path_len >> 6) + 1;
-    uint8_t pb = cnt * sz; if (pb > ANALYZER_PATH_LEN) pb = ANALYZER_PATH_LEN;
-    if (pb) mesh::Utils::toHex(pathhex, r->path, pb); else pathhex[0] = 0;
+    char pathhex[ANALYZER_PATH_LEN * 3 + 1];
+    analyzer_path_hex(pathhex, r->path, r->path_len);   // colon-separated hops (width self-describing)
     snprintf(line, sizeof(line), "R,%lu,%lu,%08lX,%02X,%d,%d,%s\n",
              (unsigned long)r->seq, (unsigned long)r->when,
              (unsigned long)r->pkt_hash, (unsigned)r->header,

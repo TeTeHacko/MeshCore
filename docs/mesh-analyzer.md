@@ -55,7 +55,7 @@ N,<prefix>,<type>,<lat>,<lon>,<snr>,<rssi>,<age>,<pkthash>,<path>,<name>
 | `rssi`   | RSSI in dBm (signed) of the representative path                     |
 | `age`    | seconds since last heard                                            |
 | `pkthash`| FNV-1a of this node's latest advert (type‖payload), hex (8 chars). **JOIN KEY** — see §1.4 (multi-path). |
-| `path`   | ONE representative hop-hash trail, direct/0-hop preferred (empty = direct). Full set of paths comes from the join. See §1.3/§1.4. |
+| `path`   | ONE representative trail of **colon-separated** hop-hashes, direct/0-hop preferred (empty = direct). Full set of paths via the join. See §1.3/§1.4. |
 | `name`   | node name (UTF-8). **Everything after the 10th comma is the name** — it may itself contain commas. |
 
 Trailer line: `E,<next_offset>,<total>`
@@ -66,10 +66,12 @@ Example:
 
 ```
 > nodes
-N,a3f19c02bb71,2,50548100,14128500,48,-95,37,,tth-ltm.meshcore.cz
-N,10c4de00aa02,2,50510000,14200000,24,-108,410,a3,Repeater-Hill
+N,a3f19c02bb71,2,50548100,14128500,48,-95,37,E18D9489,,tth-ltm.meshcore.cz
+N,10c4de00aa02,2,50510000,14200000,24,-108,410,7F0E1122,A3,Repeater-Hill
 E,2,2
 ```
+(first node: empty path = heard direct; second: one 1-byte hop `A3`. The
+`E18D9489`/`7F0E1122` are the pkthash join keys.)
 
 ### 1.2 `rxlog [cursor]` — firehose of every frame heard
 
@@ -91,7 +93,7 @@ R,<seq>,<when>,<pkthash>,<hdr>,<snr>,<rssi>,<path>
 | `hdr`     | raw header byte, hex. Decode: see §1.3                              |
 | `snr`     | SNR × 4 (0.25 dB units)                                            |
 | `rssi`    | RSSI in dBm, signed                                                |
-| `path`    | hex of the hop-hash trail (empty = 0-hop). See §1.3.               |
+| `path`    | **colon-separated** hop-hashes of this copy's trail (empty = 0-hop). See §1.3. |
 
 Trailer line: `E,<last_seq>,<oldest_seq>,<newest_seq>`
 - `last_seq` — highest seq returned this call; pass it as the next `cursor`.
@@ -105,7 +107,7 @@ Example:
 ```
 > rxlog 40
 R,41,1799887654,ab12cd34,11,48,-95,
-R,42,1799887656,7f0e1122,09,20,-110,a310c4
+R,42,1799887656,7f0e1122,09,20,-110,A3:10:C4
 E,42,17,42
 ```
 
@@ -122,12 +124,16 @@ E,42,17,42
 
 **Path field** (`nodes` and `rxlog`): a flood packet accumulates one hop-hash per
 repeater it traverses. Each hop-hash is the **leading byte(s) of that repeater's
-pubkey**. Hash width is 1, 2 or 3 bytes (v1.14+ "multibyte path hash"); most
-traffic is 1 byte. The `nodes` registry gives you the pubkey→prefix table to
-resolve these bytes back to named/located repeaters — but 1-byte hashes collide
-(1 in 256), so resolve against the local `nodes` set and, where ambiguous, keep
-the edge as "unknown hop". A truncated path (very long routes) is capped at 16
-bytes stored.
+pubkey**. Hash width is 1, 2 or 3 bytes (v1.14+ "multibyte path hash"), uniform
+within one packet.
+
+The path is emitted as **colon-separated hops** so you never have to guess the
+width: each token between `:` is one hop-hash, and its byte width is
+`len(token)/2`. So `A3:1F:C2` = three 1-byte hops; `A31F:C204` = two 2-byte hops;
+empty = 0-hop / direct. Resolve each token against the `nodes` registry by
+matching the first `len(token)/2` bytes of a node's `prefix` — but 1-byte hashes
+collide (1 in 256), so where ambiguous keep the edge as "unknown hop". Paths are
+capped at 16 stored bytes (very long routes truncate).
 
 **Units:** SNR in the wire is × 4 (0.25 dB); RSSI is plain dBm; lat/lon are
 degrees × 1e6.
