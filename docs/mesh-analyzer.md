@@ -42,7 +42,7 @@ churns the table. Sorted newest-heard first.
 Per-node line:
 
 ```
-N,<prefix>,<type>,<lat>,<lon>,<snr>,<rssi>,<age>,<path>,<name>
+N,<prefix>,<type>,<lat>,<lon>,<snr>,<rssi>,<age>,<pkthash>,<path>,<name>
 ```
 
 | Field    | Meaning                                                              |
@@ -51,11 +51,12 @@ N,<prefix>,<type>,<lat>,<lon>,<snr>,<rssi>,<age>,<path>,<name>
 | `type`   | advert node type: `2`=repeater, `3`=room server (only these appear) |
 | `lat`    | latitude × 1e6, signed integer (`0` = unknown)                      |
 | `lon`    | longitude × 1e6, signed integer (`0` = unknown)                     |
-| `snr`    | last-heard SNR **× 4** (0.25 dB units); divide by 4 for dB          |
-| `rssi`   | last-heard RSSI in dBm, signed                                      |
+| `snr`    | SNR **× 4** (0.25 dB units) of the representative path; divide by 4 for dB |
+| `rssi`   | RSSI in dBm (signed) of the representative path                     |
 | `age`    | seconds since last heard                                            |
-| `path`   | hex of the hop-hash trail the advert arrived by (empty = 0-hop / direct). See §1.3. |
-| `name`   | node name (UTF-8). **Everything after the 9th comma is the name** — it may itself contain commas. |
+| `pkthash`| FNV-1a of this node's latest advert (type‖payload), hex (8 chars). **JOIN KEY** — see §1.4 (multi-path). |
+| `path`   | ONE representative hop-hash trail, direct/0-hop preferred (empty = direct). Full set of paths comes from the join. See §1.3/§1.4. |
+| `name`   | node name (UTF-8). **Everything after the 10th comma is the name** — it may itself contain commas. |
 
 Trailer line: `E,<next_offset>,<total>`
 - `next_offset` — pass as the next `offset`; when it equals `total`, you are done.
@@ -131,6 +132,36 @@ bytes stored.
 **Units:** SNR in the wire is × 4 (0.25 dB); RSSI is plain dBm; lat/lon are
 degrees × 1e6.
 
+### 1.4 Multi-path — how to show every route a node reaches us by
+
+A node's advert usually reaches us via **several paths at once** (0-hop direct
+AND relayed by different repeaters). The firmware can't hand you all of them in
+`nodes`: the mesh dedups by packet hash (payload only — the path is *not* in the
+hash), so `onAdvertRecv` fires for only the **first** copy, and `nodes` keeps one
+representative path. **But `rxlog` is fed pre-dedup** (`logRx`, before `hasSeen`),
+so it logs **every copy** — each with its own `path` and its own SNR/RSSI.
+
+All copies of one advert share the same `pkthash` (FNV of type‖payload). So:
+
+1. In your buffered `rxlog` history, **group records by `pkthash`** → the distinct
+   `path` values in a group are the **different routes** that frame took to us
+   (including the empty/direct one). Each copy's SNR/RSSI is that route's quality.
+2. To attach those routes to a **named node**, join on `pkthash`:
+   `nodes[X].pkthash == rxlog[*].pkthash`. That gives node X's identity/position
+   (from `nodes`) plus its full set of current paths (from `rxlog`).
+
+**Display:** draw the node dot once (from `nodes` lat/lon); draw **one edge/route
+per distinct path** in the joined group — direct (empty path) as the primary
+us↔node edge, each relayed path as a poly-line through its resolved hops — and
+colour/width each by that copy's SNR. That's the live multi-path view.
+
+Caveats: each advert *broadcast* has a fresh timestamp → fresh `pkthash`, so the
+join tracks the **latest** broadcast's paths (exactly what you want for "current"
+topology). It only works while the copies are still in your `rxlog` buffer, so
+keep draining `rxlog` (advance the cursor!) and, on a busy channel, raise
+`RXLOG_SIZE`. The single `nodes.path` is a durable fallback when you haven't
+buffered the matching `rxlog` copies.
+
 ---
 
 ## 2. Bridge + map spec (for the other agent)
@@ -190,8 +221,10 @@ degrees × 1e6.
 ## 3. Firmware data model (reference)
 
 `HeardNode` (registry row): `pub_prefix[6]`, `name[24]`, `lat`/`lon` (int32 ×1e6),
-`heard_timestamp`, `advert_timestamp`, `snr` (×4), `rssi` (dBm), `type`,
-`path_len` (bit-packed), `path[16]`.
+`heard_timestamp`, `advert_timestamp`, `pkt_hash` (FNV join key), `direct_heard`
+(epoch of last 0-hop), `snr` (×4), `rssi` (dBm), `type`, `path_len` (bit-packed),
+`path[16]`. Direct (0-hop) observations are preferred for the representative path
+for `HEARD_DIRECT_TTL_SECS`.
 
 `RxLogRec` (ring record): `seq`, `when`, `pkt_hash` (4 B), `snr` (×4), `rssi`,
 `header`, `path_len` (bit-packed), `path[16]`.

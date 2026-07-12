@@ -87,40 +87,80 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
 #endif
 }
 
+#if MAX_HEARD_NODES || RXLOG_SIZE
+// Cheap deterministic frame id: FNV-1a over (type || payload). Same value for
+// every copy of one advert/packet regardless of the path it took (path is not
+// hashed), so it GROUPS the copies that arrived via different paths -> the bridge
+// joins nodes<->rxlog on it to reconstruct multi-path. NOT the SHA packet-hash
+// (the mesh already computes that once per frame in hasSeen(); a second SHA on
+// the radio hot path would be wasted work).
+static uint32_t analyzer_frame_id(const mesh::Packet* pkt) {
+  uint32_t h = 2166136261u;
+  uint8_t t = pkt->getPayloadType();
+  h = (h ^ t) * 16777619u;
+  for (uint16_t k = 0; k < pkt->payload_len; k++) h = (h ^ pkt->payload[k]) * 16777619u;
+  return h;
+}
+#endif
+
 #if MAX_HEARD_NODES
 // CUSTOM (TeTeHacko): record/update one heard node in the analyzer registry.
 void MyMesh::putHeardNode(const mesh::Identity& id, uint32_t advert_timestamp, uint8_t type,
                           int32_t lat, int32_t lon, const char* name,
                           int8_t snr, int8_t rssi, const mesh::Packet* pkt) {
   uint32_t now = getRTCClock()->getCurrentTime();
+  bool is_direct = (pkt->getPathHashCount() == 0);   // 0-hop = heard directly
+
   uint32_t oldest = 0xFFFFFFFF;
   HeardNode* slot = &heard_nodes[0];
+  bool existing = false;
   for (int i = 0; i < MAX_HEARD_NODES; i++) {
     HeardNode* n = &heard_nodes[i];
     if (n->heard_timestamp > 0 && memcmp(n->pub_prefix, id.pub_key, HEARD_NODE_PREFIX) == 0) {
-      slot = n; break;   // update existing entry
+      slot = n; existing = true; break;   // update existing entry
     }
     if (n->heard_timestamp < oldest) { oldest = n->heard_timestamp; slot = n; }   // else evict LRU
   }
+  if (!existing) *slot = HeardNode();   // reused/evicted slot -> clear stale fields (direct_heard!)
+
+  // latest identity / position / name always win
   memcpy(slot->pub_prefix, id.pub_key, HEARD_NODE_PREFIX);
   slot->advert_timestamp = advert_timestamp;
   slot->heard_timestamp = now;
   slot->type = type;
   slot->lat = lat;
   slot->lon = lon;
-  slot->snr = snr;
-  slot->rssi = rssi;
   StrHelper::strncpy(slot->name, name ? name : "", sizeof(slot->name));
-  slot->path_len = (uint8_t) pkt->path_len;
-  uint8_t pb = pkt->getPathByteLen();
-  if (pb > ANALYZER_PATH_LEN) pb = ANALYZER_PATH_LEN;
-  memset(slot->path, 0, sizeof(slot->path));
-  if (pb) memcpy(slot->path, pkt->path, pb);
+  slot->pkt_hash = analyzer_frame_id(pkt);   // join key -> rxlog copies (= every path this advert took)
+
+  // Representative path + link quality. A DIRECT (0-hop) advert is the key edge
+  // (us <-> node). Because all copies of one advert share a hash, dedup means
+  // onAdvertRecv only fires for whichever copy arrives first -- often a stronger
+  // relayed one -- so a plain last-write keeps overwriting a direct link with a
+  // relayed path. Prefer the direct observation for HEARD_DIRECT_TTL_SECS. (Full
+  // multi-path is reconstructed on the bridge via the pkt_hash join to rxlog.)
+  bool direct_recent = slot->direct_heard != 0 && (now - slot->direct_heard) < HEARD_DIRECT_TTL_SECS;
+  if (is_direct) {
+    slot->direct_heard = now;
+    slot->snr = snr; slot->rssi = rssi;
+    slot->path_len = 0;                       // empty path = direct
+    memset(slot->path, 0, sizeof(slot->path));
+  } else if (!direct_recent) {
+    slot->snr = snr; slot->rssi = rssi;
+    slot->path_len = (uint8_t) pkt->path_len;
+    uint8_t pb = pkt->getPathByteLen();
+    if (pb > ANALYZER_PATH_LEN) pb = ANALYZER_PATH_LEN;
+    memset(slot->path, 0, sizeof(slot->path));
+    if (pb) memcpy(slot->path, pkt->path, pb);
+  }
+  // else: relayed advert but heard direct recently -> keep the direct path/SNR
 }
 
 // `nodes [offset]` -> paged dump of the heard-node registry (newest first).
-// One text line per node:  N,<prefix-hex>,<type>,<lat*1e6>,<lon*1e6>,<snr*4>,<rssi>,<secs_ago>,<path-hex>,<name>
-// Trailer line:            E,<next_offset>,<total>
+// One text line per node:  N,<prefix-hex>,<type>,<lat*1e6>,<lon*1e6>,<snr*4>,<rssi>,<secs_ago>,<pkthash-hex>,<path-hex>,<name>
+//   <pkthash> = join key: group `rxlog` records by it to get EVERY path this
+//   node's advert arrived by (multi-path). <path> is a single representative
+//   (direct/0-hop preferred). Trailer line: E,<next_offset>,<total>
 void MyMesh::formatNodesReply(char* reply, uint16_t offset) {
   char* dp = reply;
   int total = 0;
@@ -143,10 +183,10 @@ void MyMesh::formatNodesReply(char* reply, uint16_t offset) {
     uint8_t cnt = n->path_len & 63, sz = (n->path_len >> 6) + 1;
     uint8_t pb = cnt * sz; if (pb > ANALYZER_PATH_LEN) pb = ANALYZER_PATH_LEN;
     if (pb) mesh::Utils::toHex(pathhex, n->path, pb); else pathhex[0] = 0;
-    snprintf(line, sizeof(line), "N,%s,%u,%ld,%ld,%d,%d,%lu,%s,%s\n",
+    snprintf(line, sizeof(line), "N,%s,%u,%ld,%ld,%d,%d,%lu,%08lX,%s,%s\n",
              prefix, (unsigned)n->type, (long)n->lat, (long)n->lon,
              (int)n->snr, (int)n->rssi, (unsigned long)(now - n->heard_timestamp),
-             pathhex, n->name);
+             (unsigned long)n->pkt_hash, pathhex, n->name);
     int ll = strlen(line);
     if (i > offset && (dp - reply) + ll + 24 > 150) break;   // room for trailer; always emit >=1
     memcpy(dp, line, ll); dp += ll;
@@ -164,17 +204,7 @@ void MyMesh::captureRx(const mesh::Packet* pkt) {
   r->seq = rxlog_next_seq++;
   if (rxlog_next_seq == 0) rxlog_next_seq = 1;   // wrap guard (seq 0 reserved for empty)
   r->when = getRTCClock()->getCurrentTime();
-  // Cheap deterministic frame id via FNV-1a over (type || payload) -- NOT a
-  // per-packet SHA-256. The mesh already computes the crypto packet hash once
-  // per frame (hasSeen); calling calculatePacketHash() here too would double
-  // the crypto load on the radio hot path for no benefit. FNV is a fraction of
-  // the cost and still lets nodes running this FW dedup / correlate the same
-  // frame. (This is NOT the MeshCore SHA packet-hash.)
-  uint32_t fnv = 2166136261u;
-  uint8_t t = pkt->getPayloadType();
-  fnv = (fnv ^ t) * 16777619u;
-  for (uint16_t k = 0; k < pkt->payload_len; k++) fnv = (fnv ^ pkt->payload[k]) * 16777619u;
-  r->pkt_hash = fnv;
+  r->pkt_hash = analyzer_frame_id(pkt);   // same key across all copies -> groups the paths a frame took
   r->snr = pkt->_snr;
   r->rssi = (int8_t) pkt->getRSSI();
   r->header = pkt->header;

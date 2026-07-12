@@ -99,6 +99,9 @@ struct NeighbourInfo {
 #ifndef ANALYZER_PATH_LEN
   #define ANALYZER_PATH_LEN 16     // max hop-hash bytes kept per record
 #endif
+#ifndef HEARD_DIRECT_TTL_SECS
+  #define HEARD_DIRECT_TTL_SECS 3600  // keep showing a node as direct (0-hop) this long after last hearing it direct
+#endif
 
 #if MAX_HEARD_NODES
 struct HeardNode {
@@ -107,10 +110,14 @@ struct HeardNode {
   int32_t  lat, lon;               // degrees x 1e6, 0 = unknown
   uint32_t heard_timestamp;        // epoch when last heard (0 = empty slot)
   uint32_t advert_timestamp;       // advert's own timestamp (newest wins)
+  uint32_t pkt_hash;               // FNV of the latest advert (type||payload) -- JOIN KEY:
+                                   // group rxlog records by this to get every path the
+                                   // advert arrived by (rxlog logs all copies pre-dedup)
+  uint32_t direct_heard;           // epoch we last heard this node 0-hop (0 = never)
   int8_t   snr;                    // x4
   int8_t   rssi;                   // dBm
   uint8_t  type;                   // ADV_TYPE_*
-  uint8_t  path_len;               // bit-packed (hash size|count) as heard
+  uint8_t  path_len;               // bit-packed (hash size|count); representative/best path
   uint8_t  path[ANALYZER_PATH_LEN];
 };
 #endif
