@@ -41,15 +41,29 @@ async def expect_resp(nf, opcode, timeout=30):
             continue  # receipt, ignoruj tady
         log("   (neočekávaná notif:", d.hex(), ")")
 
+def mac_plus_one(mac):
+    p = mac.upper().split(":")
+    p[-1] = "%02X" % ((int(p[-1], 16) + 1) & 0xFF)
+    return ":".join(p)
+
 async def find(mac, want_dfu=False, timeout=30):
-    """Najdi zařízení — v bootloaderu preferuj to co advertuje DFU svc."""
-    log(f"   scan (want_dfu={want_dfu}, mac={mac})...")
+    """Najdi zařízení. POZOR: běžící APP inzeruje DFU službu taky (kvůli
+    buttonless), takže 'want_dfu' NESMÍ matchovat jen podle DFU svc -> spletl by
+    si app s bootloaderem. Bootloader advertuje SCAP_DFU na MAC+1 -> rozlišuj tím."""
+    boot_mac = mac_plus_one(mac)
+    log(f"   scan (want_dfu={want_dfu}, mac={mac}, boot={boot_mac})...")
     devs = await BleakScanner.discover(timeout=timeout, return_adv=True)
     cand = []
     for d, adv in devs.values():
+        addr = d.address.upper()
         has_dfu = DFU_SVC in [u.lower() for u in (adv.service_uuids or [])]
-        if want_dfu and has_dfu: cand.append((d, adv, 0))
-        elif d.address.upper() == mac.upper(): cand.append((d, adv, 1))
+        name = (d.name or adv.local_name or "")
+        if want_dfu:
+            # jen SKUTEČNÝ bootloader: MAC+1 nebo název *DFU* (ne appka na MAC)
+            if has_dfu and (addr == boot_mac or "DFU" in name.upper()):
+                cand.append((d, adv, 0))
+        elif addr == mac.upper():
+            cand.append((d, adv, 1))
     cand.sort(key=lambda x: x[2])
     for d, adv, _ in cand:
         log(f"   kandidát: {d.address} {d.name!r} dfu={DFU_SVC in [u.lower() for u in (adv.service_uuids or [])]}")
