@@ -36,17 +36,19 @@
     }
   }
 
-  // CUSTOM (TeTeHacko): BLE connection tuning to stop the "reconnect every
-  // 15-30 s" churn. The Bluefruit default supervision timeout is only 2 s, and
-  // THIS node also relays heavy LoRa flood traffic, so the main loop / radio
-  // coexistence can stall well past 2 s and the central then drops the link.
-  // Widen the supervision timeout to 6 s (vs the companion's 2 s -- a repeater
-  // is far busier than a client) and, like the companion, request the params
-  // explicitly on 'secured' because some centrals ignore the advertised PPCP.
+  // CUSTOM (TeTeHacko): BLE connection tuning to stop the reconnect churn. The
+  // Bluefruit default supervision timeout is only 2 s, and THIS node also relays
+  // heavy LoRa flood traffic: measured behaviour is a periodic (~60 s) multi-
+  // second stall (advert TX airtime / SoftDevice-LoRa coexistence). 2 s dropped
+  // every 15-30 s, 6 s every ~60 s -> the stall occasionally exceeds 6 s. Widen
+  // the supervision timeout to 16 s so those stalls are tolerated; a genuine
+  // freeze is still caught by the 20 s hardware watchdog (16 s < 20 s). Like the
+  // companion, request the params explicitly on 'secured' (some centrals ignore
+  // the advertised PPCP).
   #define RPT_BLE_MIN_CONN_INTERVAL   12    // 15 ms  (1.25 ms units)
   #define RPT_BLE_MAX_CONN_INTERVAL   24    // 30 ms
   #define RPT_BLE_SLAVE_LATENCY        4
-  #define RPT_BLE_CONN_SUP_TIMEOUT   600    // 6000 ms (10 ms units)
+  #define RPT_BLE_CONN_SUP_TIMEOUT  1600    // 16000 ms (10 ms units); < 20 s HW watchdog
   static void bleOnSecured(uint16_t conn_handle) {
     ble_gap_conn_params_t cp;
     cp.min_conn_interval = RPT_BLE_MIN_CONN_INTERVAL;
