@@ -15,9 +15,12 @@ class DualSerialInterface : public BaseSerialInterface {
   uint8_t _usb_buf[MAX_FRAME_SIZE];
   bool _ble_enabled;
   bool _ble_was_connected;
+  bool _docked_quiet;
+  bool _last_frame_from_ble;
 
 public:
-  DualSerialInterface() : _ble_enabled(false), _ble_was_connected(false) {}
+  DualSerialInterface() : _ble_enabled(false), _ble_was_connected(false),
+      _docked_quiet(false), _last_frame_from_ble(false) {}
 
   void begin(const char* ble_prefix, char* node_name, uint32_t pin_code, Stream& usb_stream) {
     _ble.begin(ble_prefix, node_name, pin_code);
@@ -25,9 +28,14 @@ public:
     _usb.enable();  // USB is always on
   }
 
-  void enable() override  { _ble.enable(); _ble_enabled = true; }
-  void disable() override { _ble.disable(); _ble_enabled = false; }
+  void enable() override  { _ble.enable(); _ble_enabled = true; _docked_quiet = false; }
+  void disable() override { _ble.disable(); _ble_enabled = false; _docked_quiet = false; }
+  // Reports the user's intent (UI Bluetooth toggle), not the dock-quiet state.
   bool isEnabled() const override { return _ble_enabled; }
+
+  // Only frames received over the MITM-paired BLE link are authenticated;
+  // frames received over USB are unauthenticated (physical presence only).
+  bool isConnectionSecure() const override { return _last_frame_from_ble; }
 
   // Always true — USB is always available as fallback, so the mesh can send.
   bool isConnected() const override { return true; }
@@ -53,7 +61,7 @@ public:
 
       if (ble_now) {
         _ble_was_connected = true;
-        if (ble_len > 0) { memcpy(dest, _ble_buf, ble_len); return ble_len; }
+        if (ble_len > 0) { memcpy(dest, _ble_buf, ble_len); _last_frame_from_ble = true; return ble_len; }
         return 0;  // BLE active — don't read USB to keep its state machine clean
       }
 
@@ -63,10 +71,24 @@ public:
         _usb.enable();
         return 0;
       }
+
+      // Dock behaviour: while a USB host holds the CDC port open (card sitting in
+      // a dock), stop BLE advertising so the node stays quiet on 2.4 GHz and the
+      // app talks over USB; resume advertising once undocked. Only advertising is
+      // gated, and only while no BLE link exists — an established BLE connection
+      // is never force-dropped (SerialBLEInterface::disable() would disconnect).
+      bool docked = (bool)Serial;
+      if (docked && !_docked_quiet) {
+        _ble.disable();
+        _docked_quiet = true;
+      } else if (!docked && _docked_quiet) {
+        _ble.enable();
+        _docked_quiet = false;
+      }
     }
 
     size_t usb_len = _usb.checkRecvFrame(_usb_buf);
-    if (usb_len > 0) { memcpy(dest, _usb_buf, usb_len); return usb_len; }
+    if (usb_len > 0) { memcpy(dest, _usb_buf, usb_len); _last_frame_from_ble = false; return usb_len; }
     return 0;
   }
 };
