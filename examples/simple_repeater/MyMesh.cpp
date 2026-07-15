@@ -182,10 +182,10 @@ void MyMesh::putHeardNode(const mesh::Identity& id, uint32_t advert_timestamp, u
 //   <pkthash> = join key: group `rxlog` records by it to get EVERY path this
 //   node's advert arrived by (multi-path). <path> is a single representative
 //   (direct/0-hop preferred). Trailer line: E,<next_offset>,<total>
-void MyMesh::formatNodesReply(char* reply, uint16_t offset) {
+void MyMesh::formatNodesReply(char* reply, int max_len, uint16_t offset) {
   char* dp = reply;
   int total = 0;
-  HeardNode* sorted[MAX_HEARD_NODES];
+  static HeardNode* sorted[MAX_HEARD_NODES];   // BSS, ne stack (128 ptrů; volá se jen z loop tasku)
   for (int i = 0; i < MAX_HEARD_NODES; i++) {
     if (heard_nodes[i].heard_timestamp > 0) sorted[total++] = &heard_nodes[i];
   }
@@ -207,7 +207,7 @@ void MyMesh::formatNodesReply(char* reply, uint16_t offset) {
              (int)n->snr, (int)n->rssi, (unsigned long)(now - n->heard_timestamp),
              (unsigned long)n->pkt_hash, pathhex, n->name);
     int ll = strlen(line);
-    if (i > offset && (dp - reply) + ll + 24 > 150) break;   // room for trailer; always emit >=1
+    if (i > offset && (dp - reply) + ll + 24 > max_len) break;   // room for trailer; always emit >=1
     memcpy(dp, line, ll); dp += ll;
   }
   dp += sprintf(dp, "E,%d,%d", i, total);
@@ -237,9 +237,9 @@ void MyMesh::captureRx(const mesh::Packet* pkt) {
 // `rxlog [cursor]` -> paged dump of frames with seq > cursor (oldest first).
 // One text line per record: R,<seq>,<when>,<pkthash-hex>,<hdr-hex>,<snr*4>,<rssi>,<path-hex>
 // Trailer line:             E,<last_returned_seq>,<oldest_seq_in_ring>,<newest_seq>
-void MyMesh::formatRxLogReply(char* reply, uint32_t cursor) {
+void MyMesh::formatRxLogReply(char* reply, int max_len, uint32_t cursor) {
   char* dp = reply;
-  RxLogRec* recs[RXLOG_SIZE];
+  static RxLogRec* recs[RXLOG_SIZE];   // BSS, ne stack (512 ptrů = 2 KB; volá se jen z loop tasku)
   int n = 0;
   uint32_t oldest = 0, newest = 0;
   for (int i = 0; i < RXLOG_SIZE; i++) {
@@ -264,7 +264,7 @@ void MyMesh::formatRxLogReply(char* reply, uint32_t cursor) {
              (unsigned long)r->pkt_hash, (unsigned)r->header,
              (int)r->snr, (int)r->rssi, pathhex);
     int ll = strlen(line);
-    if (i > 0 && (dp - reply) + ll + 40 > 150) break;   // room for trailer; always emit >=1
+    if (i > 0 && (dp - reply) + ll + 40 > max_len) break;   // room for trailer; always emit >=1
     memcpy(dp, line, ll); dp += ll;
     last = r->seq;
   }
@@ -1390,7 +1390,7 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
 }
 
-void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
+void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply, int reply_max) {
   if (region_load_active) {
     if (StrHelper::isBlank(command)) {  // empty/blank line, signal to terminate 'load' operation
       region_map = temp_map;  // copy over the temp instance as new current map
@@ -1478,15 +1478,17 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     }
 #if MAX_HEARD_NODES
   } else if (memcmp(command, "nodes", 5) == 0 && (command[5] == 0 || command[5] == ' ')) {
-    // analyzer: paged dump of heard repeaters/room servers (for a map/bridge)
+    // analyzer: paged dump of heard repeaters/room servers (for a map/bridge).
+    // Page size = caller's reply capacity: local console passes ~1000 (fewer BLE
+    // round trips), the mesh admin CLI keeps the default 150 (one LoRa packet).
     uint16_t offset = (command[5] == ' ') ? (uint16_t) atoi(&command[6]) : 0;
-    formatNodesReply(reply, offset);
+    formatNodesReply(reply, reply_max, offset);
 #endif
 #if RXLOG_SIZE
   } else if (memcmp(command, "rxlog", 5) == 0 && (command[5] == 0 || command[5] == ' ')) {
     // analyzer: paged firehose of every frame heard, since <cursor> (0 = all)
     uint32_t cursor = (command[5] == ' ') ? (uint32_t) strtoul(&command[6], NULL, 10) : 0;
-    formatRxLogReply(reply, cursor);
+    formatRxLogReply(reply, reply_max, cursor);
 #endif
   } else{
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)

@@ -19,9 +19,13 @@ so the bridge author does not need to read the firmware source.
 ## 1. Firmware protocol (implemented)
 
 Two RAM-only, opt-in tables are fed from the normal RX path and exposed as
-**text CLI commands** on the repeater console. The console is request/reply with
-a **~160-byte reply cap**, so both commands are **paged** and carry a trailer so
-the caller can drain them and detect if it fell behind. Reachable over USB
+**text CLI commands** on the repeater console. The console is request/reply and
+both commands are **paged** with a trailer so the caller can drain them and
+detect if it fell behind. Page size depends on the transport: the **local
+console (USB serial / BLE NUS) serves ~1000-byte pages** (~20 rxlog records or
+~7 nodes lines per round trip); the **mesh admin CLI keeps a ~150-byte page**
+so the reply still fits one LoRa packet. A page ends with the `E,...` trailer
+line — detect it instead of waiting for line silence. Reachable over USB
 serial, the PIN-paired BLE Nordic-UART console, and the admin mesh CLI — exactly
 like the existing `neighbors` command.
 

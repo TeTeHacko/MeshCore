@@ -199,11 +199,11 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void putHeardNode(const mesh::Identity& id, uint32_t advert_timestamp, uint8_t type,
                     int32_t lat, int32_t lon, const char* name,
                     int8_t snr, int8_t rssi, const mesh::Packet* pkt);
-  void formatNodesReply(char* reply, uint16_t offset);
+  void formatNodesReply(char* reply, int max_len, uint16_t offset);
 #endif
 #if RXLOG_SIZE
   void captureRx(const mesh::Packet* pkt);
-  void formatRxLogReply(char* reply, uint32_t cursor);
+  void formatRxLogReply(char* reply, int max_len, uint32_t cursor);
 #endif
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
@@ -308,7 +308,11 @@ public:
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override;
 
-  void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
+  // reply_max = usable reply capacity. Default 150 keeps the mesh admin CLI reply
+  // inside one LoRa packet; the local console (USB/BLE, big buffer) passes more so
+  // the paged analyzer replies (nodes/rxlog) can use big pages. Explicit parameter
+  // on purpose — a forged sender_timestamp must never be able to grow the reply.
+  void handleCommand(uint32_t sender_timestamp, char* command, char* reply, int reply_max = 150);
   void loop();
 
 #if defined(WITH_BRIDGE)

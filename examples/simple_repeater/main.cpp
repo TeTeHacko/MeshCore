@@ -28,8 +28,13 @@
   // no flush needed.
   static void bleWriteAll(const char* s) {
     size_t n = strlen(s), i = 0; uint32_t stall = 0;
+    // chunk = ATT payload (MTU-3); bridge negotiates MTU 247 -> 244 B chunks.
+    // Fallback 20 B when MTU stayed at the 23 B default (unpaired phone etc.).
+    size_t maxchunk = 20;
+    BLEConnection* conn = Bluefruit.Connection(Bluefruit.connHandle());
+    if (conn && conn->getMtu() > 23) maxchunk = conn->getMtu() - 3;
     while (i < n && Bluefruit.connected() && stall < 300) {   // max ~0.9 s stall → bail
-      size_t chunk = n - i; if (chunk > 20) chunk = 20;
+      size_t chunk = n - i; if (chunk > maxchunk) chunk = maxchunk;
       size_t w = bleuart.write((const uint8_t*)(s + i), chunk);
       if (w > 0) { i += w; stall = 0; }
       else { stall++; delay(3); }   // queue full -> wait a moment and retry
@@ -342,8 +347,8 @@ void loop() {
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
     Serial.print('\n');
     command[len - 1] = 0;  // replace newline with C string null terminator
-    char reply[160];
-    the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
+    static char reply[1032];   // big pages for paged analyzer replies (nodes/rxlog); BSS, ne stack
+    the_mesh.handleCommand(0, command, reply, (int)sizeof(reply) - 32);  // NOTE: there is no sender_timestamp via serial!
     if (reply[0]) {
       Serial.print("  -> "); Serial.println(reply);
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
