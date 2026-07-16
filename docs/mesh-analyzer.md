@@ -172,6 +172,42 @@ keep draining `rxlog` (advance the cursor!) and, on a busy channel, raise
 `RXLOG_SIZE`. The single `nodes.path` is a durable fallback when you haven't
 buffered the matching `rxlog` copies.
 
+### 1.5 `pktlog [cursor]` — raw-frame feed (community observer interop)
+
+`rxlog`'s sibling ring (build flag `PKTFEED_SIZE`, e.g. 32) that keeps the
+**full raw frame bytes** so a bridge can publish meshcoretomqtt-compatible
+packets to a community analyzer (`meshcore/{IATA}/{PUBKEY}/packets`). Same
+paging/cursor/trailer semantics as `rxlog`, fed from the same RX path
+(staged pre-parse in `logRxRaw`, committed post-parse in `logRx`, so radio
+garbage never enters the feed).
+
+Per-record line:
+
+```
+P,<seq>,<when>,<snr>,<rssi>,<raw>
+```
+
+| Field  | Meaning                                                       |
+|--------|---------------------------------------------------------------|
+| `seq`  | monotonic capture sequence (paging cursor, shared rules w/ rxlog) |
+| `when` | capture time, epoch seconds                                   |
+| `snr`  | SNR × 4 (0.25 dB units)                                       |
+| `rssi` | RSSI in dBm, signed                                           |
+| `raw`  | full wire frame hex: `header ‖ [4B transport] ‖ path_len ‖ path ‖ payload` |
+
+Trailer: `E,<last_seq>,<oldest_seq>,<newest_seq>` — identical drop-detection
+rule as `rxlog`.
+
+Everything else is **derived bridge-side from `raw`**: route/type from the
+header byte, and the MeshCore packet hash (the analyzer's cross-observer
+correlation key) as `SHA256(type ‖ [path_len byte if TRACE] ‖ payload)[:8]`
+(= `Packet::calculatePacketHash`) — so the radio hot path stays SHA-free.
+
+NOTE: a full-size record line is ~550 chars — bigger than the mesh admin
+CLI's 150 B reply budget. Over the mesh CLI the reply degrades to a bare
+trailer; the intended consumer is the local (USB/BLE) console with ~1000 B
+pages, which always fits at least one record.
+
 ---
 
 ## 2. Bridge + map spec (for the other agent)

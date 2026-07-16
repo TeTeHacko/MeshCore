@@ -82,13 +82,21 @@ struct NeighbourInfo {
 //     capture seq, time, packet hash, header (route|type), SNR/RSSI and the hop
 //     path.  -> live traffic / analyzer view.
 //     Exposed by the `rxlog [cursor]` CLI command.
-// Enable per-variant, e.g.:  -D MAX_HEARD_NODES=48 -D RXLOG_SIZE=96
+//   * pktfeed_ring[] -- like rxlog but with the FULL RAW FRAME BYTES, for the
+//     community observer feed (meshcoretomqtt-compatible: the bridge derives
+//     type/route/payload and the SHA256 packet hash from the raw bytes).
+//     Smaller ring -- raw frames are fat (~268 B/record).
+//     Exposed by the `pktlog [cursor]` CLI command.
+// Enable per-variant, e.g.:  -D MAX_HEARD_NODES=48 -D RXLOG_SIZE=96 -D PKTFEED_SIZE=32
 // ---------------------------------------------------------------------------
 #ifndef MAX_HEARD_NODES
   #define MAX_HEARD_NODES 0
 #endif
 #ifndef RXLOG_SIZE
   #define RXLOG_SIZE 0
+#endif
+#ifndef PKTFEED_SIZE
+  #define PKTFEED_SIZE 0
 #endif
 #ifndef HEARD_NODE_NAME_LEN
   #define HEARD_NODE_NAME_LEN 24
@@ -132,6 +140,17 @@ struct RxLogRec {
   uint8_t  header;                 // raw header byte (route|type|ver)
   uint8_t  path_len;               // bit-packed (hash size|count)
   uint8_t  path[ANALYZER_PATH_LEN];
+};
+#endif
+
+#if PKTFEED_SIZE
+struct PktFeedRec {
+  uint32_t seq;                    // monotonic capture sequence (0 = empty slot; also the paging cursor)
+  uint32_t when;                   // epoch
+  int8_t   snr;                    // x4
+  int8_t   rssi;                   // dBm
+  uint8_t  len;                    // raw frame length in bytes
+  uint8_t  raw[MAX_TRANS_UNIT];    // full wire frame (header|[transport]|path_len|path|payload)
 };
 #endif
 
@@ -181,6 +200,16 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint16_t rxlog_head;      // next slot to write
   uint32_t rxlog_next_seq;  // next capture sequence to assign (starts at 1)
 #endif
+#if PKTFEED_SIZE
+  PktFeedRec pktfeed_ring[PKTFEED_SIZE];
+  uint16_t pktfeed_head;      // next slot to write
+  uint32_t pktfeed_next_seq;  // next capture sequence to assign (starts at 1)
+  // raw bytes staged in logRxRaw (pre-parse, the only place they exist) and
+  // committed to the ring in logRx (fires only for frames that parsed OK, so
+  // radio garbage never enters the feed)
+  uint8_t pktfeed_stage[MAX_TRANS_UNIT];
+  uint8_t pktfeed_stage_len;  // 0 = nothing staged
+#endif
   CayenneLPP telemetry;
   unsigned long set_radio_at, revert_radio_at;
   float pending_freq;
@@ -204,6 +233,11 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #if RXLOG_SIZE
   void captureRx(const mesh::Packet* pkt);
   void formatRxLogReply(char* reply, int max_len, uint32_t cursor);
+#endif
+#if PKTFEED_SIZE
+  void stagePktFeed(const uint8_t raw[], int len);
+  void commitPktFeed(const mesh::Packet* pkt);
+  void formatPktFeedReply(char* reply, int max_len, uint32_t cursor);
 #endif
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);

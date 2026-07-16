@@ -273,6 +273,84 @@ void MyMesh::formatRxLogReply(char* reply, int max_len, uint32_t cursor) {
 }
 #endif
 
+#if PKTFEED_SIZE
+// CUSTOM (TeTeHacko): observer feed -- rxlog's sibling ring that keeps the FULL
+// raw frame so the bridge can publish meshcoretomqtt-compatible packets (the
+// SHA256 packet hash and type/route/payload decode all happen bridge-side).
+void MyMesh::stagePktFeed(const uint8_t raw[], int len) {
+  if (len <= 0 || len > MAX_TRANS_UNIT) {
+    pktfeed_stage_len = 0;
+    return;
+  }
+  memcpy(pktfeed_stage, raw, len);
+  pktfeed_stage_len = (uint8_t) len;
+}
+
+void MyMesh::commitPktFeed(const mesh::Packet* pkt) {
+  // stage/commit must be the same frame: both run in order inside one
+  // Dispatcher::checkRecv pass, but a parse-failed frame leaves a stale stage
+  // behind -- the length check discards such a mismatched pairing
+  if (pktfeed_stage_len == 0 || pktfeed_stage_len != pkt->getRawLength()) {
+    pktfeed_stage_len = 0;
+    return;
+  }
+  PktFeedRec* r = &pktfeed_ring[pktfeed_head];
+  pktfeed_head = (pktfeed_head + 1) % PKTFEED_SIZE;
+  r->seq = pktfeed_next_seq++;
+  if (pktfeed_next_seq == 0) pktfeed_next_seq = 1;   // wrap guard (seq 0 reserved for empty)
+  r->when = getRTCClock()->getCurrentTime();
+  r->snr = pkt->_snr;
+  r->rssi = (int8_t) pkt->getRSSI();
+  r->len = pktfeed_stage_len;
+  memcpy(r->raw, pktfeed_stage, pktfeed_stage_len);
+  pktfeed_stage_len = 0;
+}
+
+// `pktlog [cursor]` -> paged dump of raw frames with seq > cursor (oldest first).
+// One text line per record: P,<seq>,<when>,<snr*4>,<rssi>,<raw-hex>
+// Trailer line:             E,<last_returned_seq>,<oldest_seq_in_ring>,<newest_seq>
+void MyMesh::formatPktFeedReply(char* reply, int max_len, uint32_t cursor) {
+  char* dp = reply;
+  PktFeedRec* recs[PKTFEED_SIZE];   // small ring -> stack is fine (32 ptrs)
+  int n = 0;
+  uint32_t oldest = 0, newest = 0;
+  for (int i = 0; i < PKTFEED_SIZE; i++) {
+    PktFeedRec* r = &pktfeed_ring[i];
+    if (r->seq == 0) continue;
+    if (oldest == 0 || r->seq < oldest) oldest = r->seq;
+    if (r->seq > newest) newest = r->seq;
+    if (r->seq > cursor) recs[n++] = r;
+  }
+  std::sort(recs, recs + n, [](const PktFeedRec* a, const PktFeedRec* b) {
+    return a->seq < b->seq;   // oldest unread first
+  });
+
+  uint32_t last = cursor;
+  static char line[40 + MAX_TRANS_UNIT * 2];   // BSS, ne stack (~550 B; volá se jen z loop tasku)
+  for (int i = 0; i < n; i++) {
+    PktFeedRec* r = recs[i];
+    int ll = snprintf(line, sizeof(line), "P,%lu,%lu,%d,%d,",
+                      (unsigned long)r->seq, (unsigned long)r->when,
+                      (int)r->snr, (int)r->rssi);
+    for (int b = 0; b < r->len; b++) {
+      ll += sprintf(line + ll, "%02X", r->raw[b]);
+    }
+    line[ll++] = '\n';
+    line[ll] = 0;
+    // Unlike rxlog there is NO "always emit >=1" here: a full-size record line
+    // (~550 B) exceeds the mesh admin CLI's 150 B budget and would overflow its
+    // reply buffer. There the reply degrades to a bare trailer (paging stalls);
+    // the intended consumer is the local console's ~1000 B pages, which always
+    // fit at least one record.
+    if ((dp - reply) + ll + 40 > max_len) break;   // room for trailer
+    memcpy(dp, line, ll); dp += ll;
+    last = r->seq;
+  }
+  dp += sprintf(dp, "E,%lu,%lu,%lu", (unsigned long)last, (unsigned long)oldest, (unsigned long)newest);
+  *dp = 0;
+}
+#endif
+
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
@@ -650,6 +728,10 @@ const char *MyMesh::getLogDateTime() {
 }
 
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
+#if PKTFEED_SIZE
+  // observer feed: raw bytes only exist here (pre-parse); committed in logRx
+  stagePktFeed(raw, len);
+#endif
 #if MESH_PACKET_LOGGING
   Serial.print(getLogDateTime());
   Serial.print(" RAW: ");
@@ -664,6 +746,10 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
   // Dispatcher::checkRecv (before any score-delay queueing), so getRSSI()/SNR
   // on the packet still belong to THIS frame.
   captureRx(pkt);
+#endif
+#if PKTFEED_SIZE
+  // observer feed: pair the staged raw bytes (from logRxRaw) with this frame
+  commitPktFeed(pkt);
 #endif
 #ifdef WITH_BRIDGE
   if (_prefs.bridge_pkt_src == 1) {
@@ -1090,6 +1176,12 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   rxlog_head = 0;
   rxlog_next_seq = 1;   // seq 0 is reserved for "empty slot" / initial cursor
 #endif
+#if PKTFEED_SIZE
+  memset(pktfeed_ring, 0, sizeof(pktfeed_ring));
+  pktfeed_head = 0;
+  pktfeed_next_seq = 1;   // seq 0 is reserved for "empty slot" / initial cursor
+  pktfeed_stage_len = 0;
+#endif
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
@@ -1489,6 +1581,12 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     // analyzer: paged firehose of every frame heard, since <cursor> (0 = all)
     uint32_t cursor = (command[5] == ' ') ? (uint32_t) strtoul(&command[6], NULL, 10) : 0;
     formatRxLogReply(reply, reply_max, cursor);
+#endif
+#if PKTFEED_SIZE
+  } else if (memcmp(command, "pktlog", 6) == 0 && (command[6] == 0 || command[6] == ' ')) {
+    // observer feed: paged raw frames heard, since <cursor> (0 = all)
+    uint32_t cursor = (command[6] == ' ') ? (uint32_t) strtoul(&command[7], NULL, 10) : 0;
+    formatPktFeedReply(reply, reply_max, cursor);
 #endif
   } else{
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
