@@ -15,29 +15,53 @@
   #ifndef BLE_DEVICE_NAME
     #define BLE_DEVICE_NAME ADVERT_NAME
   #endif
-  // CUSTOM (TeTeHacko): reliable send over BLE UART.
-  // When the SoftDevice notification queue is full, Bluefruit bleuart.write()
-  // returns fewer bytes and silently DROPS the rest (non-blocking), so long
-  // replies spanning multiple notifications (neighbors/stats-*) get truncated.
-  // Fix: send in <=20 B chunks (1 notification) + retry unwritten bytes with a
-  // short pause. The stall guard is bounded so this can NEVER block the main
-  // loop for long (watchdog would reset otherwise).
+  // CUSTOM (TeTeHacko): reliable send over BLE UART, without ever blocking the
+  // main loop. Bluefruit bleuart.write() is non-blocking: when the SoftDevice
+  // notification queue is full it returns 0 and silently DROPS the rest, so
+  // long replies (nodes/rxlog/stats-*) got truncated; the earlier retry loop
+  // fixed truncation but stalled loop() up to ~0.9 s per call — enough to
+  // disturb LoRa RX/TX timing while a client streams the console. Now
+  // bleWriteAll() only copies into a ring buffer and bleTxPump() (called every
+  // loop() pass) hands the SoftDevice as much as it will take right now, never
+  // waiting. On overflow the NEWEST bytes are cut (a torn page keeps its 'E,'
+  // trailer framing wrong -> the bridge just re-requests the same cursor).
   // WARNING: do NOT call bleuart.flushTXD() — without bufferTXD(true) _tx_fifo
   // is NULL and flushTXD() dereferences it → memory corruption/HardFault (this
   // was the observed lockup). In unbuffered mode write() notifies immediately,
   // no flush needed.
+  #define BLE_TXRING_SIZE 4096   // power of 2; >= "  -> " + reply[1032] + CRLF with slack
+  static uint8_t ble_txring[BLE_TXRING_SIZE];
+  static size_t ble_tx_head = 0, ble_tx_tail = 0;   // enqueue + pump both run in loop(): no locking
+
   static void bleWriteAll(const char* s) {
-    size_t n = strlen(s), i = 0; uint32_t stall = 0;
+    if (!Bluefruit.connected()) return;
+    size_t used = (ble_tx_head - ble_tx_tail) & (BLE_TXRING_SIZE - 1);
+    size_t space = BLE_TXRING_SIZE - 1 - used;
+    size_t n = strlen(s);
+    if (n > space) n = space;   // overflow -> truncate newest (see comment above)
+    for (size_t i = 0; i < n; i++) {
+      ble_txring[ble_tx_head] = (uint8_t)s[i];
+      ble_tx_head = (ble_tx_head + 1) & (BLE_TXRING_SIZE - 1);
+    }
+  }
+
+  static void bleTxPump() {
+    if (ble_tx_tail == ble_tx_head) return;
+    if (!Bluefruit.connected()) { ble_tx_tail = ble_tx_head; return; }   // client gone -> drop
     // chunk = ATT payload (MTU-3); bridge negotiates MTU 247 -> 244 B chunks.
     // Fallback 20 B when MTU stayed at the 23 B default (unpaired phone etc.).
     size_t maxchunk = 20;
     BLEConnection* conn = Bluefruit.Connection(Bluefruit.connHandle());
     if (conn && conn->getMtu() > 23) maxchunk = conn->getMtu() - 3;
-    while (i < n && Bluefruit.connected() && stall < 300) {   // max ~0.9 s stall → bail
-      size_t chunk = n - i; if (chunk > maxchunk) chunk = maxchunk;
-      size_t w = bleuart.write((const uint8_t*)(s + i), chunk);
-      if (w > 0) { i += w; stall = 0; }
-      else { stall++; delay(3); }   // queue full -> wait a moment and retry
+    while (ble_tx_tail != ble_tx_head) {
+      size_t avail = (ble_tx_head - ble_tx_tail) & (BLE_TXRING_SIZE - 1);
+      size_t chunk = avail;
+      if (chunk > maxchunk) chunk = maxchunk;
+      size_t run = BLE_TXRING_SIZE - ble_tx_tail;   // stop at ring wrap; rest goes next write
+      if (chunk > run) chunk = run;
+      size_t w = bleuart.write(&ble_txring[ble_tx_tail], chunk);
+      if (w == 0) break;   // SoftDevice queue full -> retry next loop() pass
+      ble_tx_tail = (ble_tx_tail + w) & (BLE_TXRING_SIZE - 1);
     }
   }
 
@@ -325,6 +349,7 @@ void loop() {
       }
     }
   }
+  bleTxPump();   // drain queued console output, never blocks (see bleWriteAll)
 #endif
   int len = strlen(command);
   while (Serial.available() && len < sizeof(command)-1) {
