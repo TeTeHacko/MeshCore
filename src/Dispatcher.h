@@ -108,6 +108,17 @@ typedef uint32_t  DispatcherAction;
 #define ERR_EVENT_FULL              (1 << 0)
 #define ERR_EVENT_CAD_TIMEOUT       (1 << 1)
 #define ERR_EVENT_STARTRX_TIMEOUT   (1 << 2)
+#define ERR_EVENT_TX_START_FAIL     (1 << 3)   // CUSTOM (TeTeHacko): startSendRaw() returned error (radio busy/SPI hiccup)
+#define ERR_EVENT_TX_TIMEOUT        (1 << 4)   // CUSTOM (TeTeHacko): send-complete IRQ never came before outbound_expiry
+
+// CUSTOM (TeTeHacko): how many times a failed TX (start fail or send timeout) is
+// requeued before the packet is finally dropped. Transient failures are common
+// when the nRF52 SoftDevice (BLE connection events) preempts the LoRa driver —
+// measured ~40 % direct-forward loss with an idle BLE connection. A short retry
+// converts those losses into ~100-300 ms of extra latency.
+#ifndef MESH_TX_RETRIES
+  #define MESH_TX_RETRIES  3
+#endif
 
 /**
  * \brief  The low-level task that manages detecting incoming Packets, and the queueing
@@ -123,6 +134,7 @@ class Dispatcher {
   bool  prev_isrecv_mode;
   uint32_t n_sent_flood, n_sent_direct;
   uint32_t n_recv_flood, n_recv_direct;
+  uint32_t n_tx_start_fail, n_tx_timeout;   // CUSTOM (TeTeHacko): TX failure tallies (see MESH_TX_RETRIES)
   unsigned long tx_budget_ms;
   unsigned long last_budget_update;
   unsigned long duty_cycle_window_ms;
@@ -184,6 +196,8 @@ public:
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
+  uint32_t getNumTxStartFail() const { return n_tx_start_fail; }   // CUSTOM (TeTeHacko)
+  uint32_t getNumTxTimeout() const { return n_tx_timeout; }        // CUSTOM (TeTeHacko)
   void resetStats() {
     n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = 0;
     _err_flags = 0;

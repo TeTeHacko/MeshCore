@@ -40,16 +40,20 @@ public:
                                uint32_t n_sent_flood,
                                uint32_t n_sent_direct,
                                uint32_t n_recv_flood,
-                               uint32_t n_recv_direct) {
-    sprintf(reply, 
-      "{\"recv\":%u,\"sent\":%u,\"flood_tx\":%u,\"direct_tx\":%u,\"flood_rx\":%u,\"direct_rx\":%u,\"recv_errors\":%u}",
+                               uint32_t n_recv_direct,
+                               uint32_t n_tx_start_fail = 0,   // CUSTOM (TeTeHacko): TX failure tallies
+                               uint32_t n_tx_timeout = 0) {    // (defaults keep other callers unchanged)
+    sprintf(reply,
+      "{\"recv\":%u,\"sent\":%u,\"flood_tx\":%u,\"direct_tx\":%u,\"flood_rx\":%u,\"direct_rx\":%u,\"recv_errors\":%u,\"tx_start_fail\":%u,\"tx_timeout\":%u}",
       driver.getPacketsRecv(),
       driver.getPacketsSent(),
       n_sent_flood,
       n_sent_direct,
       n_recv_flood,
       n_recv_direct,
-      driver.getPacketsRecvErrors()
+      driver.getPacketsRecvErrors(),
+      n_tx_start_fail,
+      n_tx_timeout
     );
   }
 };

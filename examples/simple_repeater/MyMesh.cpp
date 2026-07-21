@@ -1459,8 +1459,9 @@ void MyMesh::formatRadioStatsReply(char *reply) {
 }
 
 void MyMesh::formatPacketStatsReply(char *reply) {
-  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
-                                       getNumRecvFlood(), getNumRecvDirect());
+  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(),
+                                       getNumRecvFlood(), getNumRecvDirect(),
+                                       getNumTxStartFail(), getNumTxTimeout());
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {

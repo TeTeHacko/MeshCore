@@ -50,6 +50,7 @@ public:
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
   int8_t _rssi;   // CUSTOM (TeTeHacko): last-hop RSSI (dBm) captured at RX, for the passive mesh analyzer
+  uint8_t _tx_attempts;   // CUSTOM (TeTeHacko): failed TX tries so far (RAM only; Dispatcher requeues instead of dropping)
 
   /**
    * \brief calculate the hash of payload + type

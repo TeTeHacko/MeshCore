@@ -19,6 +19,7 @@ namespace mesh {
 void Dispatcher::begin() {
   n_sent_flood = n_sent_direct = 0;
   n_recv_flood = n_recv_direct = 0;
+  n_tx_start_fail = n_tx_timeout = 0;
   _err_flags = 0;
   radio_nonrx_start = _ms->getMillis();
 
@@ -117,9 +118,20 @@ void Dispatcher::loop() {
       MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): WARNING: outbound packed send timed out!", getLogDateTime());
 
       _radio->onSendFinished();
-      logTxFail(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
 
-      releasePacket(outbound);  // return to pool
+      // CUSTOM (TeTeHacko): the send-complete IRQ never arrived (SoftDevice/BLE
+      // preemption can wedge the LoRa driver mid-TX). Requeue with a short
+      // backoff instead of dropping -- a duplicate on air is harmless (hasSeen
+      // dedup), a dropped direct forward is a black hole.
+      n_tx_timeout++;
+      _err_flags |= ERR_EVENT_TX_TIMEOUT;
+      if (outbound->_tx_attempts < MESH_TX_RETRIES) {
+        outbound->_tx_attempts++;
+        _mgr->queueOutbound(outbound, 0, futureMillis(40 + 80 * outbound->_tx_attempts));
+      } else {
+        logTxFail(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
+        releasePacket(outbound);  // return to pool
+      }
       outbound = NULL;
     } else {
       return;  // can't do any more radio activity until send is complete or timed out
@@ -204,6 +216,7 @@ void Dispatcher::checkRecv() {
         if (tryParsePacket(pkt, raw, len)) {
           pkt->_snr = _radio->getLastSNR() * 4.0f;
           pkt->_rssi = (int8_t)_radio->getLastRSSI();
+          pkt->_tx_attempts = 0;
           score = _radio->packetScore(_radio->getLastSNR(), len);
           air_time = _radio->getEstAirtimeFor(len);
           rx_air_time += air_time;
@@ -330,9 +343,18 @@ void Dispatcher::checkSend() {
       if (!success) {
         MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): ERROR: send start failed!", getLogDateTime());
 
-        logTxFail(outbound, outbound->getRawLength());
-  
-        releasePacket(outbound);  // return to pool
+        // CUSTOM (TeTeHacko): startTransmit() failing is usually transient
+        // (SPI/BUSY hiccup while the SoftDevice services a BLE connection
+        // event). Requeue with a short backoff instead of dropping.
+        n_tx_start_fail++;
+        _err_flags |= ERR_EVENT_TX_START_FAIL;
+        if (outbound->_tx_attempts < MESH_TX_RETRIES) {
+          outbound->_tx_attempts++;
+          _mgr->queueOutbound(outbound, 0, futureMillis(40 + 80 * outbound->_tx_attempts));
+        } else {
+          logTxFail(outbound, outbound->getRawLength());
+          releasePacket(outbound);  // return to pool
+        }
         outbound = NULL;
         return;
       }
@@ -360,6 +382,7 @@ Packet* Dispatcher::obtainNewPacket() {
   } else {
     pkt->payload_len = pkt->path_len = 0;
     pkt->_snr = 0;
+    pkt->_tx_attempts = 0;
   }
   return pkt;
 }
