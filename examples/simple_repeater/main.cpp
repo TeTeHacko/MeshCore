@@ -50,8 +50,15 @@
   // freeze is still caught by the 20 s hardware watchdog (16 s < 20 s). Like the
   // companion, request the params explicitly on 'secured' (some centrals ignore
   // the advertised PPCP).
-  #define RPT_BLE_MIN_CONN_INTERVAL   12    // 15 ms  (1.25 ms units)
-  #define RPT_BLE_MAX_CONN_INTERVAL   24    // 30 ms
+  // Interval 60-80 ms (was 15-30 ms): a controlled A/B test (21 Jul 2026) showed
+  // ~40 % of DIRECT-route LoRa forwards silently lost with an IDLE BLE
+  // connection at 15-30 ms — the SoftDevice's per-event preemption disturbs the
+  // SX126x TX path (startTransmit fail / send-complete timeout). Fewer
+  // connection events = proportionally fewer collisions; the Dispatcher TX
+  // retry (MESH_TX_RETRIES) covers the rest. Console throughput drops ~3x,
+  // which the duty-cycled bridge tolerates fine.
+  #define RPT_BLE_MIN_CONN_INTERVAL   48    // 60 ms  (1.25 ms units)
+  #define RPT_BLE_MAX_CONN_INTERVAL   64    // 80 ms
   // latency 0 (not the companion's 4): the mast link is marginal (RSSI -75..-90)
   // and the disconnects are HCI reason 0x3E (lost sync), not supervision timeout.
   // With latency>0 the node may skip connection events -> the central loses sync
