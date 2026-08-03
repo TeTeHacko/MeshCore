@@ -7,9 +7,18 @@ cannot be repeated by hand.
 
 | tool | what it does |
 |---|---|
+| `ble_pair.py` | bond to a node by PIN, non-interactively — the prerequisite for both tools below |
 | `ble_cli.py` | the text console over BLE (Nordic UART), for nodes with no cable |
 | `ble_dfu.py` | firmware update over BLE (legacy Nordic DFU, Adafruit nRF52 bootloader) |
 | `provision/` | command files: what to send, and what the answers must look like |
+
+The usual sequence against a node you have never talked to before:
+
+```sh
+ble_pair.py <MAC>                  # bond (PIN from platformio.local.ini)
+bluetoothctl disconnect <MAC>      # pairing leaves it connected = not advertising
+ble_dfu.py firmware.zip <MAC>      # or ble_cli.py <MAC> ...
+```
 
 ## Rule 0 — address boards by serial number
 
@@ -36,6 +45,42 @@ ls /dev/serial/by-id/ | grep B69F86518175CBA3
 
 Over BLE the equivalent identity is the **address**, and it is equally
 mandatory — see `ble_dfu.py` below.
+
+## `ble_pair.py` — bond by PIN
+
+```sh
+ble_pair.py DC:28:1D:8A:04:1A
+ble_pair.py DC:28:1D:8A:04:1A CE:72:14:CD:FD:02      # several in one run
+```
+
+Registers a KeyboardOnly agent with bluetoothctl and answers the passkey
+prompt with `[secrets] ble_pin` from `platformio.local.ini`. It is state-driven,
+not timed: an earlier version sent `pair` before the agent was registered, the
+prompt went to the default agent, and the node stayed unpaired with no error
+anywhere.
+
+**Bonding is not only for the console.** The buttonless-DFU control point
+carries the same `SECMODE_ENC_WITH_MITM`
+(`src/helpers/nrf52/SerialBLEInterface.cpp`), so `ble_dfu.py` phase 1 cannot
+write its trigger to an unpaired node either — it fails as an ordinary write
+error that looks nothing like "you are not bonded".
+
+**Disconnect afterwards.** bluetoothctl leaves the node connected once pairing
+succeeds, and a connected peripheral stops advertising, so the very next
+`ble_dfu.py` run dies on `APP nenalezen ve scanu`.
+
+**Dual USB/BLE companions only advertise while undocked.** On T1000-E and Wio
+L1 builds, dock-quiet suppresses advertising whenever a USB host holds DTR high
+(`SerialDualInterface`). Unplug USB — or, if the cable has to stay in, hold the
+port open with DTR deasserted:
+
+```python
+s = serial.Serial(); s.port = PORT; s.dtr = False; s.rts = False
+s.open(); s.dtr = False          # node starts advertising within a second
+```
+
+Merely closing the port is not always enough; observed on a T1000-E that stayed
+dark until something explicitly drove DTR low.
 
 ## `ble_cli.py` — console over BLE
 
