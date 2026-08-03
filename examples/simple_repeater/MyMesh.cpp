@@ -1198,6 +1198,23 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
+  // CUSTOM (TeTeHacko): 2-byte path hashes by default. Upstream leaves this
+  // field unset, so a fresh node came up at mode 0 = 1 byte per hop -- which
+  // nobody on the CZ mesh runs any more, and every new install then needed a
+  // manual `set path.hash.mode 1`.
+  //
+  // NOTE this is the PATH hash, not PATH_HASH_SIZE. It is used as
+  // sendFlood(..., path_hash_mode + 1), i.e. bytes each hop appends to the path
+  // while flooding, and the size travels in the packet: Packet.h:85 packs it
+  // into the top 2 bits of path_len and Mesh.cpp:93 matches with
+  // getPathHashSize(), so mixed-mode nodes still route for each other.
+  // PATH_HASH_SIZE (1) is a different field -- the destination and channel hash
+  // in Mesh.cpp:458/548 -- and changing THAT would break the wire format
+  // against every other node in the mesh.
+  #ifndef PATH_HASH_MODE_DEFAULT
+  #define PATH_HASH_MODE_DEFAULT 1     // 1 = 2 bytes per hop
+  #endif
+  _prefs.path_hash_mode = PATH_HASH_MODE_DEFAULT;
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 47; // 47 hours
   _prefs.flood_max = 64;

@@ -876,6 +876,15 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
+  // CUSTOM (TeTeHacko): 2-byte path hashes by default, same as the repeater --
+  // upstream left this unset, so a fresh node came up at mode 0 = 1 byte per
+  // hop, which nobody on the CZ mesh runs any more. See the longer note in
+  // simple_repeater/MyMesh.cpp: this is the PATH hash (bytes each hop appends
+  // while flooding, size carried in the packet), NOT PATH_HASH_SIZE.
+  #ifndef PATH_HASH_MODE_DEFAULT
+  #define PATH_HASH_MODE_DEFAULT 1     // 1 = 2 bytes per hop
+  #endif
+  _prefs.path_hash_mode = PATH_HASH_MODE_DEFAULT;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
