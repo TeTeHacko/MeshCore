@@ -87,9 +87,16 @@ async def phase1_buttonless(mac):
     log("   APP odpojen, čekám na reboot bootloaderu...")
     await asyncio.sleep(4)
 
-async def send_image(c, nf, pkt_char, data, prn=8):
-    mtu = getattr(c, "mtu_size", 23) or 23
-    chunk = max(20, mtu - 3)
+class ImageDone(Exception):
+    """Bootloader potvrdil celý image dřív, než smyčka došla na PRN práh."""
+
+class ChunkTooBig(Exception):
+    """Bootloader neodpověděl na první receipt -> nezvládá velké pakety."""
+
+async def send_image(c, nf, pkt_char, data, prn=8, chunk=None):
+    if chunk is None:
+        mtu = getattr(c, "mtu_size", 23) or 23
+        chunk = max(20, mtu - 3)
     log(f"   posílám image {len(data)} B, chunk {chunk} B, PRN {prn}")
     sent = 0; since_rcpt = 0
     total = len(data)
@@ -101,12 +108,31 @@ async def send_image(c, nf, pkt_char, data, prn=8):
             since_rcpt = 0
             # počkej na receipt [0x11, <4B received>]
             while True:
-                d = await nf.wait(60)
+                try:
+                    d = await nf.wait(60)
+                except asyncio.TimeoutError:
+                    # Ticho po PRVNÍ skupině = bootloader ty pakety vůbec
+                    # nepobral. Není to congestion, ale velikost: legacy DFU
+                    # (SDK 11) na některých bootloaderech bere jen 20 B, a když
+                    # BlueZ vyjedná MTU 247, posíláme 244 B a přenos umře pod
+                    # 48 kB. Pozorováno: XIAO nRF52840 (AdaDFU, MTU 247) padá,
+                    # SenseCap Solar (AdaDFU, MTU zůstane 23) i tth-ltm
+                    # (SCAP_DFU na MAC+1, MTU 247) jedou. Volající to zkusí
+                    # znovu s 20 B.
+                    if sent <= prn * chunk and chunk > 20:
+                        raise ChunkTooBig()
+                    raise
                 if d and d[0] == PKT_RCPT:
                     got = struct.unpack("<I", d[1:5])[0]
                     if got != sent:
                         raise RuntimeError(f"PRN mismatch: bootloader {got} vs poslal {sent}")
                     break
+                # Poslední skupina nemusí na PRN práh dosáhnout: bootloader pak
+                # místo receiptu pošle rovnou úspěšnou RESP(RECEIVE_FW). To je
+                # konec přenosu, ne chyba.
+                if d and d[0] == RESP and d[1] == RECEIVE_FW and d[2] == 1:
+                    log(f"   image potvrzen bootloaderem na {sent}/{total} B")
+                    raise ImageDone()
                 if d and d[0] == RESP:
                     raise RuntimeError(f"nečekaná RESP během image: {d.hex()}")
             if (sent // chunk) % 200 == 0:
@@ -144,8 +170,29 @@ async def phase2_dfu(mac, fw_bin, fw_dat):
         await c.write_gatt_char(CP_UUID, bytes([PKT_RCPT_REQ]) + struct.pack("<H", prn), response=True)
         # RECEIVE image
         await c.write_gatt_char(CP_UUID, bytes([RECEIVE_FW]), response=True)
-        await send_image(c, nf, PKT_UUID, fw_bin, prn=prn)
-        await expect_resp(nf, RECEIVE_FW, timeout=90); log("   IMAGE ok")
+        try:
+            await send_image(c, nf, PKT_UUID, fw_bin, prn=prn)
+            await expect_resp(nf, RECEIVE_FW, timeout=90)
+        except ImageDone:
+            pass          # RESP(RECEIVE_FW) už dorazila uvnitř send_image
+        except ChunkTooBig:
+            # znovu od START_DFU, tenhle bootloader chce 20 B (viz send_image)
+            log("   -> bootloader nezvládá velké pakety, opakuji s 20 B")
+            await c.write_gatt_char(CP_UUID, bytes([START_DFU, 0x04]), response=True)
+            await c.write_gatt_char(PKT_UUID, struct.pack("<III", 0, 0, len(fw_bin)), response=False)
+            await expect_resp(nf, START_DFU)
+            await c.write_gatt_char(CP_UUID, bytes([INIT_DFU, 0x00]), response=True)
+            await c.write_gatt_char(PKT_UUID, fw_dat, response=False)
+            await c.write_gatt_char(CP_UUID, bytes([INIT_DFU, 0x01]), response=True)
+            await expect_resp(nf, INIT_DFU)
+            await c.write_gatt_char(CP_UUID, bytes([PKT_RCPT_REQ]) + struct.pack("<H", prn), response=True)
+            await c.write_gatt_char(CP_UUID, bytes([RECEIVE_FW]), response=True)
+            try:
+                await send_image(c, nf, PKT_UUID, fw_bin, prn=prn, chunk=20)
+                await expect_resp(nf, RECEIVE_FW, timeout=90)
+            except ImageDone:
+                pass
+        log("   IMAGE ok")
         # VALIDATE
         await c.write_gatt_char(CP_UUID, bytes([VALIDATE]), response=True)
         await expect_resp(nf, VALIDATE); log("   VALIDATE ok")
