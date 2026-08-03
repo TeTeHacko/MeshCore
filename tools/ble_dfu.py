@@ -49,24 +49,38 @@ def mac_plus_one(mac):
 async def find(mac, want_dfu=False, timeout=30):
     """Najdi zařízení. POZOR: běžící APP inzeruje DFU službu taky (kvůli
     buttonless), takže 'want_dfu' NESMÍ matchovat jen podle DFU svc -> spletl by
-    si app s bootloaderem. Bootloader advertuje SCAP_DFU na MAC+1 -> rozlišuj tím."""
+    si app s bootloaderem. Bootloader advertuje SCAP_DFU na MAC+1 (SenseCap na
+    stožáru) NEBO AdaDFU na TÉŽE MAC (XIAO, novější SenseCap Solar).
+
+    ADRESA JE POVINNÁ. Dřív stačil název obsahující "DFU" bez ohledu na adresu a
+    bralo se prostě první zařízení ze skenu -- s víc deskami v bootloaderu
+    najednou to sáhne na cizí. Stalo se: cíl CE:72:…:02, připojilo se
+    FE:11:…:C4. Zachytilo se to jen proto, že se log četl ručně; o pár sekund
+    později by START_DFU přepsal jinou desku."""
     boot_mac = mac_plus_one(mac)
     log(f"   scan (want_dfu={want_dfu}, mac={mac}, boot={boot_mac})...")
     devs = await BleakScanner.discover(timeout=timeout, return_adv=True)
-    cand = []
+    cand, rejected = [], []
     for d, adv in devs.values():
         addr = d.address.upper()
         has_dfu = DFU_SVC in [u.lower() for u in (adv.service_uuids or [])]
         name = (d.name or adv.local_name or "")
         if want_dfu:
-            # jen SKUTEČNÝ bootloader: MAC+1 nebo název *DFU* (ne appka na MAC)
-            if has_dfu and (addr == boot_mac or "DFU" in name.upper()):
+            if not has_dfu:
+                continue
+            looks_like_dfu = "DFU" in name.upper()
+            right_addr = addr in (boot_mac, mac.upper())
+            if looks_like_dfu and right_addr:
                 cand.append((d, adv, 0))
+            elif looks_like_dfu:
+                rejected.append(f"{addr} {name!r}")
         elif addr == mac.upper():
             cand.append((d, adv, 1))
     cand.sort(key=lambda x: x[2])
     for d, adv, _ in cand:
         log(f"   kandidát: {d.address} {d.name!r} dfu={DFU_SVC in [u.lower() for u in (adv.service_uuids or [])]}")
+    if rejected:
+        log(f"   (v bootloaderu i CIZÍ desky, ignoruji: {', '.join(rejected)})")
     return cand[0][0] if cand else None
 
 async def phase1_buttonless(mac):

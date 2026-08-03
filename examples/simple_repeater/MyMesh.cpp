@@ -1215,8 +1215,25 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   #define PATH_HASH_MODE_DEFAULT 1     // 1 = 2 bytes per hop
   #endif
   _prefs.path_hash_mode = PATH_HASH_MODE_DEFAULT;
-  _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
-  _prefs.flood_advert_interval = 47; // 47 hours
+  // CUSTOM (TeTeHacko): overridable so a node can be built to SHIP SILENT.
+  // ENABLE_ADVERT_ON_BOOT only suppresses the advert at boot, not the periodic
+  // timer -- with the upstream defaults an `erase`d node starts advertising
+  // within 2 minutes. For a repeater that is going somewhere unreachable that
+  // is the wrong way round: it must stay quiet until somebody deliberately
+  // turns it on, and a reboot on the mast must not undo that.
+  // Set both to 0 in the deployment envs; 0 = off (CommonCLI.cpp:615-630).
+  #ifndef ADVERT_INTERVAL_DEFAULT
+  #define ADVERT_INTERVAL_DEFAULT        1    // *2 = 2 minutes, upstream default
+  #endif
+  #ifndef FLOOD_ADVERT_INTERVAL_DEFAULT
+  #define FLOOD_ADVERT_INTERVAL_DEFAULT 47    // hours
+  #endif
+  #ifndef DISABLE_FWD_DEFAULT
+  #define DISABLE_FWD_DEFAULT            0    // 0 = repeat on
+  #endif
+  _prefs.advert_interval = ADVERT_INTERVAL_DEFAULT;
+  _prefs.flood_advert_interval = FLOOD_ADVERT_INTERVAL_DEFAULT;
+  _prefs.disable_fwd = DISABLE_FWD_DEFAULT;
   _prefs.flood_max = 64;
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
