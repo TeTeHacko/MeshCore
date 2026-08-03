@@ -157,3 +157,47 @@ counters. Both were zero throughout.
 - **Runtime `set tx` does not change radiated LoRa power** on XIAO+Wio-SX1262:
   +2 dBm gave RSSI −44.1, −9 dBm gave −44.0, and the node confirmed the setting.
   Attenuate physically or rely on frequency for isolation.
+
+## The two commands this bench added
+
+Both live in `examples/simple_repeater/main.cpp` and are repeater-only.
+
+### `bleconn` — what the link is actually doing
+
+```
+bleconn
+-> BLE conn: interval 75.00 ms (req 60-80), latency 0, sup timeout 4000 ms [live]
+```
+
+Reports the **negotiated** connection parameters, not the requested ones. The
+central is free to ignore a peripheral's request, so this is the only way to
+know whether a change like `f6e9aeca` (widening the requested interval to
+60–80 ms) is in force on a node you cannot see. The trailing `[live]` /
+`[last]` says whether a client is connected right now or these are the values
+from the last one; before any client has ever connected it answers
+`nothing seen yet`.
+
+### `blepwr [dBm [hold]]` — connection TX power, with a way back
+
+```
+blepwr             # report: BLE conn tx: 0 dBm, adv tx: 4 dBm
+blepwr -20         # weaken the link; auto-reverts after 5 minutes
+blepwr -20 hold    # ... unless you opt out
+```
+
+The reply carries how many live connections accepted the value
+(`OK - BLE conn tx -20 dBm (1/1 conn), auto-revert armed`) because the
+nRF52840 only takes −40, −20, −16, −12, −8, −4, 0 and 2..8 dBm; anything else
+is rejected by `setTxPower()` and is *not* latched, so a typo cannot arm itself
+for the next reconnect.
+
+Sets `BLE_GAP_TX_POWER_ROLE_CONN`, which is **independent of**
+`Bluefruit.setTxPower()` — that one only affects advertising, despite reading
+like a global. The connection otherwise runs at the SoftDevice default of
+0 dBm; the compile-time starting value is `RPT_BLE_CONN_TX_POWER`.
+
+The value is re-applied on every 'secured' event, so a setting weak enough to
+break the link would persist across reconnects and lock you out of a node with
+no cable — which is exactly what happened at −40 dBm during this bench. Hence
+the five-minute auto-revert: worst case you wait it out instead of driving to
+the node.
