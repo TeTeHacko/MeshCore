@@ -153,7 +153,7 @@ async def send_image(c, nf, pkt_char, data, prn=8, chunk=None):
                 log(f"      {sent}/{total} B ({100*sent//total} %)")
     log(f"   image odesláno {sent}/{total} B")
 
-async def phase2_dfu(mac, fw_bin, fw_dat):
+async def phase2_dfu(mac, fw_bin, fw_dat, chunk=None):
     log("== FÁZE 2: DFU na bootloaderu ==")
     dev = None
     for attempt in range(6):
@@ -185,27 +185,14 @@ async def phase2_dfu(mac, fw_bin, fw_dat):
         # RECEIVE image
         await c.write_gatt_char(CP_UUID, bytes([RECEIVE_FW]), response=True)
         try:
-            await send_image(c, nf, PKT_UUID, fw_bin, prn=prn)
+            await send_image(c, nf, PKT_UUID, fw_bin, prn=prn, chunk=chunk)
             await expect_resp(nf, RECEIVE_FW, timeout=90)
         except ImageDone:
             pass          # RESP(RECEIVE_FW) už dorazila uvnitř send_image
-        except ChunkTooBig:
-            # znovu od START_DFU, tenhle bootloader chce 20 B (viz send_image)
-            log("   -> bootloader nezvládá velké pakety, opakuji s 20 B")
-            await c.write_gatt_char(CP_UUID, bytes([START_DFU, 0x04]), response=True)
-            await c.write_gatt_char(PKT_UUID, struct.pack("<III", 0, 0, len(fw_bin)), response=False)
-            await expect_resp(nf, START_DFU)
-            await c.write_gatt_char(CP_UUID, bytes([INIT_DFU, 0x00]), response=True)
-            await c.write_gatt_char(PKT_UUID, fw_dat, response=False)
-            await c.write_gatt_char(CP_UUID, bytes([INIT_DFU, 0x01]), response=True)
-            await expect_resp(nf, INIT_DFU)
-            await c.write_gatt_char(CP_UUID, bytes([PKT_RCPT_REQ]) + struct.pack("<H", prn), response=True)
-            await c.write_gatt_char(CP_UUID, bytes([RECEIVE_FW]), response=True)
-            try:
-                await send_image(c, nf, PKT_UUID, fw_bin, prn=prn, chunk=20)
-                await expect_resp(nf, RECEIVE_FW, timeout=90)
-            except ImageDone:
-                pass
+        # ChunkTooBig se TADY neresi. Restart od START_DFU uvnitr tehoz spojeni
+        # bootloader odmitne se status 2 = INVALID_STATE -- stavovy automat uz je
+        # v "receiving" a dostat ho zpatky do IDLE umi jen RESET (opcode 6) plus
+        # nove spojeni. Vyhazuje se ven, main() to zopakuje s vynucenymi 20 B.
         log("   IMAGE ok")
         # VALIDATE
         await c.write_gatt_char(CP_UUID, bytes([VALIDATE]), response=True)
@@ -256,10 +243,19 @@ async def main():
     # BLE DFU je flaky — přenos občas spadne uprostřed (dropnutá receipt notif).
     # Auto-retry: po pádu vyresetuj bootloader do IDLE a zkus phase2 znovu.
     ATTEMPTS = 6
+    chunk = None          # None = mtu-3; prepne se na 20 po ChunkTooBig
     for i in range(ATTEMPTS):
         try:
-            await phase2_dfu(mac, fw_bin, fw_dat)
+            await phase2_dfu(mac, fw_bin, fw_dat, chunk=chunk)
             return   # hotovo
+        except ChunkTooBig:
+            # Tenhle bootloader nebere mtu-3 velke pakety. Nejde to zachranit
+            # v behu -- START_DFU podruhe vrati status 2 (INVALID_STATE) --
+            # takze RESET, nove spojeni a znovu, natvrdo po 20 B.
+            log("!! bootloader nezvlada velke pakety -> opakuji s 20 B")
+            chunk = 20
+            await reset_bootloader(mac)
+            await asyncio.sleep(6)
         except Exception as e:
             log(f"!! DFU pokus {i+1}/{ATTEMPTS} selhal: {type(e).__name__}: {str(e)[:80]}")
             if i == ATTEMPTS - 1:

@@ -1,0 +1,40 @@
+# Provisioning a repeater for the live CZ mesh that must ship SILENT.
+#
+#   tools/ble_cli.py <MAC> -f tools/provision/repeater-cz-silent.txt --per-command
+#
+# Order matters: `time` first, because a node whose RTC still says May 2024 has
+# clients dropping its replies, and everything after that is easier to read in
+# the log with a sane timestamp.
+#
+# What is NOT here, on purpose:
+#   name / lat / lon / frequency / advert intervals / repeat
+# Those come from the BUILD (see the deployment envs in platformio.local.ini).
+# Baking them in means an `erase` on a mast rebuilds a correct, silent node
+# instead of an upstream-default chatty one -- setting them here would only
+# paper over a firmware that is wrong for the job.
+#
+# Run `verify-cz-silent.txt` afterwards. Do not ship a node you have not
+# verified: on a mast there is no second chance.
+
+# --- clock -------------------------------------------------------------
+# The RTC is volatile. GPS re-syncs it after every reboot, which is why GPS is
+# on even where the position is never published. If GPS already has a fix this
+# returns "clock cannot go backwards" -- that is success, not an error.
+# Substitute the real epoch; ble_cli does not expand shell.
+# time <epoch>
+
+# --- GPS: time yes, position not necessarily ---------------------------
+gps on
+# `prefs` advertises the coordinates compiled into the firmware, NOT the live
+# fix. That is what lets a node sit at a private address, keep accurate time and
+# still show up in roughly the right place on the community maps.
+# Use `share` only if publishing the exact spot is intended; `none` to publish
+# no position at all.
+gps advert prefs
+
+# --- radio -------------------------------------------------------------
+# 869.4-869.65 is ERC 70-03 band g3: 10 % duty. The firmware does not enforce
+# duty on its own (airtime_factor defaults to 0 = 100 %) and caps at 9, so 9 is
+# both the correct value here and the strictest the firmware can do.
+set af 9
+set radio.rxgain on

@@ -1,0 +1,45 @@
+# Read-back for a CZ mesh repeater that must ship silent.
+#
+#   tools/ble_cli.py <MAC> -f tools/provision/verify-cz-silent.txt --per-command
+#
+# Expected, for a node built from a deployment env and provisioned:
+#
+#   get name                  the site name, NOT tth-s1-rpt / tth-ltm...
+#   get radio                 869.4320068,62.5,7,5   (the float prints long)
+#   get advert.interval       0
+#   get flood.advert.interval 0
+#   get repeat                off
+#   get path.hash.mode        1     (2 bytes per hop; 1 B is dead on the CZ mesh)
+#   get af                    9.0
+#   get radio.rxgain          on
+#   gps advert                prefs
+#   get lat / get lon         the coordinates compiled in, not 0
+#   clock                     current UTC
+#   stats-radio               tx_air_secs 0
+#   stats-core                errors 0, queue_len 0
+#
+# tx_air_secs is the one that actually proves silence -- it counts transmitted
+# airtime since boot, so 0 means the node has not keyed the radio at all. The
+# advert.interval reading only says what it intends to do. Leave the node
+# running an hour and check it is still 0 before it leaves the bench.
+#
+# A wrong name or frequency here almost always means the prefs are older than
+# the firmware: NodePrefs live in InternalFS and take precedence over the
+# build-time defaults, which only seed a FRESH install. Run `erase`, let it
+# reboot, re-pair BLE (the bond lives in the same filesystem) and provision
+# again.
+
+get name
+get radio
+get advert.interval
+get flood.advert.interval
+get repeat
+get path.hash.mode
+get af
+get radio.rxgain
+gps advert
+get lat
+get lon
+clock
+stats-radio
+stats-core
