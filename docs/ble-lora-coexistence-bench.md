@@ -90,15 +90,44 @@ so if the central misses our PDU we must re-send it at the next anchor — an
 extra slave TX. If we miss the central's PDU we never transmit in that event at
 all, and the SoftDevice uses *less* radio.
 
+## On mast hardware, with the file log on
+
+Two SenseCap Solar nodes (`tth-s1-rpt` forwarder, `tth-s2-rpt` paired control) —
+the same board as the mast, so InternalFS logging, INA226/solar telemetry and
+the SenseCap SPI layout are all in play. Again at a verified 22.50 ms interval
+(`bleconn`).
+
+| file log | BLE | direct_rx | direct_tx | lost | tx_timeout | witness |
+|---|---|---:|---:|---:|---:|---:|
+| off | off | 8 | 8 | 0 | 0 | +39 |
+| off | idle, 88 % of window | 8 | 8 | 0 | 0 | +37 |
+| **on** | off | 8 | 8 | 0 | 0 | +39 |
+| **on** | idle, 90 % of window | 8 | 8 | 0 | 0 | +40 |
+
+The logging condition was real, not nominal: `log` afterwards held 69 entries
+with RX/TX lines timestamped inside the measurement window, i.e. an InternalFS
+write per packet — the mechanism behind the known deaf windows.
+
+**Ten cells, 80 forced forwards, zero lost, `tx_timeout` and `tx_start_fail` at
+zero throughout.** Against the mast's reported ~40 % loss rate this is not a
+weak null: a single 8-probe cell would miss a true 40 % effect with probability
+0.6⁸ ≈ 1.7 %, and ten cells make it vanishing. Whatever the mast is doing, it is
+not reproduced by the connection interval, the BLE link margin, the board, or
+InternalFS logging — alone or together.
+
 ## Still open
 
-1. **Board and concurrent workload.** `tth-ltm` is a SenseCap Solar: InternalFS
-   file log (`log start` is a known source of deaf windows — a flash write
-   blocks the loop for tens of ms), INA226/solar telemetry, GPS, different SPI
-   layout. None of that exists on the XIAO. Two SenseCap Solar nodes are now on
-   the bench for exactly this.
-2. **Loaded LoRa channel.** Ours is idle; the mast relays flood traffic. This
-   one is capped by regulation, see below.
+**Loaded LoRa channel** is the one uncontrolled difference left. Ours is idle;
+the mast relays flood traffic, so its forwards contend for a busy channel and
+the TX window lands on a BLE connection event far more often. This cannot be
+tested legally here: 866.5 is capped at 1 % duty and the 10 % sub-band
+(869.4–869.65) is where production lives.
+
+Practical consequence: **f6e9aeca can be neither confirmed nor refuted on the
+bench.** Deciding whether the 60–80 ms interval is still needed requires
+measuring on `tth-ltm` itself — the counters (`stats-packets`, and now
+`bleconn` to prove which interval is actually in force) are all reachable over
+its BLE console.
 
 ## Airtime is a hard limit, and the firmware will not enforce it
 
