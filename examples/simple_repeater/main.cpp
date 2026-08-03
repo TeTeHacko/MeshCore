@@ -81,14 +81,91 @@
   // connection events = proportionally fewer collisions; the Dispatcher TX
   // retry (MESH_TX_RETRIES) covers the rest. Console throughput drops ~3x,
   // which the duty-cycled bridge tolerates fine.
+  // Overridable so the pre-fix 15-30 ms interval (12/24 in 1.25 ms units) can be
+  // rebuilt as a POSITIVE CONTROL: a measurement that reads zero in both the
+  // treatment and the control has not shown it can detect anything. Reproducing
+  // the known-bad interval proves the harness is sensitive before "no loss on the
+  // fixed build" is allowed to mean anything.
+  #ifndef RPT_BLE_MIN_CONN_INTERVAL
   #define RPT_BLE_MIN_CONN_INTERVAL   48    // 60 ms  (1.25 ms units)
+  #endif
+  #ifndef RPT_BLE_MAX_CONN_INTERVAL
   #define RPT_BLE_MAX_CONN_INTERVAL   64    // 80 ms
+  #endif
   // latency 0 (not the companion's 4): the mast link is marginal (RSSI -75..-90)
   // and the disconnects are HCI reason 0x3E (lost sync), not supervision timeout.
   // With latency>0 the node may skip connection events -> the central loses sync
   // sooner -> 0x3E. Responding every event maximises sync on a weak/busy link.
   #define RPT_BLE_SLAVE_LATENCY        0
   #define RPT_BLE_CONN_SUP_TIMEOUT  1600    // 16000 ms (10 ms units); < 20 s HW watchdog
+
+  // CUSTOM (TeTeHacko): TX power of the CONNECTION, which is a separate knob
+  // from the Bluefruit.setTxPower(8) in setup(). That one only stores a value
+  // that BLEAdvertising::start() feeds to sd_ble_gap_tx_power_set() with
+  // BLE_GAP_TX_POWER_ROLE_ADV -- the CONN role is never set anywhere in the
+  // library, so once the central connects the link drops to the SoftDevice
+  // default of 0 dBm. The +8 buys discovery range across the balcony and
+  // nothing else. Set it per connection, on every 'secured' (the handle is new
+  // each time), and keep the default at 0 so behaviour is unchanged.
+  //
+  // Runtime-settable via `blepwr` because it is the reproduction lever for the
+  // BLE/LoRa TX-loss bug: the effect needs the marginal link the mast has
+  // (RSSI -75..-90, see the latency note above) and the bench link is -57 dBm.
+  //
+  // Weakening OUR side is the direction that costs us radio time, and the
+  // central's would not. A connection event ends as soon as either side misses
+  // a packet, so: if the CENTRAL misses our PDU, we still have to re-send it at
+  // the next anchor -- an extra slave TX. If WE miss the central's PDU, we never
+  // transmit in that event at all, so the SoftDevice actually uses LESS radio.
+  // More slave TX = more high-priority SoftDevice work in the way of the app's
+  // DIO1 handling, which is the suspected mechanism. Far enough down the ladder
+  // the link drops outright and Bluefruit re-advertises (at +8 dBm, 3 channels)
+  // -- also radio time, and the same reconnect churn the mast shows as 0x3E.
+  //
+  // Runtime and not a build flag: reflashing the XIAO costs a physical
+  // double-tap + UF2 drop (BLE DFU cannot reach its bootloader, same MAC), and
+  // a dose-response sweep needs many points.
+  #ifndef RPT_BLE_CONN_TX_POWER
+  #define RPT_BLE_CONN_TX_POWER        0    // dBm; = SoftDevice default
+  #endif
+  // Auto-revert, because a weakened link locks you out of the console you would
+  // need to undo it. Measured on the bench: at -20 dBm the node's replies stop
+  // arriving, and at -40 dBm a connection cannot be established at all -- and
+  // since the value is re-applied on every 'secured', reconnecting does not
+  // help. On the mast the only way back would be `reboot` over the mesh admin
+  // CLI. So any weakening reverts on its own unless refreshed; `blepwr <p> hold`
+  // opts out. Not persisted, so a reboot always comes up at the default anyway.
+  #ifndef RPT_BLE_PWR_REVERT_MS
+  #define RPT_BLE_PWR_REVERT_MS   300000    // 5 min
+  #endif
+  static int8_t ble_conn_tx_power = RPT_BLE_CONN_TX_POWER;
+  static unsigned long ble_pwr_revert_at = 0;   // 0 = no revert armed
+
+  // CUSTOM (TeTeHacko): last connection parameters actually in force, latched
+  // from loop() so they can be read over USB after the central has gone --
+  // reading them over the BLE console while it is connected would collide on
+  // the shared command[160] buffer.
+  //
+  // This is the control for everything above: bleOnSecured() only REQUESTS
+  // 15-30/60-80 ms, and the central is free to refuse. Without reading back
+  // what was negotiated, "the pre-fix interval showed no loss either" cannot
+  // be distinguished from "the pre-fix interval was never actually in force".
+  static uint16_t ble_seen_interval = 0;   // 1.25 ms units
+  static uint16_t ble_seen_latency  = 0;
+  static uint16_t ble_seen_timeout  = 0;   // 10 ms units
+
+  // returns how many live connections accepted the new power (nRF52840 only
+  // takes -40,-20,-16,-12,-8,-4,0,2..8; setTxPower() rejects the rest)
+  static int bleApplyConnTxPower(int8_t p, int* live_out) {
+    int ok = 0, live = 0;
+    for (uint16_t h = 0; h < BLE_MAX_CONNECTION; h++) {
+      BLEConnection* c = Bluefruit.Connection(h);
+      if (c && c->connected()) { live++; if (c->setTxPower(p)) ok++; }
+    }
+    if (live_out) *live_out = live;
+    return ok;
+  }
+
   static void bleOnSecured(uint16_t conn_handle) {
     ble_gap_conn_params_t cp;
     cp.min_conn_interval = RPT_BLE_MIN_CONN_INTERVAL;
@@ -96,6 +173,8 @@
     cp.slave_latency     = RPT_BLE_SLAVE_LATENCY;
     cp.conn_sup_timeout  = RPT_BLE_CONN_SUP_TIMEOUT;
     sd_ble_gap_conn_param_update(conn_handle, &cp);
+    BLEConnection* c = Bluefruit.Connection(conn_handle);
+    if (c) c->setTxPower(ble_conn_tx_power);
   }
 
   // CUSTOM (TeTeHacko): runtime BLE on/off via `ble on|off|ble` command
@@ -152,6 +231,51 @@
                 : (Bluefruit.Advertising.isRunning() ? " (advertising)" : ""));
       return true;
     }
+    // CUSTOM (TeTeHacko): `blepwr [dBm]` -- report or set the CONNECTION tx
+    // power (see RPT_BLE_CONN_TX_POWER). Applied to every live connection AND
+    // remembered for the next 'secured', so a reconnect keeps the setting.
+    // The nRF52840 only accepts -40,-20,-16,-12,-8,-4,0,2..8; setTxPower()
+    // rejects anything else, hence the applied/failed count in the reply.
+    if (memcmp(command, "blepwr", 6) == 0 && (command[6] == 0 || command[6] == ' ')) {
+      if (command[6] == ' ') {
+        int8_t p = (int8_t) atoi(&command[7]);
+        bool hold = strstr(&command[7], "hold") != NULL;
+        int live = 0;
+        int ok = bleApplyConnTxPower(p, &live);
+        // only latch a value the radio actually accepted, otherwise the next
+        // reconnect would silently re-apply a bogus one
+        bool applied = (live == 0 || ok > 0);
+        if (applied) {
+          ble_conn_tx_power = p;
+          ble_pwr_revert_at = (p < RPT_BLE_CONN_TX_POWER && !hold)
+                            ? millis() + RPT_BLE_PWR_REVERT_MS : 0;
+        }
+        sprintf(reply, "%s - BLE conn tx %d dBm (%d/%d conn)%s",
+                applied ? "OK" : "ERR", (int) p, ok, live,
+                ble_pwr_revert_at ? ", auto-revert armed" : "");
+      } else {
+        sprintf(reply, "BLE conn tx: %d dBm, adv tx: %d dBm%s",
+                (int) ble_conn_tx_power, (int) Bluefruit.getTxPower(),
+                ble_pwr_revert_at ? " (auto-revert armed)" : "");
+      }
+      return true;
+    }
+    // CUSTOM (TeTeHacko): what the central actually agreed to, not what we asked
+    // for. Values are from the last sample taken while connected.
+    if (strcmp(command, "bleconn") == 0) {
+      if (ble_seen_interval == 0) {
+        strcpy(reply, "BLE conn: nothing seen yet");
+      } else {
+        sprintf(reply, "BLE conn: interval %d.%02d ms (req %d-%d), latency %d, "
+                       "sup timeout %d ms%s",
+                (ble_seen_interval * 125) / 100, (ble_seen_interval * 125) % 100,
+                (RPT_BLE_MIN_CONN_INTERVAL * 125) / 100,
+                (RPT_BLE_MAX_CONN_INTERVAL * 125) / 100,
+                (int) ble_seen_latency, (int) ble_seen_timeout * 10,
+                Bluefruit.connected() ? " [live]" : " [last]");
+      }
+      return true;
+    }
     return false;
   }
 #endif
@@ -190,12 +314,21 @@ void setup() {
   // give some extra time for serial to settle so
   // boot debug messages can be seen on terminal
   delay(5000);
+#elif defined(BOOT_DIAG_DELAY_MS) && defined(NRF52_PLATFORM)
+  // CUSTOM (TeTeHacko): the same settle window, but WITHOUT MESH_DEBUG. The
+  // hardfault record below is printed once and then cleared, so with only the
+  // delay(1000) above it is unobservable: USB CDC has not finished enumerating,
+  // the printf goes to a closed port and is dropped, and hf[0]=0 destroys the
+  // evidence. MESH_DEBUG would open that window but also logs inside the mesh
+  // path -- unusable on a node whose RX timing is the thing being measured.
+  delay(BOOT_DIAG_DELAY_MS);
 #endif
 
 #if defined(NRF52_PLATFORM)
   // CUSTOM (TeTeHacko diagnostics): print the hardfault record saved by the
   // patched HardFault_Handler (framework debug.cpp) before the last reset.
   // 16 B at the end of RAM, reserved in nrf52840_s140_v7_extrafs.ld.
+  // NOTE: needs MESH_DEBUG or BOOT_DIAG_DELAY_MS to be readable at all (above).
   {
     volatile uint32_t* hf = (volatile uint32_t*)0x2003FFF0;
     if (hf[0] == 0xFA010DEB) {
@@ -270,7 +403,12 @@ void setup() {
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
   // BLE UART console (PIN pairing). Runs alongside normal repeater duty.
   Bluefruit.begin();
-  Bluefruit.setTxPower(8);   // +8 dBm = nRF52840 max (range to the dongle across the balcony)
+  // +8 dBm = nRF52840 max (range to the dongle across the balcony). NOTE: this
+  // is ADVERTISING power only -- Bluefruit stores it and BLEAdvertising::start()
+  // hands it to sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_ADV). Nothing in
+  // the library ever sets the CONN role, so an established link runs at the
+  // SoftDevice default 0 dBm. See RPT_BLE_CONN_TX_POWER / `blepwr` for that half.
+  Bluefruit.setTxPower(8);
   Bluefruit.setName(BLE_DEVICE_NAME);
   Bluefruit.Security.setPIN(_MC_STR(BLE_PIN_CODE));
   // widen the BLE connection params so the busy LoRa loop can't trip the
@@ -334,6 +472,30 @@ void loop() {
   if (ble_toggle_at && (long)(millis() - ble_toggle_at) >= 0) {
     ble_toggle_at = 0;
     bleApply(ble_toggle_target);
+  }
+  // CUSTOM (TeTeHacko): give back the BLE tx power a `blepwr` took away, so a
+  // weakened link cannot outlive the console you would need to fix it.
+  if (ble_pwr_revert_at && (long)(millis() - ble_pwr_revert_at) >= 0) {
+    ble_pwr_revert_at = 0;
+    ble_conn_tx_power = RPT_BLE_CONN_TX_POWER;
+    bleApplyConnTxPower(ble_conn_tx_power, NULL);
+  }
+  // CUSTOM (TeTeHacko): latch the live connection parameters once a second, so
+  // `bleconn` can report them after the central is gone (see ble_seen_*).
+  {
+    static unsigned long _lastParamChk = 0;
+    if ((unsigned long)(millis() - _lastParamChk) >= 1000) {
+      _lastParamChk = millis();
+      for (uint16_t h = 0; h < BLE_MAX_CONNECTION; h++) {
+        BLEConnection* c = Bluefruit.Connection(h);
+        if (c && c->connected()) {
+          ble_seen_interval = c->getConnectionInterval();
+          ble_seen_latency  = c->getSlaveLatency();
+          ble_seen_timeout  = c->getSupervisionTimeout();
+          break;
+        }
+      }
+    }
   }
   // CUSTOM (TeTeHacko): BLE watchdog. Observed: the repeater stops advertising
   // after a while (SoftDevice/LoRa coexistence) and only a reset helps. Every
