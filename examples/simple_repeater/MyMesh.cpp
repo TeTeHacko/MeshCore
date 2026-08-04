@@ -1629,6 +1629,10 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     // since a board with no data cable and no BLE cannot be identified at all.
     extern bool identHandleCommand(const char* command, char* reply);
     if (identHandleCommand(command, reply)) return;
+    // CUSTOM (TeTeHacko): `dfu [uf2|serial|ota]` — deterministic reboot into the
+    // bootloader (GPREGRET magic, same as the core's enterUf2Dfu). Local only.
+    extern bool dfuHandleCommand(uint32_t sender_timestamp, const char* command, char* reply);
+    if (dfuHandleCommand(sender_timestamp, command, reply)) return;
     // CUSTOM (TeTeHacko): `txpwr [dBm]` — set output power and report RadioLib's
     // verdict, which `set tx` swallows. See main.cpp.
     extern bool txPwrHandleCommand(const char* command, char* reply);

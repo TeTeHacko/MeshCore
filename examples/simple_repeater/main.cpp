@@ -119,6 +119,74 @@ static void identTick() {
 }
 #endif  // RPT_IDENT_LED_PIN
 
+// CUSTOM (TeTeHacko): `dfu [uf2|serial|ota]` -- reboot straight into the
+// bootloader, deterministically.
+//
+// This is what the 1200-baud touch was a bad approximation of. The Adafruit
+// bootloader picks its mode from GPREGRET at boot, and the core exposes exactly
+// that (cores/nRF5/wiring.c): reset_mcu() writes the magic and calls
+// NVIC_SystemReset().
+//   uf2    0x57  mass-storage drive, drop a .uf2 on it        <- the usual one
+//   serial 0x4e  CDC only, for adafruit-nrfutil; no drive appears
+//   ota    0xA8  BLE DFU
+// The touch only ever requested the *serial* mode, and on this build it worked
+// about half the time: twice it wedged a board out of USB and BLE entirely, with
+// no self-recovery (400 s) and no way back but a physical replug. This has no
+// such failure mode -- it is the same call the core makes, from a command.
+//
+// LOCAL ONLY. Over the mesh this would strand a node in a bootloader that waits
+// forever, on a mast, with no way back but a visit. sender_timestamp == 0 is the
+// same "physically present" test CommonCLI uses for `erase` and `set freq`.
+#if defined(NRF52_PLATFORM)
+extern "C" {
+  void enterUf2Dfu(void);
+  void enterSerialDfu(void);
+  void enterOTADfu(void);
+}
+static unsigned long dfu_pending_at = 0;   // 0 = nothing armed
+static uint8_t       dfu_pending_mode = 0; // 0=uf2 1=serial 2=ota
+
+// Deferred so the reply reaches the console first -- reset_mcu() never returns,
+// and over BLE the notification still has to be pumped out of the TX ring.
+static void dfuTick() {
+  if (dfu_pending_at == 0 || (long)(millis() - dfu_pending_at) < 0) return;
+  dfu_pending_at = 0;
+  if (dfu_pending_mode == 1)      enterSerialDfu();
+  else if (dfu_pending_mode == 2) enterOTADfu();
+  else                            enterUf2Dfu();
+}
+#endif
+
+bool dfuHandleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
+  if (memcmp(command, "dfu", 3) != 0 || (command[3] != 0 && command[3] != ' ')) return false;
+#if defined(NRF52_PLATFORM)
+  if (sender_timestamp != 0) {
+    strcpy(reply, "ERR: dfu is local-only (would strand the node in the bootloader)");
+    return true;
+  }
+  const char* arg = (command[3] == ' ') ? &command[4] : "";
+  while (*arg == ' ') arg++;
+  // Reply first: the reset below never returns, so anything printed after it is
+  // lost -- and over BLE even this one needs the pump to have run, hence the
+  // small delay.
+  if (strcmp(arg, "serial") == 0) {
+    strcpy(reply, "OK - rebooting into serial DFU (CDC only, no drive)");
+  } else if (strcmp(arg, "ota") == 0) {
+    strcpy(reply, "OK - rebooting into BLE OTA DFU");
+  } else if (arg[0] == 0 || strcmp(arg, "uf2") == 0) {
+    strcpy(reply, "OK - rebooting into UF2 (drive appears in a few seconds)");
+  } else {
+    strcpy(reply, "ERR: dfu [uf2|serial|ota]");
+    return true;
+  }
+  dfu_pending_at = millis() + 700;
+  dfu_pending_mode = (strcmp(arg, "serial") == 0) ? 1 : (strcmp(arg, "ota") == 0 ? 2 : 0);
+#else
+  strcpy(reply, "ERR: not an nRF52 board");
+#endif
+  return true;
+}
+
 // Reachable from serial, the BLE console AND the mesh admin CLI, so a node that
 // is already mounted can still be asked to identify itself.
 bool identHandleCommand(const char* command, char* reply) {
@@ -642,6 +710,9 @@ void loop() {
 #endif
 #ifdef RPT_IDENT_LED_PIN
   identTick();   // CUSTOM (TeTeHacko): drive `blink` without blocking the mesh
+#endif
+#if defined(NRF52_PLATFORM)
+  dfuTick();     // CUSTOM (TeTeHacko): deferred `dfu` reboot, after the reply went out
 #endif
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
   // CUSTOM (TeTeHacko): deferred apply of `ble on|off` — the reply still goes
