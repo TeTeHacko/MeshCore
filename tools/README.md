@@ -246,6 +246,53 @@ automounter gets to it, and the port enumerates before the firmware answers on
 it. A check that cries wolf is worse than no check, because you learn to ignore
 it.
 
+## When a board vanishes from USB and only a replug helps
+
+Measured on this bench 4. 8. 2026, after calling it "the board fell off USB"
+three times in a row, which is a description and not a diagnosis.
+
+**What the kernel log looks like.** A good bootloader entry and a bad one differ
+only in what does *not* happen:
+
+```
+good:  usb 7-9: USB disconnect  ->  3 s later  idProduct=0045 (bootloader)
+bad:   usb 7-9: USB disconnect  ->  nothing, ever
+```
+
+No `error -71`, no "unable to enumerate", nothing. The port then reports
+`state=not attached` in
+`/sys/bus/usb/devices/usb7/7-0:1.0/usb7-portN/`.
+
+**Do not read that as a dead board.** The identical signature was reproduced on
+a *known good* board by writing `1` then `0` to that port's `disable` from the
+host — the board was healthy, doing nothing unusual, and went to `not attached`
+and stayed there. So the log proves the host stopped seeing a device; it says
+nothing about why. A missing error message is not evidence.
+
+**There is no software recovery on this machine.** The port `disable` toggle is
+the only candidate and it makes things worse: it takes healthy boards off the
+bus with no way back. Do not use it. The boards hang off the xHCI *root hub*,
+whose ports do not do real power switching, so `uhubctl` has nothing to work
+with either.
+
+**What does work, every time (5/5):** double-tapping RESET. A reset through the
+pin has never failed; software resets fail in both directions —
+`dfu` (app to bootloader) failed 5 of 10 before the `USBPULLUP` change, and the
+bootloader's own reset back into the application has failed several times, which
+is a path no firmware change of ours can reach.
+
+**Operational rules that follow:**
+
+- Flash one board at a time and check the result before starting the next. A
+  batch of three cost three replugs in one go.
+- Do not loop flashes to "make sure". Every reset is another chance to lose the
+  board.
+- If a board does vanish, it wants hands. Say so immediately instead of
+  retrying — a second `dfu` cannot reach a board the host cannot see.
+- **The structural fix is a powered hub with per-port power switching**
+  (uhubctl-compatible). Then "replug" becomes a command and the bench is
+  recoverable without being in the room. On the root hub it is not.
+
 ## `fleet_test.py` — regression smoke test for the whole bench
 
 ```sh

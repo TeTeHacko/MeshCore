@@ -162,10 +162,19 @@ static void dfuTick() {
   //   good:  usb 7-9: USB disconnect  ->  3 s later  idProduct=0045 (bootloader)
   //   bad:   usb 7-6: USB disconnect  ->  nothing, ever
   //
-  // No failed-enumeration errors, so it is not a host-side race; the board never
-  // drove D+ again. And it was not sitting in the bootloader either -- a
-  // bootloader in DFU mode advertises `AdaDFU`, and a BLE scan during the wedge
-  // found the other boards advertising and this one absent from both interfaces.
+  // CORRECTION, same evening: "no enumeration errors, therefore the board is
+  // wedged" was WRONG, and worth leaving here as a warning. The identical
+  // signature -- disconnect, then nothing, no errors, port reporting
+  // `not attached` -- was later produced on a KNOWN GOOD board purely by
+  // toggling the root-hub port's `disable` from the host. So the log tells you
+  // the host stopped seeing a device; it does NOT tell you why, and a missing
+  // error message is not evidence of a dead board.
+  //
+  // What is still true: the failure follows resets that happen with USB active,
+  // in BOTH directions (app->bootloader and bootloader->app), and a reset via
+  // the RESET pin -- the double tap -- has never failed. That is what this
+  // change is aimed at, and it is a hypothesis about the transition, not a
+  // diagnosis of the chip.
   //
   // reset_mcu() (core wiring.c) disables the SoftDevice and resets with USBD
   // still enabled and possibly mid-transfer. Detaching first drops D+ while the
