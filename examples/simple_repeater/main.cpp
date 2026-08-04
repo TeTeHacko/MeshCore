@@ -3,6 +3,102 @@
 
 #include "MyMesh.h"
 
+// ===========================================================================
+// CUSTOM (TeTeHacko): `blink [n]` -- make THIS board flash its LED on demand,
+// so a bench full of identical boards can be told apart and labelled.
+//
+// The problem it solves: nothing else identifies a board in situ. The USB
+// serial number is only readable over a data cable (and boards sharing power
+// rails have none), the BLE MAC is not printed anywhere, and ADVERT_NAME is
+// only as trustworthy as the last flash -- which is exactly what you are trying
+// to confirm. Two boards here were both advertising "tth-x1-rpt".
+//
+// It deliberately does NOT use the status LED. On XIAO that is LED_BLUE
+// (PIN_STATUS_LED), which Bluefruit drives as its connection indicator, so
+// every BLE node blinks blue identically and a blink there would be lost in the
+// noise. LED_GREEN is untouched by the library, so a green burst is unambiguous.
+//
+// Ticked from loop() rather than looping inline: a blocking blink would stall
+// the mesh for the whole burst (up to ~7 s at the 30-blink cap) and disturb the
+// LoRa RX/TX timing the test fleet exists to measure.
+// ===========================================================================
+// Pick an LED nothing else drives, in that order of preference:
+//   LED_GREEN  -- XIAO (13). Free; LED_BLUE there is Bluefruit's connection LED.
+//   LED_WHITE  -- SenseCap Solar (11). Only ever set LOW at boot and at
+//                 powerOff(), so a burst on it is unambiguous.
+//   LED_BUILTIN -- last resort. On SenseCap this is pin 12 = LED_BLUE = the LoRa
+//                 TX indicator, so a blink there competes with live traffic;
+//                 workable, but that is why it is last.
+// A variant may DEFINE a colour it does not physically have by pointing it at
+// PINS_COUNT (SenseCap does exactly that with LED_RED), so #ifdef alone is not
+// enough -- the range check below is what actually proves the pin exists.
+#ifndef RPT_IDENT_LED_PIN
+  #if defined(LED_GREEN) && (LED_GREEN < PINS_COUNT)
+    #define RPT_IDENT_LED_PIN   LED_GREEN
+  #elif defined(LED_WHITE) && (LED_WHITE < PINS_COUNT)
+    #define RPT_IDENT_LED_PIN   LED_WHITE
+  #elif defined(LED_BUILTIN) && (LED_BUILTIN < PINS_COUNT)
+    #define RPT_IDENT_LED_PIN   LED_BUILTIN
+  #endif
+#endif
+#ifndef RPT_IDENT_LED_MS
+  #define RPT_IDENT_LED_MS      120    // half-period; 120 ms reads as a clear flash
+#endif
+
+#ifdef RPT_IDENT_LED_PIN
+static uint8_t       ident_edges_left = 0;   // remaining on/off transitions
+static bool          ident_led_on     = false;
+static unsigned long ident_next_ms    = 0;
+static bool          ident_pin_ready  = false;
+
+// LED_STATE_ON is 0 on XIAO (active low) and 1 elsewhere; go through it rather
+// than hard-coding HIGH/LOW, or the "blink" is an unlit board on half the fleet.
+static inline void identLedWrite(bool on) {
+  digitalWrite(RPT_IDENT_LED_PIN, on ? LED_STATE_ON : !LED_STATE_ON);
+}
+
+static void identStart(int blinks) {
+  if (blinks < 1)  blinks = 1;
+  if (blinks > 30) blinks = 30;
+  if (!ident_pin_ready) {
+    pinMode(RPT_IDENT_LED_PIN, OUTPUT);
+    ident_pin_ready = true;
+  }
+  ident_edges_left = (uint8_t)(blinks * 2);   // one on + one off per blink
+  ident_led_on = true;
+  identLedWrite(true);
+  ident_next_ms = millis() + RPT_IDENT_LED_MS;
+}
+
+static void identTick() {
+  if (ident_edges_left == 0) return;
+  if ((long)(millis() - ident_next_ms) < 0) return;
+  ident_edges_left--;
+  if (ident_edges_left == 0) {
+    identLedWrite(false);          // always finish dark, never leave it lit
+    return;
+  }
+  ident_led_on = !ident_led_on;
+  identLedWrite(ident_led_on);
+  ident_next_ms = millis() + RPT_IDENT_LED_MS;
+}
+#endif  // RPT_IDENT_LED_PIN
+
+// Reachable from serial, the BLE console AND the mesh admin CLI, so a node that
+// is already mounted can still be asked to identify itself.
+bool identHandleCommand(const char* command, char* reply) {
+  if (memcmp(command, "blink", 5) != 0 || (command[5] != 0 && command[5] != ' ')) return false;
+#ifdef RPT_IDENT_LED_PIN
+  int n = (command[5] == ' ') ? atoi(&command[6]) : 6;
+  if (n == 0) n = 6;
+  identStart(n);
+  sprintf(reply, "OK - blinking %d times", n > 30 ? 30 : (n < 1 ? 1 : n));
+#else
+  strcpy(reply, "ERR: no spare LED on this board");
+#endif
+  return true;
+}
+
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
   // CUSTOM (TeTeHacko): exposes the repeater text console over BLE Nordic-UART
   // so the node can be queried wirelessly (advert, neighbor list with SNR)
@@ -465,6 +561,9 @@ void setup() {
 void loop() {
 #if defined(NRF52_PLATFORM)
   NRF_WDT->RR[0] = WDT_RR_RR_Reload;   // feed the HW watchdog (setup); if the loop freezes the chip resets in ~20 s
+#endif
+#ifdef RPT_IDENT_LED_PIN
+  identTick();   // CUSTOM (TeTeHacko): drive `blink` without blocking the mesh
 #endif
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
   // CUSTOM (TeTeHacko): deferred apply of `ble on|off` — the reply still goes

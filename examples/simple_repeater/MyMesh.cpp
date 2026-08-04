@@ -1624,6 +1624,11 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     formatPktFeedReply(reply, reply_max, cursor);
 #endif
   } else{
+    // CUSTOM (TeTeHacko): `blink [n]` — flash the LED to identify this board.
+    // Outside the BLE guard on purpose: a USB-only build needs it just as much,
+    // since a board with no data cable and no BLE cannot be identified at all.
+    extern bool identHandleCommand(const char* command, char* reply);
+    if (identHandleCommand(command, reply)) return;
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
     // CUSTOM (TeTeHacko): `ble on|off|ble` — implemented in main.cpp (BLE console).
     // Available from serial, the BLE console and remotely via MC (admin remote CLI).
