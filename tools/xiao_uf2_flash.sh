@@ -161,6 +161,12 @@ for attempt in range(5):
     try:
         s = serial.Serial(sys.argv[1], 115200, timeout=1); s.dtr = True; s.rts = True
         time.sleep(2.5); s.reset_input_buffer()
+        # Throwaway newline first. The board's own line buffer can still hold a
+        # fragment from before the reset, and whatever is sent next gets appended
+        # to it -- so the first real command comes back "Unknown command" and the
+        # flash is declared unverified even though it landed. Cost this exactly
+        # one wrong conclusion about x4.
+        s.write(b"\r\n"); s.flush(); time.sleep(0.5); s.reset_input_buffer()
         s.write(b"ver\r\n"); s.flush(); time.sleep(2.0)
         out = s.read(s.in_waiting or 1).decode("utf-8", "replace")
         m = re.search(r"v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?", out)
