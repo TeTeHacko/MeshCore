@@ -230,6 +230,25 @@ async def reset_bootloader(mac):
             await asyncio.sleep(2)
     return False
 
+async def recover_to_bootloader(mac):
+    """Get the node back into a clean DFU state, whichever way RESET left it.
+
+    reset_bootloader() on its own is not enough, and the two board families
+    differ: after RESET the SenseCap bootloader stays in DFU (the GPREGRET flag
+    survives), while the XIAO boots the APPLICATION instead. Assuming the
+    SenseCap behaviour made every XIAO retry scan forever for a bootloader that
+    was no longer there -- observed on tth-x4-rpt, where the 20 B fallback could
+    never get started because the RESET that arms it also ended DFU mode.
+
+    So: reset, and if the bootloader is gone, ask the application to go back."""
+    await reset_bootloader(mac)
+    await asyncio.sleep(6)
+    dev = await find(mac, want_dfu=True, timeout=12)
+    if dev:
+        return
+    log("   po RESETu bootloader pryč (naběhla APP) → buttonless znovu")
+    await phase1_buttonless(mac)
+
 async def main():
     zippath, mac = sys.argv[1], sys.argv[2]
     skip_phase1 = len(sys.argv) > 3 and sys.argv[3] == "phase2"
@@ -254,13 +273,11 @@ async def main():
             # takze RESET, nove spojeni a znovu, natvrdo po 20 B.
             log("!! bootloader nezvlada velke pakety -> opakuji s 20 B")
             chunk = 20
-            await reset_bootloader(mac)
-            await asyncio.sleep(6)
+            await recover_to_bootloader(mac)
         except Exception as e:
             log(f"!! DFU pokus {i+1}/{ATTEMPTS} selhal: {type(e).__name__}: {str(e)[:80]}")
             if i == ATTEMPTS - 1:
                 raise
-            await reset_bootloader(mac)
-            await asyncio.sleep(6)
+            await recover_to_bootloader(mac)
 
 asyncio.run(main())
