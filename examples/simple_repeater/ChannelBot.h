@@ -57,7 +57,7 @@
 #define BOT_REPLY_LEN     120   // well under the 184 B packet payload
 #define BOT_TEXT_LEN      160   // inbound text, after the "<sender>: " prefix
 #define BOT_PATH_STR_LEN   64   // "3f:a1:c8..." -- caps how many hops we print
-#define BOT_FRAG_LEN       56   // one !command's answer
+#define BOT_FRAG_LEN       72   // one !command's answer (!link je nejdelsi)
 
 static int bot_hex_nibble(char c) {
   if (c >= '0' && c <= '9') return c - '0';
@@ -178,6 +178,16 @@ int MyMesh::botCommandReply(char* out, int max_len, const char* cmd, const mesh:
     char path[BOT_PATH_STR_LEN];
     botFormatPath(path, pkt);
     return snprintf(out, max_len, "path %s (%d hop)", path, (int)pkt->getPathHashCount());
+  }
+  if (strcmp(cmd, "link") == 0) {
+    // "Jaky mam link domu?" v jednom prikazu. Zamerne slouceny path+snr: tohle
+    // se pta clovek v aute, ktery nema chut psat dva prikazy -- a jde o cestu
+    // JEHO paketu k NAM, cili presne ten smer, ktery si na svem uzlu overit
+    // neumi (tam vidi jen to, co prijima).
+    char path[BOT_PATH_STR_LEN];
+    botFormatPath(path, pkt);
+    return snprintf(out, max_len, "%d hop %s, SNR %.1f dB, RSSI %d dBm",
+                    (int)pkt->getPathHashCount(), path, pkt->getSNR(), pkt->getRSSI());
   }
   if (strcmp(cmd, "snr") == 0) {
     // Straight off the frame that carried the request -- the same numbers
