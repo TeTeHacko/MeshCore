@@ -31,6 +31,22 @@ if [ -z "$UF2" ] || [ ! -f "$UF2" ]; then
 fi
 echo "== image: $UF2 ($(stat -c%s "$UF2") B)"
 
+# STALENESS GUARD. `pio run` builds firmware.zip, `pio run -t create_uf2` builds
+# firmware.uf2, and NEITHER refreshes the other. Flashing one board from the .uf2
+# and another from the .zip then silently gives them different firmware -- which
+# is exactly how x3 ended up 50 minutes behind the rest of the fleet, missing a
+# command the others had. Compare against the .elf, which every build relinks.
+ELF="$(dirname "$UF2")/firmware.elf"
+if [ -f "$ELF" ] && [ "$ELF" -nt "$UF2" ]; then
+  echo "CHYBA: $(basename "$UF2") je STARSI nez firmware.elf -- nalil bys stary obraz." >&2
+  echo "       Sprav: pio run -e <env> && pio run -e <env> -t create_uf2" >&2
+  exit 1
+fi
+# The version string is stamped by tools/build_version.py; show it so what lands
+# on the board is on the record before it lands, not guessed afterwards.
+VER="$(grep -aoE 'v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?' "$UF2" | head -1 || true)"
+[ -n "$VER" ] && echo "== verze v obrazu: $VER"
+
 find_disks() { ls -d /dev/disk/by-label/XIAO* 2>/dev/null; }
 
 echo -n "== double-tap the RESET button now; waiting for the UF2 drive "

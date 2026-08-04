@@ -11,7 +11,7 @@ Použití: ble_dfu.py <zip> <ble-mac> [phase2]
   phase2  přeskočí fázi 1 (buttonless) — použij když uzel UŽ visí v bootloaderu
           (advertuje SCAP_DFU), např. po přerušeném DFU. Zotavení bez power-cycle.
 """
-import asyncio, struct, sys, zipfile, io
+import asyncio, os, re, struct, sys, zipfile
 from bleak import BleakClient, BleakScanner
 
 DFU_SVC = "00001530-1212-efde-1523-785feabcd123"
@@ -255,6 +255,22 @@ async def main():
     z = zipfile.ZipFile(zippath)
     fw_bin = z.read("firmware.bin"); fw_dat = z.read("firmware.dat")
     log(f"firmware.bin {len(fw_bin)} B, firmware.dat {len(fw_dat)} B, cíl {mac}")
+
+    # STALENESS GUARD. `pio run` builds firmware.zip, `pio run -t create_uf2`
+    # builds firmware.uf2, and NEITHER refreshes the other. Flashing one board
+    # from the .zip and another from the .uf2 then silently gives them different
+    # firmware -- that is how x3 ended up 50 min behind the rest of the fleet,
+    # missing a command the others had. firmware.elf is relinked by every build,
+    # so it is the reference.
+    elf = os.path.join(os.path.dirname(os.path.abspath(zippath)), "firmware.elf")
+    if os.path.exists(elf) and os.path.getmtime(elf) > os.path.getmtime(zippath):
+        sys.exit(f"CHYBA: {os.path.basename(zippath)} je STARŠÍ než firmware.elf — "
+                 f"nalil bys starý obraz.\n"
+                 f"       Sprav: pio run -e <env> && pio run -e <env> -t create_uf2")
+    # Put the version on the record BEFORE it lands on the board, not after.
+    m = re.search(rb"v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?", fw_bin)
+    if m:
+        log(f"   verze v obrazu: {m.group(0).decode()}")
     if skip_phase1:
         log("== FÁZE 1 přeskočena (uzel už v bootloaderu) ==")
     else:
