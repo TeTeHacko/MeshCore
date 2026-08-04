@@ -651,7 +651,18 @@ void setup() {
   // the library ever sets the CONN role, so an established link runs at the
   // SoftDevice default 0 dBm. See RPT_BLE_CONN_TX_POWER / `blepwr` for that half.
   Bluefruit.setTxPower(8);
-  Bluefruit.setName(BLE_DEVICE_NAME);
+  // CUSTOM (TeTeHacko): advertise the node's ACTUAL name, not the build-time
+  // constant. BLE_DEVICE_NAME defaults to ADVERT_NAME, which only ever seeds a
+  // fresh install -- so once several boards share one image, they all advertise
+  // the same string no matter what `set name` says, and a BLE scan cannot tell
+  // them apart. Four boards here advertised "tth-x1-rpt" at once, including the
+  // one with a dead radio. The prefs name is the one that was deliberately set,
+  // so that is the one to broadcast; the build constant stays the fallback for a
+  // node that has never been named.
+  {
+    const char* nm = the_mesh.getNodePrefs()->node_name;
+    Bluefruit.setName((nm && nm[0]) ? nm : BLE_DEVICE_NAME);
+  }
   Bluefruit.Security.setPIN(_MC_STR(BLE_PIN_CODE));
   // widen the BLE connection params so the busy LoRa loop can't trip the
   // (default 2 s) supervision timeout -> no more reconnect churn. PPCP is

@@ -1,80 +1,111 @@
 #!/usr/bin/env bash
-# Flash a XIAO nRF52840 by waiting for its UF2 drive and copying the image.
+# Flash a XIAO nRF52840 through its UF2 drive -- to a named board, and verified.
 #
-#   tools/xiao_uf2_flash.sh .pio/build/Xiao_x1_rpt/firmware.uf2
+#   tools/xiao_uf2_flash.sh <firmware.uf2> [target]
 #
-# You put the board in UF2 mode by DOUBLE-TAPPING its small RESET button; the
-# drive shows up within a few seconds. Then this copies, waits for the drive to
-# vanish (which is what proves the bootloader took the image) and for the
-# application to come back on USB.
+#   target   USB serial (full or unique suffix), or a fleet number 0..4.
+#            Omit only when exactly one board is plugged in.
 #
-# WHY NOT THE 1200-BAUD TOUCH: on a running MeshCore repeater build it is about
-# a coin flip. Measured on 2026-08-04: it worked on two boards, then wedged x4,
-# then wedged x1 -- and a wedged board is gone from BOTH USB and BLE, does not
-# come back on its own (waited 400 s), and needs a physical replug. It is not a
-# "too soon after boot" effect either; x1 had been up 23 minutes. So: the touch
-# is fine for a board you can reach, useless for one you cannot, and this script
-# exists so the reliable path is the easy one.
+# Get the board into UF2 mode with 'dfu' on its console (deterministic), or by
+# double-tapping its small RESET button.
 #
-# The other reliable path is BLE OTA (tools/ble_dfu.py) -- no buttons at all, but
-# ~14 minutes per board at the 20-byte chunk size the XIAO bootloader forces.
+# What it refuses to do, because each of these has actually gone wrong here:
+#   - flash an image older than the build that produced it (pio run and
+#     pio run -t create_uf2 refresh different artifacts; x3 silently ended up
+#     two commits behind the rest of the fleet that way)
+#   - guess which board to write to when several are in UF2 mode (every drive
+#     is labelled XIAO-SENSE, in plug order, so the label proves nothing)
+#   - write to a board other than the one you named
+#   - report success without reading the version back off the board (the first
+#     version of this script printed x4's port after flashing x3)
 #
-# CAUTION: with several boards in UF2 mode at once the drives are all labelled
-# XIAO-SENSE (and XIAO-SENSE1, ...). This script refuses to guess -- do one board
-# at a time, or resolve the drive through sysfs by serial number yourself.
+# NEVER uses the 1200-baud touch: it only requests the bootloader's SERIAL_ONLY
+# mode, so no drive ever appears, and a second touch in one power session wedges
+# the board out of USB and BLE with no self-recovery.
 set -uo pipefail
 
-UF2="${1:-}"
-if [ -z "$UF2" ] || [ ! -f "$UF2" ]; then
-  echo "usage: $(basename "$0") <firmware.uf2>" >&2
-  exit 1
-fi
+die() { echo "CHYBA: $*" >&2; exit 1; }
+
+UF2="${1:-}"; TARGET="${2:-}"
+[ -n "$UF2" ] && [ -f "$UF2" ] || { echo "usage: $(basename "$0") <firmware.uf2> [serial|0..4]" >&2; exit 1; }
+
+# Fleet shorthand. Keep in step with the labels physically on the boards.
+case "$TARGET" in
+  0) TARGET=30911219DA28411D ;;
+  1) TARGET=5ECC11205C68623B ;;
+  2) TARGET=B69F86518175CBA3 ;;
+  3) TARGET=67901109B61E604A ;;
+  4) TARGET=208DBAF462432133 ;;
+esac
+
+# A .hex or .zip dropped on a UF2 drive is silently ignored by the bootloader and
+# looks like a successful flash, so check the container before trusting it.
+# UF2 blocks start with the magic 0x0A324655 ("UF2\n").
+head -c4 "$UF2" | grep -q 'UF2' || die "$UF2 neni UF2 obraz (chybi magic 'UF2\\n')"
 echo "== image: $UF2 ($(stat -c%s "$UF2") B)"
 
-# STALENESS GUARD. `pio run` builds firmware.zip, `pio run -t create_uf2` builds
-# firmware.uf2, and NEITHER refreshes the other. Flashing one board from the .uf2
-# and another from the .zip then silently gives them different firmware -- which
-# is exactly how x3 ended up 50 minutes behind the rest of the fleet, missing a
-# command the others had. Compare against the .elf, which every build relinks.
 ELF="$(dirname "$UF2")/firmware.elf"
 if [ -f "$ELF" ] && [ "$ELF" -nt "$UF2" ]; then
-  echo "CHYBA: $(basename "$UF2") je STARSI nez firmware.elf -- nalil bys stary obraz." >&2
-  echo "       Sprav: pio run -e <env> && pio run -e <env> -t create_uf2" >&2
-  exit 1
+  die "$(basename "$UF2") je STARSI nez firmware.elf -- nalil bys stary obraz.
+       Sprav: pio run -e <env> && pio run -e <env> -t create_uf2"
 fi
-# The version string is stamped by tools/build_version.py; show it so what lands
-# on the board is on the record before it lands, not guessed afterwards.
-VER="$(grep -aoE 'v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?' "$UF2" | head -1 || true)"
-[ -n "$VER" ] && echo "== verze v obrazu: $VER"
 
-find_disks() { ls -d /dev/disk/by-label/XIAO* 2>/dev/null; }
+WANT_VER="$(grep -aoE 'v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?' "$UF2" | head -1 || true)"
+if [ -z "$WANT_VER" ]; then
+  die "obraz nema verzi od tools/build_version.py -- po flashi by neslo overit,
+       co na desce doopravdy je. Zapoj do envu: extra_scripts = \${stamped.extra_scripts}"
+fi
+echo "== verze v obrazu: $WANT_VER"
+[ -n "$TARGET" ] && echo "== cil: $TARGET"
 
-echo -n "== double-tap the RESET button now; waiting for the UF2 drive "
-DISK=""
-for _ in $(seq 1 60); do
-  mapfile -t found < <(find_disks)
+# Resolve UF2 drives THROUGH SYSFS, never by label: every XIAO drive is called
+# XIAO-SENSE (then XIAO-SENSE1, ...) assigned in plug order, so with several
+# boards on the bus the label says nothing about which board you are writing to.
+find_uf2_boards() {
+  local d s blk
+  for d in /sys/bus/usb/devices/*/; do
+    s="$(cat "$d/serial" 2>/dev/null)" || continue
+    [ "$(cat "$d/idVendor" 2>/dev/null)" = "2886" ] || continue
+    blk="$(ls -d "$d"*/host*/target*/*/block/* 2>/dev/null | head -1)" || true
+    [ -n "$blk" ] && echo "$s /dev/$(basename "$blk")"
+  done
+}
+
+echo -n '== cekam na UF2 rezim ("dfu" na konzoli, nebo dvojklik RESET) '
+SERIAL=""; DISK=""
+for _ in $(seq 1 90); do
+  mapfile -t found < <(find_uf2_boards)
+  if [ -n "$TARGET" ]; then                       # keep only the board asked for
+    mapfile -t found < <(printf '%s\n' "${found[@]:-}" | grep -F "$TARGET" || true)
+  fi
   if [ "${#found[@]}" -gt 1 ]; then
-    echo
-    echo "CHYBA: ${#found[@]} UF2 disku najednou -- nevim, ktery je ktery:" >&2
-    printf '  %s\n' "${found[@]}" >&2
-    echo "Nech v UF2 rezimu jen jednu desku." >&2
+    echo; { echo "${#found[@]} desek v UF2 rezimu -- nevim, ktera je ta tva:";
+            printf '  %s\n' "${found[@]}";
+            echo "Zadej cil: $(basename "$0") $UF2 <serial|0..4>"; } >&2
     exit 1
   fi
-  if [ "${#found[@]}" -eq 1 ]; then DISK="${found[0]}"; break; fi
+  if [ "${#found[@]}" -eq 1 ] && [ -n "${found[0]}" ]; then
+    SERIAL="${found[0]%% *}"; DISK="${found[0]##* }"; break
+  fi
   echo -n "."
   sleep 1
 done
 echo
-[ -n "$DISK" ] || { echo "CHYBA: UF2 disk se neobjevil" >&2; exit 1; }
-echo "== disk: $DISK"
+[ -n "$DISK" ] || die "do 90 s se v UF2 rezimu neobjevila${TARGET:+ deska $TARGET}"
+echo "== deska: $SERIAL  disk: $DISK"
 
-MNT="$(lsblk -no MOUNTPOINT "$DISK" | head -1)"
-if [ -z "$MNT" ]; then
+# Mount with retries: the drive appears a moment before the desktop automounter
+# gets to it, and udisksctl can lose that race, so a single attempt fails on a
+# board that is perfectly fine. Observed on the very first `dfu`-driven flash.
+MNT=""
+for _ in $(seq 1 12); do
+  MNT="$(lsblk -no MOUNTPOINT "$DISK" | head -1)"
+  [ -n "$MNT" ] && break
   udisksctl mount -b "$DISK" >/dev/null 2>&1 || true
   sleep 1
-  MNT="$(lsblk -no MOUNTPOINT "$DISK" | head -1)"
-fi
-[ -n "$MNT" ] || { echo "CHYBA: disk se nepodarilo namountovat" >&2; exit 1; }
+done
+[ -n "$MNT" ] || die "disk $DISK se nepodarilo namountovat ani na 12 pokusu
+       Zkus rucne: udisksctl mount -b $DISK"
 
 echo "== mount: $MNT -- kopiruju"
 # The board resets itself the moment it has all the blocks, so cp/sync failing
@@ -85,20 +116,60 @@ sync 2>/dev/null || true
 echo -n "== cekam, az disk zmizi (= bootloader obraz prevzal) "
 GONE=0
 for _ in $(seq 1 30); do
-  [ -z "$(find_disks)" ] && { GONE=1; break; }
-  echo -n "."
-  sleep 1
+  find_uf2_boards | grep -q "^$SERIAL " || { GONE=1; break; }
+  echo -n "."; sleep 1
 done
 echo
-[ "$GONE" -eq 1 ] || { echo "CHYBA: disk nezmizel -- flash nejspis neprobehl" >&2; exit 1; }
+[ "$GONE" -eq 1 ] || die "disk nezmizel -- flash nejspis neprobehl"
 
-echo -n "== cekam na navrat aplikace na USB "
+# Wait for THIS board, matched on its serial. "Some XIAO came back on USB" is
+# worthless with four of them plugged in.
+echo -n "== cekam na navrat desky $SERIAL "
+PORT=""
 for _ in $(seq 1 45); do
-  P="$(ls /dev/serial/by-id/*XIAO* 2>/dev/null | head -1)"
-  [ -n "$P" ] && { echo; echo "== OK: $P"; exit 0; }
-  echo -n "."
-  sleep 1
+  for d in /sys/bus/usb/devices/*/; do
+    [ "$(cat "$d/serial" 2>/dev/null)" = "$SERIAL" ] || continue
+    [ "$(cat "$d/idProduct" 2>/dev/null)" = "8044" ] || continue
+    PORT="$(ls /dev/serial/by-id/*"$SERIAL"*-if00 2>/dev/null | head -1)" || true
+  done
+  [ -n "$PORT" ] && break
+  echo -n "."; sleep 1
 done
 echo
-echo "!! aplikace se do 45 s neohlasila -- zkontroluj desku" >&2
-exit 1
+[ -n "$PORT" ] || die "$SERIAL se do 45 s neohlasila jako aplikace"
+
+# The actual proof: ask the board what it is running. Anything less and a flash
+# that quietly did nothing still reports success.
+GOT_VER="$(python3 - "$PORT" <<'PY' 2>/dev/null || true
+import re, sys, time
+try:
+    import serial
+except ImportError:
+    sys.exit(0)
+# Retry: the port enumerates a second or two before the firmware is answering on
+# it, so a single attempt calls a perfectly good flash "unverified" -- which is
+# worse than no check, because it teaches you to ignore the tool.
+for attempt in range(5):
+    try:
+        s = serial.Serial(sys.argv[1], 115200, timeout=1); s.dtr = True; s.rts = True
+        time.sleep(2.5); s.reset_input_buffer()
+        s.write(b"ver\r\n"); s.flush(); time.sleep(2.0)
+        out = s.read(s.in_waiting or 1).decode("utf-8", "replace")
+        s.close()
+        m = re.search(r"v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?", out)
+        if m:
+            print(m.group(0)); break
+    except Exception:
+        pass
+    time.sleep(3)
+PY
+)"
+
+if [ -z "$GOT_VER" ]; then
+  echo "!! deska neodpovedela na 'ver' -- flash NEOVERENY (companion build, nebo BLE klient drzi konzoli?)" >&2
+  exit 2
+fi
+if [ "$GOT_VER" != "$WANT_VER" ]; then
+  die "deska hlasi $GOT_VER, ale v obrazu bylo $WANT_VER -- flash NEPROSEL"
+fi
+echo "== OK: $SERIAL bezi $GOT_VER  ($PORT)"
