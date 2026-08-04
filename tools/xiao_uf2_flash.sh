@@ -149,7 +149,7 @@ echo
 # The actual proof: ask the board what it is running. Anything less and a flash
 # that quietly did nothing still reports success.
 GOT_VER="$(python3 - "$PORT" <<'PY' 2>/dev/null || true
-import re, sys, time
+import re, struct, sys, time
 try:
     import serial
 except ImportError:
@@ -163,10 +163,28 @@ for attempt in range(5):
         time.sleep(2.5); s.reset_input_buffer()
         s.write(b"ver\r\n"); s.flush(); time.sleep(2.0)
         out = s.read(s.in_waiting or 1).decode("utf-8", "replace")
-        s.close()
         m = re.search(r"v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?", out)
         if m:
-            print(m.group(0)); break
+            s.close(); print(m.group(0)); break
+        # No text console means this is a companion_radio build, which has no
+        # `ver` command at all -- ask in its own language rather than calling a
+        # perfectly good flash unverified (it did exactly that on x2).
+        # CMD_DEVICE_QUERY(22) -> RESP_CODE_DEVICE_INFO(13); firmware_version is
+        # the 20-byte field at offset 60. Framing: '<' + uint16 LE len + payload
+        # outbound, '>' + len + payload back.
+        s.reset_input_buffer()
+        s.write(b"<" + struct.pack("<H", 2) + bytes([22, 10])); s.flush()
+        time.sleep(1.0)
+        buf = s.read(s.in_waiting or 1)
+        s.close()
+        i = buf.find(b">")
+        if i >= 0 and len(buf) >= i + 3:
+            ln = struct.unpack("<H", buf[i+1:i+3])[0]
+            f = buf[i+3:i+3+ln]
+            if len(f) >= 80 and f[0] == 13:
+                v = f[60:80].split(b"\0")[0].decode("utf-8", "replace")
+                if v:
+                    print(v); break
     except Exception:
         pass
     time.sleep(3)
@@ -174,7 +192,7 @@ PY
 )"
 
 if [ -z "$GOT_VER" ]; then
-  echo "!! deska neodpovedela na 'ver' -- flash NEOVERENY (companion build, nebo BLE klient drzi konzoli?)" >&2
+  echo "!! deska neodpovedela ani konzoli, ani companion protokolu -- flash NEOVERENY (drzi konzoli BLE klient?)" >&2
   exit 2
 fi
 if [ "$GOT_VER" != "$WANT_VER" ]; then

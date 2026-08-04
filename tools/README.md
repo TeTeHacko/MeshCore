@@ -217,7 +217,10 @@ tools/xiao_uf2_flash.sh fw.uf2 67901109B61E604A                   # or the seria
 ```
 
 Get the board into UF2 mode with **`dfu`** on its console — deterministic, no
-buttons — or by double-tapping RESET.
+buttons — or by double-tapping RESET. A companion build has no console and
+therefore no `dfu`, so those boards can only be tapped by hand; give yourself
+room with `XIAO_UF2_WAIT=300` (default 90 s, which is shorter than the round
+trip of asking someone to press a button).
 
 It refuses to do the things that have actually gone wrong here:
 
@@ -231,9 +234,12 @@ It refuses to do the things that have actually gone wrong here:
   USB serial, and with several in UF2 mode it stops and asks.
 - **accept a non-UF2 file.** A `.hex` or `.zip` dropped on the drive is ignored
   by the bootloader and looks exactly like a successful flash.
-- **claim success it did not verify.** It reads `ver` back off the board and
-  compares it against the image. An earlier version only checked that *some*
-  XIAO reappeared on USB — and duly reported x4's port after flashing x3.
+- **claim success it did not verify.** It reads the version back off the board
+  and compares it against the image. An earlier version only checked that *some*
+  XIAO reappeared on USB — and duly reported x4's port after flashing x3. The
+  read-back speaks both dialects: `ver` on the console, and `CMD_DEVICE_QUERY`
+  on a `companion_radio` build, which has no text console at all. Before that it
+  called a perfectly good companion flash "unverified" and exited 2.
 
 Mount and version read-back both retry: the drive appears a second before the
 automounter gets to it, and the port enumerates before the firmware answers on
