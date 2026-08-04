@@ -11,6 +11,7 @@ cannot be repeated by hand.
 | `ble_cli.py` | the text console over BLE (Nordic UART), for nodes with no cable |
 | `ble_dfu.py` | firmware update over BLE (legacy Nordic DFU, Adafruit nRF52 bootloader) |
 | `provision/` | command files: what to send, and what the answers must look like |
+| `build_version.py` | PlatformIO pre-script that stamps a real version into the binary |
 
 The usual sequence against a node you have never talked to before:
 
@@ -168,6 +169,36 @@ adafruit-nrfutil dfu serial -pkg firmware.zip \
 
 A SenseCap that has just taken a 1200-baud touch takes **60–300 s** to
 re-enumerate. That is not a wedge — wait before concluding anything.
+
+## `build_version.py` — make the node able to answer "what is on you?"
+
+Every env that gets flashed must pull it in:
+
+```ini
+extra_scripts = ${nrf52_base.extra_scripts}
+  pre:tools/build_version.py
+```
+
+Keep `${nrf52_base.extra_scripts}` — that is `create-uf2.py`, and dropping it
+means no `.uf2` artifact.
+
+Without the script the node reports the fallback literals compiled into
+`examples/*/MyMesh.h` — `v1.16.0` and a build date of `6 Jun 2026` — and those
+are byte-for-byte identical in every build ever produced. The failure mode is
+silent: the env builds fine and the node lies about itself.
+
+It costs a full rebuild every time (the define changes on each build), which is
+10–30 s. Worth it.
+
+**What it stamps:** `<upstream tag>-tth-<git sha>`, with a trailing `+` when the
+tree is dirty, plus the compile timestamp. The base version comes from the
+newest upstream release tag HEAD descends from, not from a literal in the
+script — upstream tags per example (`companion-v1.16.0`, `repeater-v1.16.0`), so
+anything matching `*v[0-9]*` counts and the prefix is stripped. Our own
+`+tth.<timestamp>` release tags are excluded so they cannot shadow the base.
+
+**Flash from a clean tree.** A `-tth-<sha>+` on a node tells you which commit it
+was near, but not what else was in the working copy at the time.
 
 ## `provision/` — command files with expected answers
 
