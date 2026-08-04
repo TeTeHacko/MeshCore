@@ -211,11 +211,19 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t pktfeed_stage_len;  // 0 = nothing staged
 #endif
 #ifdef BOT_CHANNEL_PSK
+  // Default zde, ne az v ChannelBot.h -- ten se includuje na konci MyMesh.cpp,
+  // tedy dlouho po teto deklaraci pole.
+  #ifndef BOT_PEER_SLOTS
+    #define BOT_PEER_SLOTS 8
+  #endif
   mesh::GroupChannel bot_channel;   // 1 B hash + 32 B secret, derived from BOT_CHANNEL_PSK
   bool bot_channel_valid;           // false = PSK malformed, bot silently off
   unsigned long bot_next_reply_at;  // cooldown gate, 0 = not armed
   uint32_t bot_replies_sent;
   uint32_t bot_ignored;           // zprav zahozenych podle BOT_IGNORE_SENDERS
+  uint32_t bot_throttled;         // odpovedi potlacenych cooldownem
+  struct BotPeer { uint32_t name_hash; unsigned long next_at; };
+  BotPeer bot_peers[BOT_PEER_SLOTS];   // per-odesilatel okno, LRU
   uint32_t bot_last_reply_secs;     // RTC time of the last reply, 0 = never
 #endif
   CayenneLPP telemetry;
@@ -257,6 +265,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   int  botCommandReply(char* out, int max_len, const char* cmd, const mesh::Packet* pkt);
   int  botScanCommands(char* out, int max_len, const char* text, const mesh::Packet* pkt);
   void botSendReply(const mesh::Packet* pkt, const char* text);
+  bool botPeerAllowed(const char* name);
   bool botHandleCommand(const char* command, char* reply);
 #endif
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);

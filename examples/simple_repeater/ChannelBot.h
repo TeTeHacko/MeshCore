@@ -48,10 +48,22 @@
 #ifndef BOT_COMMANDS
   #define BOT_COMMANDS ""
 #endif
-// The ONLY throttle on a node that is otherwise pure RX. Keep it generous:
-// every reply is a flood packet on a shared community mesh.
+// Throttle, PER SENDER. Measured reason it is not global: with one global
+// window, two people asking within it meant the second got silence -- observed
+// twice, and it reads as "the bot is broken" rather than "wait 10 s".
 #ifndef BOT_REPLY_COOLDOWN_MS
   #define BOT_REPLY_COOLDOWN_MS 10000
+#endif
+// Floor between ANY two replies, whoever asked. This is what still bounds the
+// node's airtime on a shared community mesh once the main window went
+// per-sender: N senders can no longer produce N simultaneous replies.
+#ifndef BOT_MIN_GAP_MS
+  #define BOT_MIN_GAP_MS 2500
+#endif
+// Senders tracked for the per-sender window. Wraps LRU; overflowing just means
+// the oldest sender's window is forgotten early, i.e. one extra reply.
+#ifndef BOT_PEER_SLOTS
+  #define BOT_PEER_SLOTS 8
 #endif
 
 #define BOT_REPLY_LEN     120   // well under the 184 B packet payload
@@ -75,6 +87,8 @@ void MyMesh::botInit() {
   bot_next_reply_at = 0;
   bot_replies_sent = 0;
   bot_ignored = 0;
+  bot_throttled = 0;
+  memset(bot_peers, 0, sizeof(bot_peers));
   bot_last_reply_secs = 0;
   memset(&bot_channel, 0, sizeof(bot_channel));
 
@@ -298,6 +312,30 @@ void MyMesh::botSendReply(const mesh::Packet* pkt, const char* text) {
   bot_last_reply_secs = getRTCClock()->getCurrentTime();
 }
 
+// Per-sender cooldown over a tiny LRU. Returns true and CLAIMS the window when
+// this sender may be answered now.
+bool MyMesh::botPeerAllowed(const char* name) {
+  uint32_t h = 2166136261u;                      // FNV-1a over the lowercased name
+  for (const char* p = name; *p; p++) h = (h ^ (uint8_t)tolower((unsigned char)*p)) * 16777619u;
+  if (h == 0) h = 1;                             // 0 marks a free slot
+
+  int free_slot = -1, oldest = 0;
+  for (int i = 0; i < BOT_PEER_SLOTS; i++) {
+    if (bot_peers[i].name_hash == h) {
+      if (!millisHasNowPassed(bot_peers[i].next_at)) return false;   // still cooling
+      bot_peers[i].next_at = futureMillis(BOT_REPLY_COOLDOWN_MS);
+      return true;
+    }
+    if (bot_peers[i].name_hash == 0 && free_slot < 0) free_slot = i;
+    // signed compare = wraparound-safe "which window expires soonest"
+    if ((long)(bot_peers[i].next_at - bot_peers[oldest].next_at) < 0) oldest = i;
+  }
+  int slot = (free_slot >= 0) ? free_slot : oldest;
+  bot_peers[slot].name_hash = h;
+  bot_peers[slot].next_at = futureMillis(BOT_REPLY_COOLDOWN_MS);
+  return true;
+}
+
 void MyMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel,
                              uint8_t* data, size_t len) {
   if (type != PAYLOAD_TYPE_GRP_TXT) return;   // GRP_DATA (telemetry etc.) is not ours
@@ -340,11 +378,21 @@ void MyMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::Gro
     snprintf(reply, sizeof(reply), "pong (%s)", path);
   }
 
+  // Global floor first: it is the airtime guarantee and must hold regardless of
+  // how many distinct senders are asking.
   if (bot_next_reply_at != 0 && !millisHasNowPassed(bot_next_reply_at)) {
-    MESH_DEBUG_PRINTLN("bot: reply suppressed, cooldown");
+    MESH_DEBUG_PRINTLN("bot: reply suppressed, global gap");
+    bot_throttled++;
     return;
   }
-  bot_next_reply_at = futureMillis(BOT_REPLY_COOLDOWN_MS);
+  // Then this sender's own window. Name-based, so spoofable -- fine, this is a
+  // politeness throttle and channel messages carry no identity anyway.
+  if (!botPeerAllowed(sep ? text : "")) {
+    MESH_DEBUG_PRINTLN("bot: reply suppressed, sender cooldown");
+    bot_throttled++;
+    return;
+  }
+  bot_next_reply_at = futureMillis(BOT_MIN_GAP_MS);
   if (bot_next_reply_at == 0) bot_next_reply_at = 1;   // 0 means "not armed"
 
   botSendReply(packet, reply);
@@ -360,11 +408,12 @@ bool MyMesh::botHandleCommand(const char* command, char* reply) {
     strcpy(reply, "bot: DISABLED (bad BOT_CHANNEL_PSK)");
     return true;
   }
-  sprintf(reply, "bot: chan %02X, trigger '%s', cmds '%s', ignore '%s', cooldown %d ms, replies %u, ignored %u, last %u",
+  sprintf(reply, "bot: chan %02X, trigger '%s', cmds '%s', ignore '%s', cooldown %d ms/odesilatel + %d ms floor, replies %u, throttled %u, ignored %u, last %u",
           (uint32_t)bot_channel.hash[0], BOT_TRIGGER,
           BOT_COMMANDS[0] ? BOT_COMMANDS : "(vse)",
           BOT_IGNORE_SENDERS[0] ? BOT_IGNORE_SENDERS : "(nikdo)",
-          (int)BOT_REPLY_COOLDOWN_MS, (uint32_t)bot_replies_sent,
+          (int)BOT_REPLY_COOLDOWN_MS, (int)BOT_MIN_GAP_MS,
+          (uint32_t)bot_replies_sent, (uint32_t)bot_throttled,
           (uint32_t)bot_ignored, (uint32_t)bot_last_reply_secs);
   return true;
 }
