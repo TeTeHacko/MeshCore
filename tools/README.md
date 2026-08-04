@@ -12,6 +12,7 @@ cannot be repeated by hand.
 | `ble_dfu.py` | firmware update over BLE (legacy Nordic DFU, Adafruit nRF52 bootloader) |
 | `provision/` | command files: what to send, and what the answers must look like |
 | `build_version.py` | PlatformIO pre-script that stamps a real version into the binary |
+| `xiao_uf2_flash.sh` | flash a named XIAO through its UF2 drive, and prove it took |
 
 The usual sequence against a node you have never talked to before:
 
@@ -207,6 +208,37 @@ the terse `<tag>-tth<sha7>[+]` and `yymmdd hhmm`. The repeater's text console ha
 no such limit, but one format everywhere beats two. The budget never gives up the
 base version or the dirty `+`; it takes characters off the SHA, and warns rather
 than truncating quietly if it still cannot fit.
+
+## `xiao_uf2_flash.sh` — flash one named board, and prove it
+
+```sh
+tools/xiao_uf2_flash.sh .pio/build/Xiao_x1_rpt/firmware.uf2 3     # fleet number
+tools/xiao_uf2_flash.sh fw.uf2 67901109B61E604A                   # or the serial
+```
+
+Get the board into UF2 mode with **`dfu`** on its console — deterministic, no
+buttons — or by double-tapping RESET.
+
+It refuses to do the things that have actually gone wrong here:
+
+- **flash an image older than the build that made it.** `pio run` refreshes
+  `firmware.zip`, `pio run -t create_uf2` refreshes `firmware.uf2`, and neither
+  touches the other. Flashing one board from each silently gives them different
+  firmware — one board here ended up two commits behind the fleet, missing a
+  command the others had, with both flashes reporting success.
+- **guess the target.** Every UF2 drive is labelled `XIAO-SENSE`, numbered in
+  plug order, so the label proves nothing; drives are resolved through sysfs by
+  USB serial, and with several in UF2 mode it stops and asks.
+- **accept a non-UF2 file.** A `.hex` or `.zip` dropped on the drive is ignored
+  by the bootloader and looks exactly like a successful flash.
+- **claim success it did not verify.** It reads `ver` back off the board and
+  compares it against the image. An earlier version only checked that *some*
+  XIAO reappeared on USB — and duly reported x4's port after flashing x3.
+
+Mount and version read-back both retry: the drive appears a second before the
+automounter gets to it, and the port enumerates before the firmware answers on
+it. A check that cries wolf is worse than no check, because you learn to ignore
+it.
 
 ## `provision/` — command files with expected answers
 
