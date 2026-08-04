@@ -47,7 +47,13 @@ uint32_t RadioLibWrapper::getRngSeed() {
 }
 
 void RadioLibWrapper::setTxPower(int8_t dbm) {
-  _radio->setOutputPower(dbm);
+  // CUSTOM (TeTeHacko): keep the status. The signature is an upstream callback
+  // and has to stay void, but the return value must not be thrown away: SX1262
+  // accepts only -9..+22 dBm and rejects the rest WITHOUT touching the PA, while
+  // `set tx` clamps to -9..30, saves the pref and replies "OK". Without this,
+  // "the radio refused" and "the radio changed" look identical from the console.
+  _last_txpow_dbm = dbm;
+  _last_txpow_status = _radio->setOutputPower(dbm);
 }
 
 void RadioLibWrapper::idle() {

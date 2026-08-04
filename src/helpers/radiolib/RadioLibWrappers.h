@@ -12,6 +12,8 @@ protected:
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
   uint8_t _preamble_sf;
+  int16_t _last_txpow_status;   // CUSTOM (TeTeHacko): see getLastTxPowerStatus()
+  int8_t  _last_txpow_dbm;
 
   void idle();
   void startRecv();
@@ -20,7 +22,8 @@ protected:
   virtual void doResetAGC();
 
 public:
-  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = 0; }
+  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0),
+      _last_txpow_status(0), _last_txpow_dbm(0) { n_recv = n_sent = 0; }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -41,6 +44,15 @@ public:
   virtual void setParams(float freq, float bw, uint8_t sf, uint8_t cr) = 0;
   uint32_t getRngSeed();
   void setTxPower(int8_t dbm);
+  // CUSTOM (TeTeHacko): RadioLib status of the LAST setTxPower() call.
+  // setTxPower() has to stay void (it implements an upstream callback), but
+  // discarding the status made a failed change indistinguishable from a
+  // successful one: SX1262 only accepts -9..+22 dBm and REJECTS anything else
+  // without touching the PA, while `set tx` clamps to -9..30, saves the pref and
+  // answers "OK". The node then reports a tx power the radio never took.
+  // 0 = RADIOLIB_ERR_NONE, -13 = RADIOLIB_ERR_INVALID_OUTPUT_POWER.
+  int16_t getLastTxPowerStatus() const { return _last_txpow_status; }
+  int8_t  getLastTxPowerRequested() const { return _last_txpow_dbm; }
 
   virtual float getCurrentRSSI() =0;
   virtual uint8_t getSpreadingFactor() const { return LORA_SF; }

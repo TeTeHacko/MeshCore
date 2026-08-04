@@ -45,11 +45,22 @@
   #define RPT_IDENT_LED_MS      120    // half-period; 120 ms reads as a clear flash
 #endif
 
+// `blink on` keeps going until `blink off`, because a fixed burst is a race
+// against how long it takes to walk to the bench -- the first version capped at
+// 30 blinks (~7 s) and that was not enough to find the board. Held blinking
+// still expires on its own: a node left blinking would quietly eat a battery,
+// and on a mounted node nobody would notice.
+#ifndef RPT_IDENT_HOLD_MS
+  #define RPT_IDENT_HOLD_MS   (10UL * 60UL * 1000UL)   // 10 min
+#endif
+
 #ifdef RPT_IDENT_LED_PIN
-static uint8_t       ident_edges_left = 0;   // remaining on/off transitions
+static uint16_t      ident_edges_left = 0;   // remaining on/off transitions
 static bool          ident_led_on     = false;
 static unsigned long ident_next_ms    = 0;
 static bool          ident_pin_ready  = false;
+static bool          ident_hold       = false;   // blink until told to stop
+static unsigned long ident_hold_until = 0;
 
 // LED_STATE_ON is 0 on XIAO (active low) and 1 elsewhere; go through it rather
 // than hard-coding HIGH/LOW, or the "blink" is an unlit board on half the fleet.
@@ -57,26 +68,50 @@ static inline void identLedWrite(bool on) {
   digitalWrite(RPT_IDENT_LED_PIN, on ? LED_STATE_ON : !LED_STATE_ON);
 }
 
-static void identStart(int blinks) {
-  if (blinks < 1)  blinks = 1;
-  if (blinks > 30) blinks = 30;
+static void identBegin() {
   if (!ident_pin_ready) {
     pinMode(RPT_IDENT_LED_PIN, OUTPUT);
     ident_pin_ready = true;
   }
-  ident_edges_left = (uint8_t)(blinks * 2);   // one on + one off per blink
   ident_led_on = true;
   identLedWrite(true);
   ident_next_ms = millis() + RPT_IDENT_LED_MS;
 }
 
+static void identStart(int blinks) {
+  if (blinks < 1)   blinks = 1;
+  if (blinks > 999) blinks = 999;
+  ident_hold = false;
+  ident_edges_left = (uint16_t)(blinks * 2);   // one on + one off per blink
+  identBegin();
+}
+
+static void identHold(bool on) {
+  ident_hold = on;
+  ident_edges_left = 0;
+  if (on) {
+    ident_hold_until = millis() + RPT_IDENT_HOLD_MS;
+    identBegin();
+  } else if (ident_pin_ready) {
+    identLedWrite(false);
+  }
+}
+
+static void identStop() { identHold(false); }
+
 static void identTick() {
-  if (ident_edges_left == 0) return;
-  if ((long)(millis() - ident_next_ms) < 0) return;
-  ident_edges_left--;
-  if (ident_edges_left == 0) {
-    identLedWrite(false);          // always finish dark, never leave it lit
+  if (ident_hold) {
+    if ((long)(millis() - ident_hold_until) >= 0) { identStop(); return; }
+  } else if (ident_edges_left == 0) {
     return;
+  }
+  if ((long)(millis() - ident_next_ms) < 0) return;
+  if (!ident_hold) {
+    ident_edges_left--;
+    if (ident_edges_left == 0) {
+      identLedWrite(false);        // always finish dark, never leave it lit
+      return;
+    }
   }
   ident_led_on = !ident_led_on;
   identLedWrite(ident_led_on);
@@ -89,10 +124,22 @@ static void identTick() {
 bool identHandleCommand(const char* command, char* reply) {
   if (memcmp(command, "blink", 5) != 0 || (command[5] != 0 && command[5] != ' ')) return false;
 #ifdef RPT_IDENT_LED_PIN
-  int n = (command[5] == ' ') ? atoi(&command[6]) : 6;
-  if (n == 0) n = 6;
-  identStart(n);
-  sprintf(reply, "OK - blinking %d times", n > 30 ? 30 : (n < 1 ? 1 : n));
+  const char* arg = (command[5] == ' ') ? &command[6] : "";
+  while (*arg == ' ') arg++;
+  if (strcmp(arg, "on") == 0) {
+    identHold(true);
+    sprintf(reply, "OK - blinking until `blink off` (or %lu min)",
+            (unsigned long)(RPT_IDENT_HOLD_MS / 60000UL));
+  } else if (strcmp(arg, "off") == 0) {
+    identStop();
+    strcpy(reply, "OK - blinking off");
+  } else {
+    int n = arg[0] ? atoi(arg) : 6;
+    if (n < 1)   n = 6;
+    if (n > 999) n = 999;
+    identStart(n);
+    sprintf(reply, "OK - blinking %d times", n);
+  }
 #else
   strcpy(reply, "ERR: no spare LED on this board");
 #endif
@@ -385,6 +432,37 @@ StdRNG fast_rng;
 SimpleMeshTables tables;
 
 MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
+
+// CUSTOM (TeTeHacko): `txpwr [dBm]` -- set LoRa output power and report what
+// RadioLib actually did with the request.
+//
+// `set tx` cannot answer that. It clamps to -9..30, saves the pref and replies
+// "OK", but SX1262 accepts only -9..+22 and rejects anything outside that range
+// WITHOUT touching the PA -- so `get tx` can report a power the radio never took.
+// A power sweep built on that is measuring nothing, and an earlier sweep here was
+// in exactly that position: +2 dBm and -9 dBm both produced RSSI -44.1/-44.0 at a
+// witness, with no way to tell "the radio ignored me" from "the link does not
+// care". This is the missing instrument for that measurement.
+//
+// Deliberately does NOT write the pref, so a sweep cannot leave a node booting
+// at some experimental power; use `set tx` when the value should persist.
+// Status 0 = RADIOLIB_ERR_NONE, -13 = RADIOLIB_ERR_INVALID_OUTPUT_POWER.
+bool txPwrHandleCommand(const char* command, char* reply) {
+  if (memcmp(command, "txpwr", 5) != 0 || (command[5] != 0 && command[5] != ' ')) return false;
+  if (command[5] == ' ') {
+    int dbm = atoi(&command[6]);
+    radio_driver.setTxPower((int8_t) dbm);
+    int16_t st = radio_driver.getLastTxPowerStatus();
+    sprintf(reply, "%s - txpwr %d dBm, RadioLib status %d%s", st == RADIOLIB_ERR_NONE ? "OK" : "ERR",
+            dbm, (int) st,
+            st == RADIOLIB_ERR_INVALID_OUTPUT_POWER ? " (out of range, PA UNCHANGED)" : "");
+  } else {
+    sprintf(reply, "txpwr: last request %d dBm, status %d (SX1262 accepts -9..22)",
+            (int) radio_driver.getLastTxPowerRequested(),
+            (int) radio_driver.getLastTxPowerStatus());
+  }
+  return true;
+}
 
 void halt() {
   while (1) ;

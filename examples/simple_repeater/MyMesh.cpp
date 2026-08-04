@@ -1629,6 +1629,10 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     // since a board with no data cable and no BLE cannot be identified at all.
     extern bool identHandleCommand(const char* command, char* reply);
     if (identHandleCommand(command, reply)) return;
+    // CUSTOM (TeTeHacko): `txpwr [dBm]` — set output power and report RadioLib's
+    // verdict, which `set tx` swallows. See main.cpp.
+    extern bool txPwrHandleCommand(const char* command, char* reply);
+    if (txPwrHandleCommand(command, reply)) return;
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
     // CUSTOM (TeTeHacko): `ble on|off|ble` — implemented in main.cpp (BLE console).
     // Available from serial, the BLE console and remotely via MC (admin remote CLI).
