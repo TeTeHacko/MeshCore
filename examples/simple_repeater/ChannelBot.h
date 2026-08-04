@@ -30,9 +30,23 @@
 
 #ifdef BOT_CHANNEL_PSK
 
-// Comma-separated, case-insensitive substrings; "*" answers anything.
+// Comma-separated, case-insensitive substrings; "*" answers anything, "" never.
 #ifndef BOT_TRIGGER
   #define BOT_TRIGGER "ping,test"
+#endif
+// Senders whose messages are skipped outright, comma-separated node names.
+// This is what keeps two bots on one channel from feeding each other: with
+// TTH-L1 (Solo firmware) periodically putting "Ping" on #tth-test, an
+// unfiltered trigger list made this node answer every one of them and burn the
+// cooldown, so a human asking a question got silence.
+#ifndef BOT_IGNORE_SENDERS
+  #define BOT_IGNORE_SENDERS ""
+#endif
+// Whitelist of `!commands` this node answers, comma-separated, "" = all.
+// The point is complementarity: two bots answering !path means two packets and
+// one duplicate. Give each node the commands only it can answer well.
+#ifndef BOT_COMMANDS
+  #define BOT_COMMANDS ""
 #endif
 // The ONLY throttle on a node that is otherwise pure RX. Keep it generous:
 // every reply is a flood packet on a shared community mesh.
@@ -60,6 +74,7 @@ void MyMesh::botInit() {
   bot_channel_valid = false;
   bot_next_reply_at = 0;
   bot_replies_sent = 0;
+  bot_ignored = 0;
   bot_last_reply_secs = 0;
   memset(&bot_channel, 0, sizeof(bot_channel));
 
@@ -121,10 +136,41 @@ void MyMesh::botFormatPath(char* out, const mesh::Packet* pkt) const {
   *p = 0;
 }
 
+// Exact, case-insensitive membership in a comma-separated list. Distinct from
+// botTriggerMatches(), which is a SUBSTRING search: an ignore list or a command
+// whitelist matching on substrings would be a trap ("path" enabling "!pathx",
+// a node called "TTH" silencing "TTH-L1").
+static bool bot_list_has(const char* list, const char* word) {
+  const char* seg = list;
+  while (*seg) {
+    const char* comma = strchr(seg, ',');
+    int len = comma ? (int)(comma - seg) : (int)strlen(seg);
+    while (len > 0 && *seg == ' ') { seg++; len--; }
+    while (len > 0 && seg[len - 1] == ' ') len--;
+    if (len > 0 && (int)strlen(word) == len) {
+      int i = 0;
+      while (i < len && tolower((unsigned char)word[i]) == tolower((unsigned char)seg[i])) i++;
+      if (i == len) return true;
+    }
+    if (!comma) break;
+    seg = comma + 1;
+  }
+  return false;
+}
+
 // One `!command` -> one text fragment. Returns chars written, 0 for unknown.
 // The interesting ones are the analyzer's: a companion bot cannot answer these
 // at all, because it has no rxlog and no heard registry.
 int MyMesh::botCommandReply(char* out, int max_len, const char* cmd, const mesh::Packet* pkt) {
+  // An empty BOT_COMMANDS means "all"; otherwise only what is listed.
+  if (BOT_COMMANDS[0] != 0 && !bot_list_has(BOT_COMMANDS, cmd)) return 0;
+
+  if (strcmp(cmd, "noise") == 0) {
+    // Noise floor is the analyzer's own measurement -- a companion bot has no
+    // way to answer this, which makes it worth owning on a shared channel.
+    return snprintf(out, max_len, "noise floor %d dBm",
+                    (int)(int16_t)_radio->getNoiseFloor());
+  }
   if (strcmp(cmd, "ping") == 0) {
     return snprintf(out, max_len, "pong");
   }
@@ -265,6 +311,14 @@ void MyMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::Gro
   if (sep) {
     *sep = 0;
     if (strcmp(text, _prefs.node_name) == 0) return;
+    // Peer bots: skip before any trigger or command matching. Measured need --
+    // TTH-L1 puts "Ping" on this channel by itself, and answering those ate the
+    // cooldown, so a human question landed in a closed window.
+    if (BOT_IGNORE_SENDERS[0] != 0 && bot_list_has(BOT_IGNORE_SENDERS, text)) {
+      bot_ignored++;
+      MESH_DEBUG_PRINTLN("bot: ignoruji odesilatele z BOT_IGNORE_SENDERS");
+      return;
+    }
     msg = sep + 2;
   }
 
@@ -296,9 +350,12 @@ bool MyMesh::botHandleCommand(const char* command, char* reply) {
     strcpy(reply, "bot: DISABLED (bad BOT_CHANNEL_PSK)");
     return true;
   }
-  sprintf(reply, "bot: chan hash %02X, trigger '%s', cooldown %d ms, replies %u, last %u",
-          (uint32_t)bot_channel.hash[0], BOT_TRIGGER, (int)BOT_REPLY_COOLDOWN_MS,
-          (uint32_t)bot_replies_sent, (uint32_t)bot_last_reply_secs);
+  sprintf(reply, "bot: chan %02X, trigger '%s', cmds '%s', ignore '%s', cooldown %d ms, replies %u, ignored %u, last %u",
+          (uint32_t)bot_channel.hash[0], BOT_TRIGGER,
+          BOT_COMMANDS[0] ? BOT_COMMANDS : "(vse)",
+          BOT_IGNORE_SENDERS[0] ? BOT_IGNORE_SENDERS : "(nikdo)",
+          (int)BOT_REPLY_COOLDOWN_MS, (uint32_t)bot_replies_sent,
+          (uint32_t)bot_ignored, (uint32_t)bot_last_reply_secs);
   return true;
 }
 

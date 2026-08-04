@@ -215,6 +215,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool bot_channel_valid;           // false = PSK malformed, bot silently off
   unsigned long bot_next_reply_at;  // cooldown gate, 0 = not armed
   uint32_t bot_replies_sent;
+  uint32_t bot_ignored;           // zprav zahozenych podle BOT_IGNORE_SENDERS
   uint32_t bot_last_reply_secs;     // RTC time of the last reply, 0 = never
 #endif
   CayenneLPP telemetry;
