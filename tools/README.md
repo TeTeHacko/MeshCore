@@ -240,6 +240,56 @@ automounter gets to it, and the port enumerates before the firmware answers on
 it. A check that cries wolf is worse than no check, because you learn to ignore
 it.
 
+## `fleet_test.py` — regression smoke test for the whole bench
+
+```sh
+tools/fleet_test.py                        # every XIAO on USB
+tools/fleet_test.py --boards 0,1,2,4 --rounds 3 --json run.json
+```
+
+Run it after any firmware change that touches the radio, the dispatcher or the
+console. Exit code is non-zero if anything failed.
+
+The design rule behind it: **a node's own counters cannot certify that node.**
+`sent` only means the firmware believes it transmitted, which is exactly what a
+dead DIO1 line breaks — x0 reported `sent 0` for a week while another board
+heard every frame it sent. So every RF claim is made by a *different* board than
+the one under test, and the result is an N×N matrix.
+
+Checks, in order:
+
+1. **identity** — version and build date per board. Hard-fails an unstamped
+   image (`v1.16.0` with no `-tth<sha>`, the literal that is identical in every
+   build ever made) and one built from a dirty tree (`+`). Several *different*
+   builds on the bench is only a note: this fleet legitimately runs repeater,
+   bot and companion side by side, so asserting one version would cry wolf every
+   run and train you to skip the summary.
+2. **config** — freq/bw/sf/cr must agree, names must be unique. Without this the
+   matrix measures nothing: two boards on different spreading factors cannot
+   hear each other, which looks exactly like broken hardware.
+3. **matrix** — each board sends a **zero-hop** advert in turn and every other
+   board must count it. Zero-hop is the point: nobody rebroadcasts it, so "B
+   heard A" cannot be satisfied by C relaying A — and the test never has to
+   touch `repeat` prefs. RSSI/SNR at each receiver is printed, which is how an
+   unplugged antenna shows up.
+4. **hygiene** — `tx_timeout`, `tx_start_fail` and `recv_errors` must not move
+   during the run, on any board.
+5. **commands** — console builds only: the surface answers, hard-failing on the
+   few every repeater build must have. `dfu` is deliberately never probed.
+
+Nothing it does writes prefs, changes radio settings or reboots anything.
+
+Speaks **both** bench dialects and detects which is which: the text console
+(repeater/analyzer) and the binary companion protocol (`companion_radio` has no
+text console at all). The fleet-number table is parsed out of
+`xiao_uf2_flash.sh` rather than copied, because two copies would drift and
+mixing up which board is which is the most expensive mistake on this bench.
+
+**Do not leave a BLE client connected to a board under test.** The USB and BLE
+consoles share one `command[160]` buffer, so two live consoles interleave
+characters into a single line and the node executes the result. An A/B run was
+invalidated exactly that way.
+
 ## `provision/` — command files with expected answers
 
 `repeater-cz-silent.txt` configures a repeater for the live CZ preset and
