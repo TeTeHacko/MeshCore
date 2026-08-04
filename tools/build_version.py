@@ -43,14 +43,35 @@ except Exception:
 
 sha, dirty = "nogit", ""
 try:
-    sha = git(cwd, "rev-parse", "--short", "HEAD")
+    sha = git(cwd, "rev-parse", "--short=7", "HEAD")
     if subprocess.call(["git", "diff", "--quiet"], cwd=cwd) != 0:
         dirty = "+"
 except Exception:
     pass
 
-version = "%s-tth-%s%s" % (base, sha, dirty)
-build_date = datetime.now().strftime("%d %b %Y %H:%M")
+# Both strings have to survive the companion protocol's fixed-width fields
+# (RESP_CODE_DEVICE_INFO in companion_radio/MyMesh.cpp): 20 B for the version
+# and 12 B for the build date, NUL included, so 19 and 11 usable characters.
+# Anything longer is silently truncated on the wire -- which first showed up as
+# a node reporting "v1.16.0-tth-956238c" for SHA 956238c3, and a build date of
+# "04 Aug 2026 " with the time cut clean off. The repeater's text console has no
+# such limit, but one format everywhere beats two.
+VER_LIMIT, DATE_LIMIT = 19, 11
+
+# Budget: base and the dirty marker are never sacrificed -- a lost '+' would
+# turn an uncommitted build into something that looks reproducible. The SHA
+# gives up characters instead; git needs 7 for uniqueness in a repo this size,
+# so this only bites if upstream's version string grows unusually long.
+marker = "-tth"
+room = VER_LIMIT - len(base) - len(marker) - len(dirty)
+version = "%s%s%s%s" % (base, marker, sha[:max(4, room)], dirty)
+if len(version) > VER_LIMIT:
+    print("build_version.py: WARNING: %r is %d chars, will truncate to %d on "
+          "the companion protocol" % (version, len(version), VER_LIMIT))
+
+# yymmdd hhmm = exactly 11. Not pretty, but complete and sortable; the readable
+# "%d %b %Y %H:%M" is 17 and lost its time to the 12-byte field.
+build_date = datetime.now().strftime("%y%m%d %H%M")[:DATE_LIMIT]
 env.Append(CPPDEFINES=[
     ("FIRMWARE_VERSION", env.StringifyMacro(version)),
     ("FIRMWARE_BUILD_DATE", env.StringifyMacro(build_date)),

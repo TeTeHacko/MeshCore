@@ -1029,8 +1029,13 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint32_t reported_ble_pin = _serial->isConnectionSecure() ? _prefs.ble_pin : 0;
     memcpy(&out_frame[i], &reported_ble_pin, 4);
     i += 4;
-    memset(&out_frame[i], 0, 12);
-    strcpy((char *)&out_frame[i], FIRMWARE_BUILD_DATE);
+    // 12-byte field = 11 chars + NUL. strcpy() here was unbounded: the default
+    // FIRMWARE_BUILD_DATE literal ("6 Jun 2026") fits, but a stamped one from
+    // tools/build_version.py does not, and the overrun ran into the
+    // manufacturer-name field below -- invisibly, because strzcpy() overwrote it
+    // on the next line. strzcpy() truncates and NUL-pads instead (so the memset
+    // is redundant), same as every other string in this frame.
+    StrHelper::strzcpy((char *)&out_frame[i], FIRMWARE_BUILD_DATE, 12);
     i += 12;
     StrHelper::strzcpy((char *)&out_frame[i], board.getManufacturerName(), 40);
     i += 40;
