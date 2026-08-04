@@ -197,8 +197,16 @@ script — upstream tags per example (`companion-v1.16.0`, `repeater-v1.16.0`), 
 anything matching `*v[0-9]*` counts and the prefix is stripped. Our own
 `+tth.<timestamp>` release tags are excluded so they cannot shadow the base.
 
-**Flash from a clean tree.** A `-tth-<sha>+` on a node tells you which commit it
+**Flash from a clean tree.** A trailing `+` on a node tells you which commit it
 was near, but not what else was in the working copy at the time.
+
+**The stamp has to fit the wire.** `RESP_CODE_DEVICE_INFO` carries the version in
+20 bytes and the build date in 12, NUL included — 19 and 11 usable characters —
+and anything longer is silently truncated before the client ever sees it. Hence
+the terse `<tag>-tth<sha7>[+]` and `yymmdd hhmm`. The repeater's text console has
+no such limit, but one format everywhere beats two. The budget never gives up the
+base version or the dirty `+`; it takes characters off the SHA, and warns rather
+than truncating quietly if it still cannot fit.
 
 ## `provision/` — command files with expected answers
 
