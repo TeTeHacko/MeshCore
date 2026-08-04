@@ -1644,6 +1644,12 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     // verdict, which `set tx` swallows. See main.cpp.
     extern bool txPwrHandleCommand(const char* command, char* reply);
     if (txPwrHandleCommand(command, reply)) return;
+#ifdef PIN_DIAG
+    // CUSTOM (TeTeHacko): `dio1` — is the DIO1 IRQ line alive, and if not, which
+    // END of it is broken? Salvage diagnostics, see main.cpp.
+    extern bool pinDiagHandleCommand(const char* command, char* reply);
+    if (pinDiagHandleCommand(command, reply)) return;
+#endif
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
     // CUSTOM (TeTeHacko): `ble on|off|ble` — implemented in main.cpp (BLE console).
     // Available from serial, the BLE console and remotely via MC (admin remote CLI).

@@ -89,7 +89,38 @@ void RadioLibWrapper::resetAGC() {
   _floor_sample_sum = 0;
 }
 
+#ifdef LORA_POLL_IRQ
+// CUSTOM (TeTeHacko): salvage path for a node whose DIO1 interrupt line is dead.
+//
+// setPacketReceivedAction() above is the ONLY thing that ever sets
+// STATE_INT_READY, so a broken DIO1 line means RxDone/TxDone never reach the
+// MCU: TX times out and retries while the frames actually radiate (a witness
+// node hears them), and received packets are never picked up. That is the exact
+// signature that killed tth-x0 -- see nrf52-radio-fault-diagnosis.
+//
+// The chip latches those events in its IRQ status register regardless of whether
+// they are mapped out to a DIO pin, so reading it over SPI bypasses the whole
+// line -- and therefore works no matter WHICH end of it is broken (dead nRF52
+// input, dead SX1262 output, or a cut trace). Rewiring DIO1 to a spare GPIO only
+// helps in the first of those three cases, so this is the strictly stronger fix:
+// if polling does not revive the node, no wire can either.
+//
+// Cost: one extra SPI read per Dispatcher pass (Dispatcher.cpp:72 -> loop()),
+// alongside the isReceivingPacket() read that already happens in the same path,
+// and completion is noticed on the next pass instead of instantly.
+void RadioLibWrapper::pollIrq() {
+  if (state != STATE_RX && state != STATE_TX_WAIT) return;  // nothing pending
+  uint32_t mask = irqDoneMask();
+  if (mask == 0) return;                                    // radio has no mask
+  if (_radio->getIrqFlags() & mask) setFlag();
+}
+#endif
+
 void RadioLibWrapper::loop() {
+#ifdef LORA_POLL_IRQ
+  pollIrq();
+#endif
+
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     if (!isReceivingPacket()) {
       int rssi = getCurrentRSSI();
@@ -183,6 +214,68 @@ void RadioLibWrapper::onSendFinished() {
   _board->onAfterTransmit();
   state = STATE_IDLE;
 }
+
+#ifdef PIN_DIAG
+// CUSTOM (TeTeHacko): make the radio itself assert DIO1, then report the chip's
+// IRQ status register (read over SPI, independent of the pin) NEXT TO the actual
+// level on the pin. That pair is what a multimeter would otherwise have to tell
+// us, and it says which END of a dead DIO1 line is broken:
+//
+//   irq has TX_DONE, pin HIGH  -> the line is fine, look elsewhere
+//   irq has TX_DONE, pin LOW   -> line dead. If a probe wire is fitted from the
+//                                 DIO1 net to PIN_DIAG_PROBE and THAT reads HIGH,
+//                                 the SX1262 still drives and it is the nRF52's
+//                                 input pad that died -- the one case a rewire
+//                                 to a spare GPIO actually fixes.
+//   no TX_DONE at all          -> the chip never finished the transmit; the
+//                                 fault is not the IRQ line (SPI/BUSY/PA).
+//
+// A 1-byte transmit is used as the stimulus because TX_DONE is unconditional --
+// it needs no peer, no antenna match and no RX activity. It DOES put a frame on
+// the air, so run it on the bench band.
+int RadioLibWrapper::probeDio1(uint32_t* irq_out, int* dio1_level, int* probe_level) {
+  if (state == STATE_TX_WAIT) return -1;   // mid-transmit, don't clobber it
+
+  uint32_t mask = irqDoneMask();
+  if (mask == 0) return -3;                // radio has no chip mask -> can't tell
+
+  uint8_t dummy = 0;
+  _radio->standby();
+  _board->onBeforeTransmit();
+  int err = _radio->startTransmit(&dummy, 1);
+  if (err != RADIOLIB_ERR_NONE) {
+    _board->onAfterTransmit();
+    idle();
+    return err;
+  }
+
+  uint32_t irq = 0;
+  unsigned long deadline = millis() + 2000;
+  while (millis() < deadline) {
+    irq = _radio->getIrqFlags();
+    if (irq & mask) break;
+  }
+
+  // Levels have to be sampled while the IRQ is still asserted: DIO1 stays high
+  // until the status register is cleared, and finishTransmit() clears it.
+  // Runtime compare, not #if: P_LORA_DIO_1 is usually a variant constant like D1
+  // (a static const, invisible to the preprocessor, which would silently read 0).
+  uint32_t dio1_pin = (uint32_t) P_LORA_DIO_1;
+  *dio1_level = (dio1_pin == RADIOLIB_NC) ? -1 : digitalRead(dio1_pin);
+#ifdef PIN_DIAG_PROBE
+  pinMode(PIN_DIAG_PROBE, INPUT);
+  *probe_level = digitalRead(PIN_DIAG_PROBE);
+#else
+  *probe_level = -1;
+#endif
+  *irq_out = irq;
+
+  _radio->finishTransmit();
+  _board->onAfterTransmit();
+  state = STATE_IDLE;        // Dispatcher will startReceive() again
+  return (irq & mask) ? 0 : -2;
+}
+#endif
 
 bool RadioLibWrapper::isChannelActive() {
   return _threshold == 0 

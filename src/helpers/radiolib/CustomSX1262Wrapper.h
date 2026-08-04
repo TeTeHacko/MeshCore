@@ -20,9 +20,17 @@ public:
     updatePreamble(sf);
   }
 
-  bool isReceivingPacket() override { 
+  bool isReceivingPacket() override {
     return ((CustomSX1262 *)_radio)->isReceiving();
   }
+#if defined(LORA_POLL_IRQ) || defined(PIN_DIAG)
+  // CUSTOM (TeTeHacko): SX126x native status bits. TIMEOUT is in the mask because
+  // an RX window that expires has to end the wait too -- with the DIO1 line dead
+  // nothing else would ever release it.
+  uint32_t irqDoneMask() const override {
+    return RADIOLIB_SX126X_IRQ_TX_DONE | RADIOLIB_SX126X_IRQ_RX_DONE | RADIOLIB_SX126X_IRQ_TIMEOUT;
+  }
+#endif
   float getCurrentRSSI() override {
     return ((CustomSX1262 *)_radio)->getRSSI(false);
   }

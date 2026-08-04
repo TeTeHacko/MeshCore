@@ -532,6 +532,43 @@ bool txPwrHandleCommand(const char* command, char* reply) {
   return true;
 }
 
+#ifdef PIN_DIAG
+// CUSTOM (TeTeHacko): `dio1` -- salvage diagnostic for a node whose radio
+// transmits (a witness hears the frames) but never reports completion, i.e. the
+// classic dead-DIO1 signature: `sent 0`, tx_timeout climbing, `recv 0`.
+//
+// The board itself becomes the instrument. probeDio1() has the SX1262 generate a
+// TX_DONE and then compares two things that a working line keeps in step: the
+// chip's IRQ status register (over SPI, so it is true regardless of the pin) and
+// the level on the pin. Where they disagree is where the break is.
+bool pinDiagHandleCommand(const char* command, char* reply) {
+  if (memcmp(command, "dio1", 4) != 0 || command[4] != 0) return false;
+
+  uint32_t irq = 0;
+  int lvl = -1, probe = -1;
+  int st = radio_driver.probeDio1(&irq, &lvl, &probe);
+
+  if (st == -1) { strcpy(reply, "ERR - busy transmitting, try again"); return true; }
+  if (st == -3) { strcpy(reply, "ERR - this radio exposes no IRQ mask"); return true; }
+  if (st == -2) {
+    sprintf(reply, "dio1: NO TX_DONE within 2s (irq=0x%04lx) - the fault is NOT the DIO1 line "
+                   "(SPI/BUSY/PA); the chip never finished the transmit",
+            (unsigned long) irq);
+    return true;
+  }
+  if (st != 0) { sprintf(reply, "ERR - startTransmit %d", st); return true; }
+
+  const char* verdict;
+  if (lvl == 1)        verdict = "line OK - DIO1 rose with the IRQ, look elsewhere";
+  else if (probe == 1) verdict = "MCU input pad DEAD (probe wire sees the signal) -> rewiring FIXES it";
+  else if (probe == 0) verdict = "net dead at the SX1262 end -> rewiring will NOT help";
+  else                 verdict = "DIO1 stayed LOW - fit a probe wire (PIN_DIAG_PROBE) to tell the ends apart";
+  sprintf(reply, "dio1: irq=0x%04lx TX_DONE set, pin=%d probe=%d - %s",
+          (unsigned long) irq, lvl, probe, verdict);
+  return true;
+}
+#endif
+
 void halt() {
   while (1) ;
 }
@@ -578,6 +615,77 @@ void setup() {
                     (unsigned long)hf[1], (unsigned long)hf[2], (unsigned long)hf[3]);
       hf[0] = 0;
     }
+  }
+#endif
+
+#if defined(PIN_DIAG) && defined(XIAO_NRF52)
+  // CUSTOM (TeTeHacko): header GPIO integrity sweep, for salvaging a board whose
+  // pins were abused (tth-x0 took GND on D1 and 5 V on D0 in a breadboard).
+  //
+  // Deliberately placed BEFORE radio_init(), because that halt()s when the radio
+  // does not answer -- so this is the only diagnostic that still runs with the
+  // XIAO UNPLUGGED from the Wio-SX1262 module. Unplugged is also the only state
+  // in which the D1 result means anything: attached, the SX1262 drives DIO1 low
+  // and a perfectly healthy board reads 0 too.
+  //
+  // The internal pull resistor IS the ohmmeter (~13 kOhm): a floating pin follows
+  // it, a pin shorted to a rail does not. Run the same build on a known-good
+  // board as the paired control.
+  //
+  // What the pull test CANNOT see: a lifted pad or broken bond. The resistor sits
+  // on the die, so an open pad still reads 1/0 exactly like a healthy one while
+  // the outside world is disconnected. Only the loopback below catches that.
+  {
+    static const uint8_t diag_pins[] = { D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10 };
+    static const char* diag_use[]    = { "-", "DIO1", "RESET", "BUSY", "NSS", "RXEN",
+                                         "SCL", "SDA", "SCK", "MISO", "MOSI" };
+    Serial.println("PIN_DIAG: unplug the Wio module first, otherwise the radio drives these pins");
+    Serial.println("PIN_DIAG: pin  use    pu pd  verdict");
+    for (uint8_t i = 0; i < sizeof(diag_pins); i++) {
+      uint8_t p = diag_pins[i];
+      pinMode(p, INPUT_PULLUP);   delay(2);  int pu = digitalRead(p);
+      pinMode(p, INPUT_PULLDOWN); delay(2);  int pd = digitalRead(p);
+      pinMode(p, INPUT);
+      const char* v = (pu == 1 && pd == 0) ? "follows pulls (pad healthy OR open)"
+                    : (pu == 0 && pd == 0) ? "STUCK LOW  <- shorted to GND?"
+                    : (pu == 1 && pd == 1) ? "STUCK HIGH <- shorted to VDD?"
+                                           : "inverted?!";
+      Serial.printf("PIN_DIAG: D%-2d  %-5s  %d  %d  %s\n", (int) i, diag_use[i], pu, pd, v);
+    }
+
+  #if defined(PIN_DIAG_LOOP_A) && defined(PIN_DIAG_LOOP_B)
+    // Loopback over ONE jumper wire between two pins -- the only test that can
+    // see a lifted pad, because it drives from outside the die. Each read pulls
+    // AGAINST the driver, so a pass proves the driver actually wins the pin.
+    //
+    // DANGER: this DRIVES pins. Never enable it with the Wio module attached.
+    // Driving DIO1 against the SX1262's own output is the very fight that is
+    // suspected of having killed this board.
+    {
+      const uint8_t pair[2] = { PIN_DIAG_LOOP_A, PIN_DIAG_LOOP_B };
+      int ok = 0;
+      for (int dir = 0; dir < 2; dir++) {
+        uint8_t drv = pair[dir], rd = pair[1 - dir];
+        pinMode(drv, OUTPUT);
+        for (int lvl = 0; lvl < 2; lvl++) {
+          digitalWrite(drv, lvl);
+          pinMode(rd, lvl ? INPUT_PULLDOWN : INPUT_PULLUP);   // pull against it
+          delay(2);
+          int got = digitalRead(rd);
+          if (got == lvl) ok++;
+          Serial.printf("PIN_DIAG: loop pin%d=%d -> pin%d reads %d  %s\n",
+                        (int) drv, lvl, (int) rd, got, got == lvl ? "ok" : "FAIL");
+        }
+        pinMode(drv, INPUT);
+      }
+      Serial.printf("PIN_DIAG: loopback %d/4 - 4 means both pads drive AND sense through the wire\n", ok);
+    }
+  #endif
+
+    // The sweep took the I2C pins away from the TWI peripheral that board.begin()
+    // configured. Nothing here depends on I2C (no RTC, no sensors) and the clock
+    // falls back to VolatileRTCClock, but say so rather than leave it silent.
+    Serial.println("PIN_DIAG: done (I2C pin config was clobbered by the sweep)");
   }
 #endif
 

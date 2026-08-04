@@ -17,6 +17,9 @@ protected:
 
   void idle();
   void startRecv();
+#ifdef LORA_POLL_IRQ
+  void pollIrq();   // CUSTOM (TeTeHacko): DIO1-less completion detection, see .cpp
+#endif
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
   virtual void doResetAGC();
@@ -77,6 +80,21 @@ public:
 
   virtual void setRxBoostedGainMode(bool) { }
   virtual bool getRxBoostedGainMode() const { return false; }
+
+#if defined(LORA_POLL_IRQ) || defined(PIN_DIAG)
+  // CUSTOM (TeTeHacko): chip-native IRQ status bits that mean "the operation the
+  // driver is waiting for has finished" -- i.e. exactly what the DIO1 interrupt
+  // would have told us. getIrqFlags() returns the RAW chip register (SX126x
+  // returns its own bitmask, not RadioLib's generic RADIOLIB_IRQ_* indices), so
+  // the mask has to come from the chip-specific wrapper. Returning 0 disables
+  // both the polling fallback and the DIO1 probe for radios that don't override.
+  virtual uint32_t irqDoneMask() const { return 0; }
+#endif
+
+#ifdef PIN_DIAG
+  // CUSTOM (TeTeHacko): salvage diagnostics -- see `dio1` in simple_repeater.
+  int probeDio1(uint32_t* irq_out, int* dio1_level, int* probe_level);
+#endif
 };
 
 /**
