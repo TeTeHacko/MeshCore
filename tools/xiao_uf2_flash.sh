@@ -6,6 +6,9 @@
 #   target   USB serial (full or unique suffix), or a fleet number 0..4.
 #            Omit only when exactly one board is plugged in.
 #
+#   XIAO_UF2_WAIT=300   seconds to wait for UF2 mode (default 90). Worth raising
+#                       when the board has to be double-tapped by hand.
+#
 # Get the board into UF2 mode with 'dfu' on its console (deterministic), or by
 # double-tapping its small RESET button.
 #
@@ -71,9 +74,14 @@ find_uf2_boards() {
   done
 }
 
-echo -n '== cekam na UF2 rezim ("dfu" na konzoli, nebo dvojklik RESET) '
+# Companion builds have no text console, so no `dfu` command: those boards can
+# only be double-tapped by hand, and 90 s turned out to be shorter than the round
+# trip of asking someone to do it. Overridable rather than just longer, so an
+# unattended flash still fails fast.
+WAIT="${XIAO_UF2_WAIT:-90}"
+echo -n "== cekam na UF2 rezim, ${WAIT}s (\"dfu\" na konzoli, nebo dvojklik RESET) "
 SERIAL=""; DISK=""
-for _ in $(seq 1 90); do
+for _ in $(seq 1 "$WAIT"); do
   mapfile -t found < <(find_uf2_boards)
   if [ -n "$TARGET" ]; then                       # keep only the board asked for
     mapfile -t found < <(printf '%s\n' "${found[@]:-}" | grep -F "$TARGET" || true)
@@ -91,7 +99,7 @@ for _ in $(seq 1 90); do
   sleep 1
 done
 echo
-[ -n "$DISK" ] || die "do 90 s se v UF2 rezimu neobjevila${TARGET:+ deska $TARGET}"
+[ -n "$DISK" ] || die "do ${WAIT} s se v UF2 rezimu neobjevila${TARGET:+ deska $TARGET}"
 echo "== deska: $SERIAL  disk: $DISK"
 
 # Mount with retries: the drive appears a moment before the desktop automounter
