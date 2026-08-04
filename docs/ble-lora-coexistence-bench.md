@@ -154,9 +154,29 @@ counters. Both were zero throughout.
 - **Weakening the link can lock you out.** Below about −16 dBm the node's
   replies stop arriving and the value is re-applied on every reconnect. Hence
   the auto-revert on `blepwr`.
-- **Runtime `set tx` does not change radiated LoRa power** on XIAO+Wio-SX1262:
-  +2 dBm gave RSSI −44.1, −9 dBm gave −44.0, and the node confirmed the setting.
-  Attenuate physically or rely on frequency for isolation.
+- **~~Runtime `set tx` does not change radiated LoRa power~~ — retracted.** The
+  original reading (+2 dBm → RSSI −44.1, −9 dBm → −44.0) was made with an
+  instrument that could not report failure: `RadioLibWrapper::setTxPower()`
+  discarded RadioLib's status, so a refused request looked exactly like an
+  accepted one. Re-measured 2026-08-04 on the repeater build with `txpwr`
+  confirming each step, x1 transmitting and x4 as witness:
+
+  | `txpwr` | witness `last_rssi` |
+  |---:|---:|
+  | +22 | 0 dBm *(saturated)* |
+  | +14 | −1 dBm *(saturated)* |
+  | +6 | −7 dBm |
+  | 0 | −18 dBm |
+  | −9 | −28 dBm |
+
+  31 dB of command produced 28 dB of RSSI, and the witness `recv` counter rose
+  by one at every step, so no point was missed. Radiated power does follow the
+  setting. The top two points are saturated — the boards were ~10 cm apart — so
+  the usable range of that particular rig starts around +6 dBm; characterising
+  the top end needs attenuation or distance, not a bigger number.
+
+  The lesson is not about tx power. It is that a null result from an instrument
+  which cannot distinguish "refused" from "no effect" is not a result at all.
 
 ## The two commands this bench added
 
