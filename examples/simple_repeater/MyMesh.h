@@ -210,6 +210,13 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t pktfeed_stage[MAX_TRANS_UNIT];
   uint8_t pktfeed_stage_len;  // 0 = nothing staged
 #endif
+#ifdef BOT_CHANNEL_PSK
+  mesh::GroupChannel bot_channel;   // 1 B hash + 32 B secret, derived from BOT_CHANNEL_PSK
+  bool bot_channel_valid;           // false = PSK malformed, bot silently off
+  unsigned long bot_next_reply_at;  // cooldown gate, 0 = not armed
+  uint32_t bot_replies_sent;
+  uint32_t bot_last_reply_secs;     // RTC time of the last reply, 0 = never
+#endif
   CayenneLPP telemetry;
   unsigned long set_radio_at, revert_radio_at;
   float pending_freq;
@@ -239,6 +246,18 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void commitPktFeed(const mesh::Packet* pkt);
   void formatPktFeedReply(char* reply, int max_len, uint32_t cursor);
 #endif
+#ifdef BOT_CHANNEL_PSK
+  // CUSTOM (TeTeHacko): channel bot. Definitions in ChannelBot.h, included at
+  // the bottom of MyMesh.cpp. See that file for why this lives in the analyzer
+  // build rather than in companion_radio.
+  void botInit();
+  bool botTriggerMatches(const char* text) const;
+  void botFormatPath(char* out, const mesh::Packet* pkt) const;
+  int  botCommandReply(char* out, int max_len, const char* cmd, const mesh::Packet* pkt);
+  int  botScanCommands(char* out, int max_len, const char* text, const mesh::Packet* pkt);
+  void botSendReply(const mesh::Packet* pkt, const char* text);
+  bool botHandleCommand(const char* command, char* reply);
+#endif
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
@@ -255,6 +274,15 @@ protected:
   }
 
   bool allowPacketForward(const mesh::Packet* packet) override;
+#ifdef BOT_CHANNEL_PSK
+  // CUSTOM (TeTeHacko): both are no-op virtuals in mesh::Mesh, which is the only
+  // reason a repeater is normally deaf to channel traffic. Overriding them does
+  // NOT affect forwarding -- Mesh::onRecvPacket() calls routeRecvPacket() either
+  // way (Mesh.cpp:236-249).
+  int  searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel channels[], int max_matches) override;
+  void onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel,
+                       uint8_t* data, size_t len) override;
+#endif
   const char* getLogDateTime() override;
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
 

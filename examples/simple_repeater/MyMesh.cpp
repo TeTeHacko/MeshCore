@@ -1182,6 +1182,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   pktfeed_next_seq = 1;   // seq 0 is reserved for "empty slot" / initial cursor
   pktfeed_stage_len = 0;
 #endif
+#ifdef BOT_CHANNEL_PSK
+  botInit();
+#endif
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
@@ -1624,6 +1627,10 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     formatPktFeedReply(reply, reply_max, cursor);
 #endif
   } else{
+#ifdef BOT_CHANNEL_PSK
+    // CUSTOM (TeTeHacko): `bot` — read-only channel bot diagnostics. See ChannelBot.h.
+    if (botHandleCommand(command, reply)) return;
+#endif
     // CUSTOM (TeTeHacko): `blink [n]` — flash the LED to identify this board.
     // Outside the BLE guard on purpose: a USB-only build needs it just as much,
     // since a board with no data cable and no BLE cannot be identified at all.
@@ -1691,6 +1698,11 @@ void MyMesh::loop() {
   uptime_millis += now - last_millis;
   last_millis = now;
 }
+
+// CUSTOM (TeTeHacko): channel bot method bodies. Included here, at the very
+// bottom, so they see the complete MyMesh definition (same convention the Solo
+// firmware uses for its own bot).
+#include "ChannelBot.h"
 
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
