@@ -151,6 +151,36 @@ static uint8_t       dfu_pending_mode = 0; // 0=uf2 1=serial 2=ota
 static void dfuTick() {
   if (dfu_pending_at == 0 || (long)(millis() - dfu_pending_at) < 0) return;
   dfu_pending_at = 0;
+
+  // CUSTOM (TeTeHacko): detach USB before the reset instead of letting the reset
+  // yank it out from under the host.
+  //
+  // Measured 4. 8. 2026: 3 of 8 `dfu` commands left the board dead on USB *and*
+  // BLE, recoverable only by a physical replug. The kernel log is unambiguous
+  // about what that is and is not:
+  //
+  //   good:  usb 7-9: USB disconnect  ->  3 s later  idProduct=0045 (bootloader)
+  //   bad:   usb 7-6: USB disconnect  ->  nothing, ever
+  //
+  // No failed-enumeration errors, so it is not a host-side race; the board never
+  // drove D+ again. And it was not sitting in the bootloader either -- a
+  // bootloader in DFU mode advertises `AdaDFU`, and a BLE scan during the wedge
+  // found the other boards advertising and this one absent from both interfaces.
+  //
+  // reset_mcu() (core wiring.c) disables the SoftDevice and resets with USBD
+  // still enabled and possibly mid-transfer. Detaching first drops D+ while the
+  // application is still alive and in control, which gives the host an
+  // unambiguous disconnect and leaves USBD in a defined state at reset.
+  //
+  // Honest scope: this removes a class of race, it is NOT yet proven to be the
+  // cause -- the failure is intermittent, so only a run of trials can say. The
+  // RESETREAS line printed at boot is the other half of the instrument.
+  // Dropping the D+ pullup directly rather than through TinyUSBDevice.detach():
+  // one register write, no dependency on the USB stack's headers being reachable
+  // from here, and it is exactly what detach() does on this chip.
+  NRF_USBD->USBPULLUP = 0;
+  delay(150);   // long enough for the host to see and log the disconnect
+
   if (dfu_pending_mode == 1)      enterSerialDfu();
   else if (dfu_pending_mode == 2) enterOTADfu();
   else                            enterUf2Dfu();
@@ -608,6 +638,22 @@ void setup() {
   // patched HardFault_Handler (framework debug.cpp) before the last reset.
   // 16 B at the end of RAM, reserved in nrf52840_s140_v7_extrafs.ld.
   // NOTE: needs MESH_DEBUG or BOOT_DIAG_DELAY_MS to be readable at all (above).
+  // CUSTOM (TeTeHacko): why did this board last restart? The core latches
+  // NRF_POWER->RESETREAS in init() before clearing it, and it is the only thing
+  // that distinguishes "somebody typed `dfu`" from "the CPU locked up" or "the
+  // power went away" after the fact. Without it a board found sitting in the
+  // application is mute about how it got there -- which is exactly the hole hit
+  // while chasing boards that vanished from USB after `dfu`.
+  {
+    uint32_t rr = readResetReason();
+    Serial.printf("boot: RESETREAS=0x%08lX%s%s%s%s%s\n", (unsigned long)rr,
+                  rr == 0      ? " (none set = power-on/brownout: power was removed)" : "",
+                  (rr & 0x01)  ? " RESETPIN" : "",
+                  (rr & 0x02)  ? " WATCHDOG" : "",
+                  (rr & 0x04)  ? " SREQ(sw reset, e.g. `dfu`/`reboot`)" : "",
+                  (rr & 0x08)  ? " LOCKUP(!)" : "");
+  }
+
   {
     volatile uint32_t* hf = (volatile uint32_t*)0x2003FFF0;
     if (hf[0] == 0xFA010DEB) {
