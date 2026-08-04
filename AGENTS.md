@@ -19,8 +19,15 @@ deploy cíl.
 - **Flashování XIAO: `tools/xiao_uf2_flash.sh <firmware.uf2> [serial|0..4]`.**
   Odmítá zastaralý obraz, hádání cílové desky a hlásí úspěch až po přečtení verze
   z desky. Kanonický BLE DFU je `tools/ble_dfu.py` — nepiš ho znovu.
-- **`reboot` z konzole může desku shodit z USB až do replugu.** Co potřebuješ
-  ověřit, ověř PŘED rebootem. Netlač dál, chtěj replug.
+- **Softwarový reset může desku shodit z USB až do replugu** — `reboot` i `dfu`,
+  změřeno ~5 z 10. Reset pinem (dvojklik) neselhal ani jednou. Co potřebuješ
+  ověřit, ověř PŘED resetem. **Flashuj po jedné a mezi tím kontroluj**; dávka
+  tří flashů stála tři replugy. Netlač dál dalším pokusem — k desce, kterou host
+  nevidí, se druhý `dfu` nemá jak dostat, chtěj ruce hned.
+- **„Deska spadla z USB" NENÍ diagnóza.** Stejný podpis (`USB disconnect` a pak
+  nic, bez chyb enumerace, port `not attached`) jde vyrobit i na naprosto zdravé
+  desce zásahem na hostu. **Port `disable` jako recovery NEPOUŽÍVAT** — sundá
+  zdravou desku bez cesty zpět. Podrobnosti a čísla: `tools/README.md`.
 - **Každý flashovaný env MUSÍ mít `${stamped.extra_scripts}`** (`tools/build_version.py`),
   jinak uzel hlásí literál `v1.16.0` stejný ve všech buildech a nepoznáš, co na něm
   doopravdy je. Flashuj z čistého stromu.
