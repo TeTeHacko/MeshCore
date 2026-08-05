@@ -343,6 +343,60 @@ consoles share one `command[160]` buffer, so two live consoles interleave
 characters into a single line and the node executes the result. An A/B run was
 invalidated exactly that way.
 
+## `gen_node_id.py` — an identity whose path hash collides with nobody
+
+```sh
+tools/gen_node_id.py --out new.key                     # 2-byte prefix free
+tools/gen_node_id.py --first-byte 5f --out new.key     # ...and a chosen first byte
+tools/gen_node_id.py --known https://analyzer.meshcore.cz/api/analytics/hash-sizes
+tools/gen_node_id.py --derive <128 hex>                # pubkey out of an existing prv.key
+```
+
+A node's path hash is nothing but a prefix of its public key (`Identity.h:20`), and
+**the width is chosen by whoever originated the packet, not by the forwarder** —
+`Mesh.cpp:346` appends `packet->getPathHashSize()` bytes, so a repeater configured
+for two bytes still writes one byte into a one-byte packet. The set of nodes a hop
+could mean is therefore *every repeater on the mesh*, never just the ones sharing
+your setting. Measured against the community analyzer (711 repeaters, 5 Aug 2026):
+
+| width | repeaters sharing a prefix |
+|---|---|
+| 1 byte | **671 of 711** (213 colliding prefixes) |
+| 2 bytes | 6 |
+| 3 bytes | 0 |
+
+One-byte uniqueness is unobtainable by pigeonhole — 711 repeaters, 256 values — and
+of the three unused values `00` and `ff` are not free but **forbidden**:
+`Identity.cpp:56` rejects any key whose public part starts with either. That left
+exactly one unclaimed first byte on the whole CZ mesh, `5f`, and
+`tth-plesivec-abertamy` now holds it. Everyone else should aim for a free *two*-byte
+prefix, which is nearly free to find: 934 of 65536 taken.
+
+Grinding costs nothing (~54k keys/s), so there is no reason to accept a random
+prefix on a node that has not yet transmitted — nothing references its old key.
+
+**The private key is not `seed || pubkey`.** MeshCore stores the 64 bytes that
+`lib/ed25519/keypair.c` produces: a **clamped SHA-512 of the seed**, whose second
+half is the hash's other half and *not* the public key. Reading `get prv.key` and
+taking the last 32 bytes yields a plausible-looking value that is not the node's
+identity — a mistake worth avoiding, hence `--derive`, which does the real
+`ge_scalarmult_base(prv[0:32])`. Feeding the wrong format in is at least loud:
+`set prv.key` answers `Error, bad key` because `validatePrivateKey()` re-derives the
+public key and compares.
+
+Loading it: `set prv.key <hex>` on a repeater console, `set private_key <hex>` via
+`meshcore-cli` on a companion; both answer with the new public key and need a
+reboot. **Do not pass the key through a tool that echoes the command** — the serial
+console echoes what it receives, so the key lands in the scrollback and in any
+transcript. Write it straight to the port and filter the echo out.
+
+Related: the community's 1-byte-to-2-byte campaign
+(<https://meshcore.cz/repeatery:twobytesonecup>) is `set path.hash.mode 1`, where the
+mode is **width − 1** (0=1 B, 1=2 B, 2=3 B) and firmware ≤v1.13 drops 2-byte packets.
+TRACE packets encode the width differently — `flags & 3` giving `1 << n`, so 1/2/4/8
+bytes and no such thing as three (`Mesh.cpp:54`). Do not carry one rule over to the
+other.
+
 ## `provision/` — command files with expected answers
 
 `repeater-cz-silent.txt` configures a repeater for the live CZ preset and

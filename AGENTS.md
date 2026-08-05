@@ -35,6 +35,15 @@ deploy cíl.
   Spoléhej na „poslední `-D` vyhrává" a ověř přes `strings` na ELF.
 - **Dock-quiet:** USB drží DTR ⇒ BLE neadvertuje; připojený BLE klient ⇒ USB mlčí.
   Uzel „mrtvý na obou" je většinou zdravý uzel ve špatné kombinaci.
+- **Novou identitu uzlu VŽDY umlít nekolizní** (`tools/gen_node_id.py`). Path hash je
+  prefix pubkey a šířku volí ODESÍLATEL paketu, takže kandidátem na hop je každý
+  repeater meshe — na 1 bajt jich koliduje 671 z 711. `00`/`ff` nejsou volné, ale
+  zakázané (`Identity.cpp:56`). Mletí je zadarmo a uzel, který ještě nevysílal, nemá
+  co ztratit.
+- **`prv.key` NENÍ `seed‖pubkey`**, ale clampnutý SHA-512(seed) (`lib/ed25519/keypair.c`)
+  — posledních 32 bajtů tedy není veřejný klíč, i když tak vypadá. Odvození:
+  `tools/gen_node_id.py --derive`. A klíč **neposílej nástrojem, který echuje příkaz**;
+  konzole ho echuje taky a skončí ve výpisu.
 
 ## Secrety
 
