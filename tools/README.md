@@ -13,6 +13,7 @@ cannot be repeated by hand.
 | `provision/` | command files: what to send, and what the answers must look like |
 | `build_version.py` | PlatformIO pre-script that stamps a real version into the binary |
 | `xiao_uf2_flash.sh` | flash a named XIAO through its UF2 drive, and prove it took |
+| `power_ab.py` | A/B current measurement of a bench node through the UC96 meter's exporter |
 
 The usual sequence against a node you have never talked to before:
 
@@ -342,6 +343,79 @@ mixing up which board is which is the most expensive mistake on this bench.
 consoles share one `command[160]` buffer, so two live consoles interleave
 characters into a single line and the node executes the result. An A/B run was
 invalidated exactly that way.
+
+## `power_ab.py` — what a setting actually costs, in mA
+
+```sh
+tools/power_ab.py --serial 85D35458CC870126 --minutes 15 \
+    --cell "baseline=" --cell "ps=powersaving on" --cell "duty=gps duty"
+```
+
+Applies each cell's commands, lets the node settle, measures, and prints the
+delta against the first cell. Written for the power-saving work on the solar
+repeaters, where the whole question is whether a setting is worth its risk.
+
+**It reads the exporter, not the meter.** `uc96-exporter.service` owns the BLE
+link to the UC96; a second central connecting to the meter steals that link and
+the service reconnect-loops. So the script polls
+`http://localhost:9877/metrics`. (The same data reaches Mimir through alloy, so
+a finished run stays inspectable — but the exporter is live, which is tighter.)
+Which meters that host owns is Ansible-managed in
+`chytra-budka/power-meter/inventory.yml` (`uc96_meter_allowlist`) — not in the
+`uc96-exporter` repo, which is only a mirror. Three meters were added to
+black-arch on 2026-08-05 for bench work; `--meter <mac-without-colons>` picks one.
+
+**A solar node measured on its USB side measures the CHARGER.** Put a SenseCap
+Solar on the meter and it draws 500-700 mA with the bus sagging to 4.7 V: that is
+the cell charging, and the 5-25 mA the node itself uses is 2-4 % of it, riding on
+a current that drifts as the cell fills. The first run against `tth-s1-rpt` was
+invalid for exactly this reason. Options, in order of preference: wait for the
+charge to taper (watch `meter_current_amps` fall — it went 0.71 → 0.53 → 0.22 A
+over ~40 min), pull the cell, or measure the transferable part on a XIAO (a
+P1-Pro has a XIAO nRF52840 inside, so MCU + SX1262 deltas carry over 1:1; only
+GPS is SenseCap-specific).
+
+**And there is no INA226 to cross-check against.** The `i2c` command on
+`tth-s1-rpt` reports nothing at all on the bus, and the variant has a single I2C
+interface (`WIRE_INTERFACES_COUNT (1)`), so that is the whole story. The
+`TELEM_INA226_ADDRESS=0x40` build flag is only a guard against false-detecting
+SHT41 at the library default 0x44 — and that SHT41 is an external Grove sensor on
+`tth-ltm`, not something the board carries. Cross-verification has to come from a
+second board (`s2` is the paired control), not a second sensor.
+
+**Never read `meter_current_amps` for this.** The UC96 quantises current to
+10 mA: the same 0.02 covers a node drawing 15 mA and one drawing 24. The savings
+being measured here are 1-4 mA, i.e. entirely inside one count. What the script
+uses instead is the accumulating `meter_capacity_ah` counter (1 mAh steps),
+sampled through the window and fitted with least squares — the *timing* of each
+step carries far more than the count at the ends. Measured on the bench: a 5 min
+window gives ±12 mA from the endpoints and ~1 mA from the fit.
+
+**Alternate cells when the rig drifts.** A charging cell tapering underneath made
+the `gps on` cells read 107 → 92 → 88 → 84 mA over an hour, which is 23 mA of
+spread across repeats of the *same* cell — enough to bury the 46 mA effect being
+measured if that spread is taken for noise. So run `A B A B A B` and let the tool
+compare each B against the mean of its two neighbouring A cells; a linear trend
+cancels exactly. The summary prints that as `PAROVY ODHAD` and labels a
+monotone spread `drift, NE sum` instead of using it as a noise floor. Measured
+this way, GPS on a SenseCap Solar costs **46.0 mA** (spread 43.7-47.5 over three
+pairs) — where a single before/after pair would have said anything from 55 to 68.
+
+`--reanalyse run.json` re-runs the analysis on a finished run, no hardware needed.
+
+**A cell whose setting did not apply is refused, not measured.** The console can
+drop mid-run (Errno 5); it is re-opened and retried, and the setting is then
+verified on the node (`gps` must answer `duty`, `powersaving` must answer `on`).
+This exists because it went wrong: `gps off` was lost on the wire, the run
+carried on, and two cells silently measured `gps on` again — producing a
+plausible "12 mA saving" that was pure charger taper.
+
+Every cell prints the residual spread and the airtime counters. Residuals over
+about half a step mean the load moved during the window (traffic burst, charging,
+a hand near the antenna) — the mean is then hiding something and the cell should
+be repeated rather than believed. Airtime is context, not the claim: a cell that
+relayed a flood burns more than an idle one, and without that column it looks
+like a regression.
 
 ## `gen_node_id.py` — an identity whose path hash collides with nobody
 
