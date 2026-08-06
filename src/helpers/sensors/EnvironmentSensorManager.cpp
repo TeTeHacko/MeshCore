@@ -662,6 +662,22 @@ bool EnvironmentSensorManager::begin() {
 // actually bites: an address the build's sensor table claims, with nothing
 // answering on it (or something else answering, as SHT41 did on INA226's
 // default 0x44). Marks each hit with the table name when one matches.
+// Append src to dest, or nothing at all if it would not fit whole.
+//
+// Deliberately NOT built on snprintf's return value: that is the length the
+// call WANTED to write, so on truncation it both over-reads the source and
+// leaves the write cursor past the NUL that was actually stored. That is
+// exactly how the expected-empty list below disappeared -- its first entry
+// ("; expected-empty %02X", 19 chars) never fitted the 16-byte scratch buffer,
+// so every reply ended mid-word at "expected-empt" and every following address
+// was written past the terminator, where nothing would ever read it.
+static size_t appendWhole(char* dest, size_t used, size_t max_len, const char* src) {
+  size_t len = strlen(src);
+  if (used + len + 1 > max_len) return used;
+  memcpy(dest + used, src, len + 1);
+  return used + len;
+}
+
 int EnvironmentSensorManager::scanI2C(char* dest, size_t max_len) {
   bool found[128] = {};
   scanI2CBus(TELEM_WIRE, found);
@@ -675,18 +691,15 @@ int EnvironmentSensorManager::scanI2C(char* dest, size_t max_len) {
     for (size_t i = 0; i < SENSOR_TABLE_SIZE; i++) {
       if (SENSOR_TABLE[i].address == addr) { name = SENSOR_TABLE[i].name; break; }
     }
-    char one[32];
-    int len = snprintf(one, sizeof(one), "%s0x%02X%s%s", n ? " " : "", addr,
-                       name ? "=" : "", name ? name : "");
-    if (len > 0 && used + (size_t)len + 1 < max_len) {
-      memcpy(dest + used, one, (size_t)len + 1);
-      used += (size_t)len;
-    }
+    char one[48];
+    snprintf(one, sizeof(one), "%s0x%02X%s%s", n ? " " : "", addr,
+             name ? "=" : "", name ? name : "");
+    used = appendWhole(dest, used, max_len, one);
     n++;
   }
 
   if (n == 0) {
-    used = (size_t)snprintf(dest, max_len, "no I2C device answered");
+    used = appendWhole(dest, 0, max_len, "no I2C device answered");
   }
 
   // Addresses the build's sensor table expects but nothing answered on. Bare
@@ -698,13 +711,12 @@ int EnvironmentSensorManager::scanI2C(char* dest, size_t max_len) {
     uint8_t addr = SENSOR_TABLE[i].address;
     if (found[addr] || listed[addr]) continue;
     listed[addr] = true;
-    char one[16];
-    int len = snprintf(one, sizeof(one), first ? "; expected-empty %02X" : " %02X", addr);
-    if (len > 0 && used + (size_t)len + 1 < max_len) {
-      memcpy(dest + used, one, (size_t)len + 1);
-      used += (size_t)len;
-      first = false;
-    }
+    char one[24];
+    snprintf(one, sizeof(one), first ? "; expected-empty %02X" : " %02X", addr);
+    size_t after = appendWhole(dest, used, max_len, one);
+    if (after == used) break;   // out of room: stop rather than skip and mislead
+    used = after;
+    first = false;
   }
   return n;
 }
