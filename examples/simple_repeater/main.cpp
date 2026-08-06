@@ -295,6 +295,14 @@ bool identHandleCommand(const char* command, char* reply) {
     }
   }
 
+  // True while the console still has bytes to hand to the SoftDevice. The
+  // powersaving sleep must consult this: WFE only wakes on an interrupt, and a
+  // half-drained page would then sit in the ring until the next connection
+  // event instead of going out on this pass. On the observer node the bridge
+  // drains paged output (rxlog/pktlog) in a 2-minute duty cycle, so a slower
+  // drain directly costs collected frames.
+  static bool bleTxPending() { return ble_tx_tail != ble_tx_head; }
+
   static void bleTxPump() {
     if (ble_tx_tail == ble_tx_head) return;
     if (!Bluefruit.connected()) { ble_tx_tail = ble_tx_head; return; }   // client gone -> drop
@@ -348,6 +356,33 @@ bool identHandleCommand(const char* command, char* reply) {
   // sooner -> 0x3E. Responding every event maximises sync on a weak/busy link.
   #define RPT_BLE_SLAVE_LATENCY        0
   #define RPT_BLE_CONN_SUP_TIMEOUT  1600    // 16000 ms (10 ms units); < 20 s HW watchdog
+
+  // CUSTOM (TeTeHacko): two power knobs for a headless node that advertises
+  // around the clock. Measured on this hardware, GPS aside, everything left in
+  // the budget is single-digit mA -- so a blinking LED and a 6.5 Hz advertising
+  // rate are not rounding errors, they are the budget.
+  //
+  // Bluefruit blinks LED_BLUE while advertising and holds it on while connected
+  // (bluefruit.cpp::_setConnLed). On SenseCap Solar LED_BLUE is pin 12 -- the
+  // SAME pin as P_LORA_TX_LED -- so a mast node burns solar charge blinking an
+  // LED sealed inside an enclosure, and the LoRa TX indicator lies as a bonus.
+  #ifndef RPT_BLE_CONN_LED
+  #define RPT_BLE_CONN_LED             0    // 1 = keep the library's blinking LED
+  #endif
+  // Advertising intervals (0.625 ms units). Fast is used for the first
+  // RPT_BLE_ADV_FAST_SECS after boot or a disconnect, then it falls back to
+  // slow forever. Upstream leaves slow at 244 = 152.5 ms, i.e. a headless node
+  // transmits on three channels ~6.5 times a second for years. 1 s still gets
+  // discovered by a phone scan well within one sweep.
+  #ifndef RPT_BLE_ADV_FAST
+  #define RPT_BLE_ADV_FAST            32    // 20 ms
+  #endif
+  #ifndef RPT_BLE_ADV_SLOW
+  #define RPT_BLE_ADV_SLOW          1600    // 1000 ms
+  #endif
+  #ifndef RPT_BLE_ADV_FAST_SECS
+  #define RPT_BLE_ADV_FAST_SECS       30
+  #endif
 
   // CUSTOM (TeTeHacko): TX power of the CONNECTION, which is a separate knob
   // from the Bluefruit.setTxPower(8) in setup(). That one only stores a value
@@ -808,6 +843,9 @@ void setup() {
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
   // BLE UART console (PIN pairing). Runs alongside normal repeater duty.
   Bluefruit.begin();
+  // Must come after begin(): autoConnLed(false) also stops the blink timer,
+  // which only exists once begin() has created it.
+  Bluefruit.autoConnLed(RPT_BLE_CONN_LED);
   // +8 dBm = nRF52840 max (range to the dongle across the balcony). NOTE: this
   // is ADVERTISING power only -- Bluefruit stores it and BLEAdvertising::start()
   // hands it to sd_ble_gap_tx_power_set(BLE_GAP_TX_POWER_ROLE_ADV). Nothing in
@@ -845,8 +883,8 @@ void setup() {
   Bluefruit.Advertising.addTxPower();
   Bluefruit.Advertising.addService(bleuart);
   Bluefruit.ScanResponse.addName();
-  Bluefruit.Advertising.setInterval(32, 244);
-  Bluefruit.Advertising.setFastTimeout(30);
+  Bluefruit.Advertising.setInterval(RPT_BLE_ADV_FAST, RPT_BLE_ADV_SLOW);
+  Bluefruit.Advertising.setFastTimeout(RPT_BLE_ADV_FAST_SECS);
   // persistent BLE state: with the marker present keep BLE dark (see `ble on|off`)
   ble_enabled = !InternalFS.exists(BLE_OFF_MARKER);
   if (ble_enabled) {
@@ -997,7 +1035,11 @@ void loop() {
 #endif
   rtc_clock.tick();
 
-  if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
+  bool ble_tx_busy = false;
+#if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)
+  ble_tx_busy = bleTxPending();   // console output still queued -> keep pumping
+#endif
+  if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork() && !ble_tx_busy) {
 #if defined(NRF52_PLATFORM)
     board.sleep(0); // nrf ignores seconds param, sleeps whenever possible
 #else
