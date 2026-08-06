@@ -12,6 +12,8 @@
 #   get path.hash.mode        1     (2 bytes per hop; 1 B is dead on the CZ mesh)
 #   get af                    9.0
 #   get radio.rxgain          on
+#   powersaving               on
+#   gps                       duty, {awake|asleep}, ...   NOT "on, active"
 #   gps advert                prefs
 #   get lat / get lon         the coordinates compiled in, not 0
 #   clock                     current UTC
@@ -37,6 +39,8 @@ get repeat
 get path.hash.mode
 get af
 get radio.rxgain
+powersaving
+gps
 gps advert
 get lat
 get lon

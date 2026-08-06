@@ -24,7 +24,14 @@
 # time <epoch>
 
 # --- GPS: time yes, position not necessarily ---------------------------
-gps on
+# `duty`, not `on`: measured on this hardware, a continuously powered receiver
+# costs 46 mA (paired A/B, 2026-08-05) -- more than the rest of the node's
+# budget put together, and this node runs GPS purely to keep its volatile RTC
+# set. Duty mode powers the receiver only around a clock sync, at the same
+# 30-minute cadence `gps on` already re-syncs at, so the clock is no less
+# accurate; it saves ~42-45 mA of the 46. If a fix never comes (blocked sky) it
+# gives up after 5 minutes and retries in an hour instead of staying on.
+gps duty
 # `prefs` advertises the coordinates compiled into the firmware, NOT the live
 # fix. That is what lets a node sit at a private address, keep accurate time and
 # still show up in roughly the right place on the community maps.
@@ -37,4 +44,14 @@ gps advert prefs
 # duty on its own (airtime_factor defaults to 0 = 100 %) and caps at 9, so 9 is
 # both the correct value here and the strictest the firmware can do.
 set af 9
+# Boosted RX gain stays ON despite costing ~0.7 mA: this node's whole job is
+# hearing distant repeaters, and 1-3 dB of sensitivity is not for sale at that
+# price. It is the one power knob deliberately left in the expensive position.
 set radio.rxgain on
+
+# --- power -------------------------------------------------------------
+# The MCU sleeps between events (nRF52: WFE, wakes on any interrupt including
+# the LoRa DIO1). Upstream leaves this OFF, and a repeater with it off runs the
+# core at 64 MHz around the clock for no benefit. It was missing here, so every
+# node provisioned from this file has been paying for it.
+powersaving on

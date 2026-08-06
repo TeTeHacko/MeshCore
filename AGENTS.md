@@ -35,6 +35,18 @@ deploy cíl.
   Spoléhej na „poslední `-D` vyhrává" a ověř přes `strings` na ELF.
 - **Dock-quiet:** USB drží DTR ⇒ BLE neadvertuje; připojený BLE klient ⇒ USB mlčí.
   Uzel „mrtvý na obou" je většinou zdravý uzel ve špatné kombinaci.
+- **Energetika uzlu: `docs/power-saving.md`** (změřená čísla, knoby, pasti měření).
+- **Pořadí úspor je změřené, nehádej ho:** GPS **46 mA** (párové A/B na SenseCapu
+  5. 8. 2026; datasheetových 25–35 mA bylo nízko) ≫ BLE advertising + blikající
+  LED > `powersaving` (MCU spánek) ~jednotky mA > rxps ~2 mA > `rxgain off`
+  0,7 mA (za cenu citlivosti ⇒ na stožár NE). `gps duty` z toho ušetří 42–45 mA
+  i v případě, že uzel fix nikdy nedostane. Cokoliv jiného řeš až po GPS.
+- **Spotřebu solárního uzlu NEMĚŘ přes USB** — měřák tam vidí nabíječku článku
+  (500–700 mA, sběrnice klesne na 4,7 V), a uzel sám je 2–4 % z toho na driftující
+  hodnotě. Buď počkej, než nabíjení dojde, vytáhni článek, nebo měř přenositelnou
+  část na XIAO (P1-Pro má XIAO uvnitř; jen GPS je specifická). **INA226 na desce
+  NENÍ** (`i2c` scan: na jediné sběrnici neodpoví nikdo) — `TELEM_INA226_ADDRESS=0x40`
+  je jen pojistka proti falešné detekci SHT41 na 0x44. Nářadí: `tools/power_ab.py`.
 - **Novou identitu uzlu VŽDY umlít nekolizní** (`tools/gen_node_id.py`). Path hash je
   prefix pubkey a šířku volí ODESÍLATEL paketu, takže kandidátem na hop je každý
   repeater meshe — na 1 bajt jich koliduje 671 z 711. `00`/`ff` nejsou volné, ale
