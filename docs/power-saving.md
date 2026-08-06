@@ -98,7 +98,9 @@ drain directly costs collected frames.
    mA ride on top of a drifting number. Wait for the charge to finish (it fell
    0.71 → 0.53 → 0.22 → 0.05 A over about an hour here) or the numbers are
    fiction. There is **no INA226 on this board** to cross-check with — the `i2c`
-   command reports nothing at all on the only bus the variant has.
+   command reports nothing at all on the only bus the variant has. Checked on
+   two separate P1-Pro units (`tth-s1-rpt`, `tth-hrebecna`), so this is the
+   board, not one dead sensor. The cross-check has to be a second *board*.
 2. **With `gps duty` enabled you cannot measure anything under ~5 mA.** A sync
    window lands in a random cell and adds ~17 mA to a 10-minute average (seen:
    40.9 mA against 24.1-24.5 in its neighbours). Put `gps off` in every cell of
