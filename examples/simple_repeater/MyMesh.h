@@ -316,7 +316,10 @@ protected:
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
-    sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
+    // 0 off / 1 on / 2 duty cycle -- pass the mode through, not a boolean, or
+    // a duty-cycled node comes back from a reboot with GPS powered forever.
+    const char* mode = _prefs.gps_enabled == 2 ? "2" : (_prefs.gps_enabled ? "1" : "0");
+    sensors.setSettingValue("gps", mode);
   }
 #endif
 

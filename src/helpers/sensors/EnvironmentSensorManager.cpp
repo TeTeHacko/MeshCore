@@ -658,6 +658,57 @@ bool EnvironmentSensorManager::begin() {
   return true;
 }
 
+// Answers "what is really on this bus?" on a live node, and flags the case that
+// actually bites: an address the build's sensor table claims, with nothing
+// answering on it (or something else answering, as SHT41 did on INA226's
+// default 0x44). Marks each hit with the table name when one matches.
+int EnvironmentSensorManager::scanI2C(char* dest, size_t max_len) {
+  bool found[128] = {};
+  scanI2CBus(TELEM_WIRE, found);
+
+  int n = 0;
+  size_t used = 0;
+  dest[0] = 0;
+  for (uint8_t addr = 0x08; addr < 0x78; addr++) {
+    if (!found[addr]) continue;
+    const char* name = NULL;
+    for (size_t i = 0; i < SENSOR_TABLE_SIZE; i++) {
+      if (SENSOR_TABLE[i].address == addr) { name = SENSOR_TABLE[i].name; break; }
+    }
+    char one[32];
+    int len = snprintf(one, sizeof(one), "%s0x%02X%s%s", n ? " " : "", addr,
+                       name ? "=" : "", name ? name : "");
+    if (len > 0 && used + (size_t)len + 1 < max_len) {
+      memcpy(dest + used, one, (size_t)len + 1);
+      used += (size_t)len;
+    }
+    n++;
+  }
+
+  if (n == 0) {
+    used = (size_t)snprintf(dest, max_len, "no I2C device answered");
+  }
+
+  // Addresses the build's sensor table expects but nothing answered on. Bare
+  // hex, deduplicated: three entries share 0x76 and the names alone overran the
+  // 150 B mesh reply, truncating the part worth reading.
+  bool listed[128] = {};
+  bool first = true;
+  for (size_t i = 0; i < SENSOR_TABLE_SIZE; i++) {
+    uint8_t addr = SENSOR_TABLE[i].address;
+    if (found[addr] || listed[addr]) continue;
+    listed[addr] = true;
+    char one[16];
+    int len = snprintf(one, sizeof(one), first ? "; expected-empty %02X" : " %02X", addr);
+    if (len > 0 && used + (size_t)len + 1 < max_len) {
+      memcpy(dest + used, one, (size_t)len + 1);
+      used += (size_t)len;
+      first = false;
+    }
+  }
+  return n;
+}
+
 // ============================================================
 // querySensors() — GPS stays on channel 1; each active sensor
 // gets the next available channel in the order it was
@@ -704,6 +755,10 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
     if (gps_detected && i == settings++) {
+      // In duty mode report the mode, not the momentary power state: asleep
+      // between syncs is not the same thing as `gps off`, and something that
+      // round-trips this value must not silently downgrade the mode.
+      if (gps_duty) return "2";
       return gps_active ? "1" : "0";
     }
   #endif
@@ -714,8 +769,20 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   #if ENV_INCLUDE_GPS
   if (gps_detected && strcmp(name, "gps") == 0) {
     if (strcmp(value, "0") == 0) {
+      gps_duty = false;
       stop_gps();
+    } else if (strcmp(value, "2") == 0) {
+      // Duty cycle: power up now (the clock is volatile, so the first sync is
+      // wanted immediately at boot) and let gpsDutyLoop() cut power once the
+      // RTC is set. The awake deadline MUST be armed here as well as in the
+      // loop -- left at 0 it is already in the past, and the first loop pass
+      // would cut GPS before it ever saw a satellite and back off for an hour.
+      gps_duty = true;
+      gps_wake_at = millis();
+      gps_awake_until = millis() + (uint32_t)GPS_DUTY_MAX_AWAKE_SECS * 1000;
+      start_gps();
     } else {
+      gps_duty = false;
       start_gps();
     }
     return true;
@@ -869,6 +936,40 @@ void EnvironmentSensorManager::start_gps() {
 #endif
 }
 
+// Powers the receiver only around a clock sync (see gps_duty in the header).
+//
+// The cadence is owned here, not by MicroNMEALocationProvider's 30-minute
+// re-arm, for one concrete reason: while the receiver is off its loop() is not
+// called, so nothing feeds the parser -- and MicroNMEA keeps reporting the LAST
+// fix as valid. A provider-driven re-arm would therefore sync the RTC to a
+// half-hour-old timestamp. Hence syncTime() (which clears the parser) on every
+// wake, and our own timer for when the next wake is due.
+void EnvironmentSensorManager::gpsDutyLoop() {
+  if (!gps_duty) return;
+
+  // int32_t deltas, so the 49-day millis() wrap does not park GPS on (or off)
+  // forever -- these repeaters run for months between reboots.
+  if (!gps_active) {
+    if ((int32_t)(millis() - gps_wake_at) >= 0) {
+      start_gps();
+      _location->syncTime();  // clears the parser + arms the sync request
+      gps_awake_until = millis() + (uint32_t)GPS_DUTY_MAX_AWAKE_SECS * 1000;
+      MESH_DEBUG_PRINTLN("gps duty: awake, waiting for fix");
+    }
+    return;
+  }
+
+  if (!_location->waitingTimeSync()) {   // the RTC got set -> nothing left to stay on for
+    stop_gps();
+    gps_wake_at = millis() + (uint32_t)GPS_DUTY_SYNC_INTERVAL_SECS * 1000;
+    MESH_DEBUG_PRINTLN("gps duty: synced, off for %d s", (int)GPS_DUTY_SYNC_INTERVAL_SECS);
+  } else if ((int32_t)(millis() - gps_awake_until) >= 0) {
+    stop_gps();
+    gps_wake_at = millis() + (uint32_t)GPS_DUTY_RETRY_SECS * 1000;
+    MESH_DEBUG_PRINTLN("gps duty: no fix in window, retry in %d s", (int)GPS_DUTY_RETRY_SECS);
+  }
+}
+
 void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
   #ifdef RAK_WISBLOCK_GPS
@@ -893,6 +994,7 @@ void EnvironmentSensorManager::loop() {
   if (gps_active) {
     _location->loop();
   }
+  gpsDutyLoop();
   if (millis() > next_gps_update) {
 
     if(gps_active){

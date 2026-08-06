@@ -955,13 +955,24 @@ region save
 - `gps <state>`
 
 **Parameters:**
-- `state`: `on`|`off`
+- `state`: `on`|`off`|`duty`
 
 **Default:** `off`
 
 **Note:** Output format:
 - `off` when the GPS hardware is disabled
 - `on, {active|deactivated}, {fix|no fix}, {sat count} sats` when the GPS hardware is enabled
+- `duty, {awake|asleep}, {fix|no fix}, {sat count} sats` in duty-cycle mode
+
+`gps duty` powers the receiver only around a clock sync and cuts it in between.
+It is meant for a node that runs GPS purely to keep its (volatile) RTC set — a
+mast or solar repeater — where a receiver drawing tens of mA continuously
+dwarfs the rest of the power budget. Clock accuracy is unchanged: the sync
+cadence matches the periodic re-sync that `gps on` already does. The position
+still comes from prefs (see `gps advert`), so duty mode does not affect what a
+repeater advertises. Build-time knobs: `GPS_DUTY_SYNC_INTERVAL_SECS` (1800),
+`GPS_DUTY_MAX_AWAKE_SECS` (300, the cap on one attempt) and
+`GPS_DUTY_RETRY_SECS` (3600, backoff after a window with no fix).
 
 ---
 

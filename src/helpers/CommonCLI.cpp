@@ -117,7 +117,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
 
-    _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
+    _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 2);  // 0 off, 1 on, 2 duty cycle
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
     // sanitise settings
@@ -469,6 +469,17 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "gps toggle not found");
       }
+    } else if (memcmp(command, "gps duty", 8) == 0) {
+      // Power GPS only around a clock sync. For a node that runs GPS purely for
+      // the (volatile) RTC this is the same service at a fraction of the power;
+      // position keeps coming from prefs, see `gps advert`.
+      if (_sensors->setSettingValue("gps", "2")) {
+        _prefs->gps_enabled = 2;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "gps toggle not found");
+      }
     } else if (memcmp(command, "gps sync", 8) == 0) {
       LocationProvider * l = _sensors->getLocationProvider();
       if (l != NULL) {
@@ -519,7 +530,14 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         bool fix = l->isValid();       // has fix ?
         int sats = l->satellitesCount();
         bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
-        if (enabled) {
+        if (_prefs->gps_enabled == 2) {
+          // Duty cycle: the EN pin is off most of the time BY DESIGN, so
+          // reporting plain "off" here would read as a dead GPS. Say which.
+          sprintf(reply, "duty, %s, %s, %d sats",
+            enabled?"awake":"asleep",
+            fix?"fix":"no fix",
+            sats);
+        } else if (enabled) {
           sprintf(reply, "on, %s, %s, %d sats",
             active?"active":"deactivated",
             fix?"fix":"no fix",
