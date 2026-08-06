@@ -24,6 +24,15 @@ public:
   virtual bool setSettingValue(const char* name, const char* value) { return false; }
   virtual LocationProvider* getLocationProvider() { return NULL; }
 
+  // Live I2C scan, written into dest as text. Returns the number of devices
+  // that answered, or -1 when the platform has no bus to scan.
+  //
+  // begin() already scans the bus, but only into a MESH_DEBUG log nobody has on
+  // a deployed node -- so "is that sensor actually there?" was answerable only
+  // by inference from telemetry, and inference is what produced a build flag
+  // pointing INA226 at 0x40 to dodge a false detect at 0x44 (SHT41's address).
+  virtual int scanI2C(char* dest, size_t max_len) { (void)dest; (void)max_len; return -1; }
+
   // Helper functions to manage setting by keys (useful in many places ...)
   const char* getSettingByKey(const char* key) {
     int num = getNumSettings();

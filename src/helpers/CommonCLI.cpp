@@ -378,6 +378,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           *(dp-1) = 0; // remove last CR
         }
       }
+    } else if (memcmp(command, "i2c", 3) == 0) {
+      // Live bus scan. `sensor read` only shows what got initialised, so a
+      // sensor that is absent and one whose address is wrong look identical
+      // there; this separates the two.
+      // 150 = what one LoRa packet carries, i.e. the smallest reply buffer any
+      // caller of CommonCLI passes (the local console's is far bigger, but
+      // CommonCLI is not told which one it got).
+      int n = _sensors->scanI2C(reply, 150);
+      if (n < 0) strcpy(reply, "no I2C bus on this build");
     } else if (memcmp(command, "sensor read", 11) == 0) {
       // Decode the live telemetry (the same CayenneLPP payload sent over the
       // mesh) into a human-readable line. `sensor list` only exposes settings
