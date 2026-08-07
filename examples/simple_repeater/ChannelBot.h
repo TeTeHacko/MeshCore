@@ -69,7 +69,17 @@
 #define BOT_REPLY_LEN     120   // well under the 184 B packet payload
 #define BOT_TEXT_LEN      160   // inbound text, after the "<sender>: " prefix
 #define BOT_PATH_STR_LEN   64   // "3f:a1:c8..." -- caps how many hops we print
-#define BOT_FRAG_LEN       72   // one !command's answer (!link je nejdelsi)
+// One !command's answer. Sized for the WORST CASE of !link, which is the longest:
+// botFormatPath() caps the path string at 62 chars (21 hops x 1 B, or 9 x 3 B, or
+// 12 x 2 B -- all land just under BOT_PATH_STR_LEN), and the numbers in front of it
+// add 36 ("SNR -20.5 dB, RSSI -128 dBm, 63 hop "). 98 + NUL.
+//
+// It was 72, sized against the longest COMMAND rather than the longest PATH, and
+// that held only because !link had never been asked from further than 2 hops away.
+// Measured 7. 8. 2026: an 11-hop request wanted 88 chars, so the reply truncated at
+// 71 -- and with the old field order the part that got cut was exactly the SNR/RSSI
+// the command exists to report ("... 209f:34fa:ed9c, SNR 4.0 ").
+#define BOT_FRAG_LEN      100
 
 static int bot_hex_nibble(char c) {
   if (c >= '0' && c <= '9') return c - '0';
@@ -198,10 +208,15 @@ int MyMesh::botCommandReply(char* out, int max_len, const char* cmd, const mesh:
     // se pta clovek v aute, ktery nema chut psat dva prikazy -- a jde o cestu
     // JEHO paketu k NAM, cili presne ten smer, ktery si na svem uzlu overit
     // neumi (tam vidi jen to, co prijima).
+    // The path goes LAST on purpose. It is the only unbounded part of this reply
+    // (0 to 62 chars, and the sender picks the hash width), so it is also the only
+    // part that can push the answer over BOT_FRAG_LEN. Putting it after the numbers
+    // means a truncation eats hops off the tail instead of eating the SNR/RSSI --
+    // and a partial path is still useful, a missing link budget is not.
     char path[BOT_PATH_STR_LEN];
     botFormatPath(path, pkt);
-    return snprintf(out, max_len, "%d hop %s, SNR %.1f dB, RSSI %d dBm",
-                    (int)pkt->getPathHashCount(), path, pkt->getSNR(), pkt->getRSSI());
+    return snprintf(out, max_len, "SNR %.1f dB, RSSI %d dBm, %d hop %s",
+                    pkt->getSNR(), pkt->getRSSI(), (int)pkt->getPathHashCount(), path);
   }
   if (strcmp(cmd, "snr") == 0) {
     // Straight off the frame that carried the request -- the same numbers
