@@ -47,6 +47,7 @@ import re
 import struct
 import sys
 import time
+from datetime import datetime, timezone
 
 import serial
 
@@ -378,6 +379,44 @@ def check_hygiene(nodes, base, rep):
                 "ok" if not bad else str(bad))
 
 
+# Rok, pod kterym je jasne, ze hodinam nikdo cas nenastavil: VolatileRTCClock
+# startuje v kvetnu 2024 a jinak jen tika z millis().
+CLOCK_FLOOR = 1735689600      # 2025-01-01 UTC
+
+
+def check_clock(nodes, rep):
+    print("\n== 6. hodiny desek", flush=True)
+    for n in nodes:
+        if n.kind != "console":
+            rep.note(f"{n.name}: companion build, `clock` neexistuje -- preskoceno")
+            continue
+        out = n.cmd("clock")
+        m = re.search(r"epoch\s+(\d+)", out)
+        if m:
+            node_epoch = int(m.group(1))
+        else:
+            m = re.search(r"\b(\d{1,2}):(\d{2})\s*-\s*(\d{1,2})/(\d{1,2})/(\d{4})", out)
+            if not m:
+                rep.add("clock", f"{n.name} odpovida na clock", False, out.strip()[:60])
+                continue
+            hh, mm, day, mon, year = (int(g) for g in m.groups())
+            try:
+                node_epoch = int(datetime(year, mon, day, hh, mm,
+                                          tzinfo=timezone.utc).timestamp())
+            except ValueError:
+                rep.add("clock", f"{n.name} odpovida na clock", False, out.strip()[:60])
+                continue
+        skew = int(time.time()) - node_epoch
+        # Deska, ktere nikdo cas nenastavil, je vada konfigurace, ne vada desky --
+        # ale prave proto se to musi hlasit. Na x3 to uniklo 811 dni a na teto
+        # lavici to 7. 8. 2026 platilo pro KAZDOU desku. Spatny cas neni kosmetika:
+        # RTC stampuje kazdy vyslany advert a prijemce stary timestamp zahodi jako
+        # replay. Srovnat: `tools/ble_cli.py <MAC> "time {epoch}"` nebo pres USB.
+        rep.add("clock", f"{n.name} ma nastavene hodiny", node_epoch > CLOCK_FLOOR,
+                f"{datetime.fromtimestamp(node_epoch, timezone.utc).isoformat()}"
+                f" (skew {skew:+d} s = {skew / 86400:.1f} dni)")
+
+
 # Commands every repeater/analyzer build must answer. `dfu` is deliberately NOT
 # probed -- it reboots into the bootloader.
 MUST_HAVE = ["ver", "advert.zerohop", "stats-packets", "blink", "txpwr"]
@@ -432,6 +471,7 @@ def main():
         check_matrix(nodes, rep, a.rounds)
         check_hygiene(nodes, base, rep)
         check_commands(nodes, rep)
+        check_clock(nodes, rep)
     finally:
         for n in nodes:
             n.close()
@@ -452,4 +492,11 @@ def main():
     return 1 if n_bad else 0
 
 
-sys.exit(main())
+# The guard is not decoration: this module TRANSMITS. check_matrix() and the
+# `advert.zerohop` probe in check_commands() key the radio on every console board
+# found on USB, whatever band each one is tuned to. Without the guard, so much as
+# `import fleet_test` to reuse discover() ran the whole suite -- which on
+# 7. 8. 2026 put two zero-hop adverts on 869.432 out of a bench board configured
+# for the live CZ mesh, before the importing script's own first line had run.
+if __name__ == "__main__":
+    sys.exit(main())
