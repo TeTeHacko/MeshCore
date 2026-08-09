@@ -20,8 +20,9 @@
 # The RTC is volatile. GPS re-syncs it after every reboot, which is why GPS is
 # on even where the position is never published. If GPS already has a fix this
 # returns "clock cannot go backwards" -- that is success, not an error.
-# Substitute the real epoch; ble_cli does not expand shell.
-# time <epoch>
+# `{epoch}` is expanded by ble_cli at send time (shell substitution cannot reach
+# inside a -f file, which is why this line used to be a commented-out reminder).
+time {epoch}
 
 # --- GPS: time yes, position not necessarily ---------------------------
 # `duty`, not `on`: measured on this hardware, a continuously powered receiver

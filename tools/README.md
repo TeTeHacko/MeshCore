@@ -97,6 +97,15 @@ ble_cli.py <MAC> -w 8 rxlog                       # longer wait for paged output
 
 Prints `command<TAB>reply` per line, so output is greppable.
 
+**`{epoch}` expands to the host's unix time**, at the moment the command is sent
+rather than when arguments are parsed — `--per-command` reconnects cost seconds
+each and a whole `-f` file can take minutes. It exists so a provisioning *file*
+can carry `time {epoch}`: `-f` reads lines verbatim, so a `$(date +%s)` in one
+goes out as literal text and the node answers `Unknown command`. That is why the
+clock line in `provision/repeater-cz-silent.txt` used to be a commented-out note
+telling you to substitute the number by hand. The printed command shows the
+expanded value, so the log says what was really sent.
+
 **The 20-byte trap.** A NUS write carries at most `ATT_MTU - 3` bytes and BlueZ
 will not split it for you. MeshCore nodes routinely stay at the default MTU of
 23, so anything over 20 bytes is rejected with
@@ -202,6 +211,29 @@ anything matching `*v[0-9]*` counts and the prefix is stripped. Our own
 **Flash from a clean tree.** A trailing `+` on a node tells you which commit it
 was near, but not what else was in the working copy at the time.
 
+**It also stamps `FIRMWARE_BUILD_EPOCH`** — the same instant as an integer, used
+by `VolatileRTCClock` as its starting `base_time` instead of upstream's hardcoded
+15 May 2024 (see the define in `src/MeshCore.h`). This is the only thing that
+gives a node a sane clock with **no GPS, no I2C RTC, nothing carrying a correct
+time on air and no host attached**: a freshly flashed board is right to within
+"time since compile", which on the bench is seconds. Costs no extra rebuilds —
+`FIRMWARE_BUILD_DATE` already forces a full one every time.
+
+It is `str(epoch)` and **not** `StringifyMacro`, because the compiler has to see
+the integer `1786098575`, not the string `"1786098575"`.
+
+Verifying an integer define is not `strings` on the ELF — that only works for
+string literals. Dump `.text` and look for the word:
+
+```sh
+arm-none-eabi-objdump -s -j .text firmware.elf   # find the epoch as a LE word,
+                                                 # and check 1715770351 is GONE
+```
+
+The `#ifndef` fallback in `src/MeshCore.h` is not optional: this script reaches
+7 of the 16 envs in `platformio.local.ini` and is nRF52-only, so upstream envs
+never define it and must keep compiling.
+
 **The stamp has to fit the wire.** `RESP_CODE_DEVICE_INFO` carries the version in
 20 bytes and the build date in 12, NUL included — 19 and 11 usable characters —
 and anything longer is silently truncated before the client ever sees it. Hence
@@ -246,6 +278,32 @@ Mount and version read-back both retry: the drive appears a second before the
 automounter gets to it, and the port enumerates before the firmware answers on
 it. A check that cries wolf is worse than no check, because you learn to ignore
 it.
+
+**It also sets the clock**, on the same console trip that reads the version back,
+and prints what the board says afterwards:
+
+```
+== OK: 5ECC11205C68623B bezi v1.16.0-tthbe64653+  (/dev/serial/by-id/usb-...)
+== hodiny: 10:34 - 7/8/2026 UTC (epoch 1786098856)
+```
+
+This is the one moment a host is provably talking to the board, and every clock
+in this firmware is volatile without GPS or an I2C RTC. Setting it used to be a
+manual step written down in two places and performed in neither: measured
+7. 8. 2026, `tth-x3` had been running **811 days** behind since it was deployed
+and every board on this bench was **812 days** behind. A wrong clock is not
+cosmetic — the RTC stamps every advert the node transmits and a receiver drops a
+stale timestamp as a replay.
+
+Both dialects again: `time <epoch>` on the console, `CMD_SET_DEVICE_TIME` on a
+companion build. A mismatched year is a **warning, not a failure** — the script's
+contract is "the image landed", and a wrong clock does not mean a bad flash. But
+it must not pass silently, which is exactly how x3 went unnoticed.
+
+`(ERR: clock cannot go backwards)` from `time` is **success**: it means the board
+was already right, which is now the normal case straight after a flash because
+`build_version.py` seeds the clock with the build epoch. The read-back decides,
+never the setter's reply.
 
 ## When a board vanishes from USB and only a replug helps
 
@@ -330,8 +388,21 @@ Checks, in order:
    during the run, on any board.
 5. **commands** — console builds only: the surface answers, hard-failing on the
    few every repeater build must have. `dfu` is deliberately never probed.
+6. **clock** — console builds only: the year must be current. A board nobody set
+   the clock on is a configuration fault rather than a hardware one, which is
+   precisely why it needs reporting: it went unnoticed on x3 for 811 days, and on
+   7. 8. 2026 it was true of *every* board on this bench. The check only reads.
 
 Nothing it does writes prefs, changes radio settings or reboots anything.
+
+**It DOES transmit, and importing it used to be enough.** The matrix and the
+`advert.zerohop` probe key the radio on every console board found on USB,
+whatever band each is tuned to. The file ended in a bare `sys.exit(main())` with
+no `if __name__ == "__main__"` guard, so `import fleet_test` to reuse
+`discover()` ran the whole suite before the importing script's first line — which
+on 7. 8. 2026 put two zero-hop adverts on **869.432, the live CZ mesh**, out of a
+bench board configured for it. The guard is now there. If you reuse anything from
+this module, that guard is what makes it safe.
 
 Speaks **both** bench dialects and detects which is which: the text console
 (repeater/analyzer) and the binary companion protocol (`companion_radio` has no

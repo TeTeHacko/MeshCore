@@ -19,6 +19,10 @@ single command. Every ad-hoc script re-learned both the hard way.
     # from a file, one command per line, '#' comments ignored
     ble_cli.py DC:28:1D:8A:04:1A -f provision.txt
 
+    # {epoch} expands to the host's current unix time -- the point being that a
+    # provisioning FILE can carry `time {epoch}`, which a shell cannot reach
+    ble_cli.py DC:28:1D:8A:04:1A "time {epoch}"
+
     # keep reconnecting per command (slow, but survives a flaky link)
     ble_cli.py DC:28:1D:8A:04:1A --per-command "gps on" "set af 9"
 
@@ -37,6 +41,7 @@ two consoles at once interleave into one line and can crash the node.
 import argparse
 import asyncio
 import sys
+import time
 
 from bleak import BleakClient, BleakScanner
 
@@ -59,6 +64,17 @@ def log(*a):
 
 async def send(client, buf, cmd, wait):
     buf.clear()
+    # {epoch} -> host unix time, expanded HERE rather than at parse time so that
+    # it is the time the command is actually sent: --per-command reconnects cost
+    # seconds each, and a whole -f file can take minutes.
+    #
+    # It exists for `time {epoch}` in a provisioning file. -f reads lines verbatim,
+    # so a `$(date +%s)` in one is sent as literal text and the node answers
+    # "Unknown command" -- which is why the clock line in tools/provision/*.txt
+    # was a commented-out note telling you to substitute the epoch by hand. Every
+    # clock in this firmware is volatile without GPS or an I2C RTC, and a node
+    # whose RTC still says May 2024 has its adverts dropped as replays.
+    cmd = cmd.replace("{epoch}", str(int(time.time())))
     data = (cmd + "\r\n").encode()
     for i in range(0, len(data), CHUNK):
         await client.write_gatt_char(NUS_RX, data[i:i + CHUNK], response=False)
@@ -69,7 +85,9 @@ async def send(client, buf, cmd, wait):
     for p in ("-> ", "> "):
         if out.startswith(p):
             out = out[len(p):]
-    return out.strip()
+    # the EXPANDED command goes back too, so the printout says what was really
+    # sent rather than the `{epoch}` template
+    return cmd, out.strip()
 
 
 async def run(mac, cmds, wait, per_command, tries):
@@ -98,7 +116,7 @@ async def run(mac, cmds, wait, per_command, tries):
             try:
                 buf = bytearray()
                 await c.start_notify(NUS_TX, lambda _h, d: buf.extend(d))
-                results.append((cmd, await send(c, buf, cmd, wait)))
+                results.append(await send(c, buf, cmd, wait))
             finally:
                 await c.disconnect()
             await asyncio.sleep(2)
@@ -108,7 +126,7 @@ async def run(mac, cmds, wait, per_command, tries):
             buf = bytearray()
             await c.start_notify(NUS_TX, lambda _h, d: buf.extend(d))
             for cmd in cmds:
-                results.append((cmd, await send(c, buf, cmd, wait)))
+                results.append(await send(c, buf, cmd, wait))
         finally:
             await c.disconnect()
     return results
@@ -136,6 +154,7 @@ def main():
                      if ln.strip() and not ln.lstrip().startswith("#")]
     if not cmds:
         ap.error("no commands given")
+
 
     for cmd, out in asyncio.run(run(a.mac, cmds, a.wait, a.per_command, a.tries)):
         print(f"{cmd}\t{out}")

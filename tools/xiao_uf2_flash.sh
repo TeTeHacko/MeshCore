@@ -148,7 +148,16 @@ echo
 
 # The actual proof: ask the board what it is running. Anything less and a flash
 # that quietly did nothing still reports success.
-GOT_VER="$(python3 - "$PORT" <<'PY' 2>/dev/null || true
+#
+# The same trip also SETS THE CLOCK, because this is the one moment when a host
+# is provably talking to the board. Every clock in this firmware is volatile
+# unless the board has GPS or an I2C RTC: `VolatileRTCClock` starts in May 2024
+# and only ticks from millis(). A node with a wrong clock is not a cosmetic
+# problem -- the RTC stamps every advert it transmits, and receivers drop a stale
+# timestamp as a replay. Measured 7. 8. 2026: tth-x3 had been running 811 days
+# behind since deployment, and bench board x1 was 812 days behind, both simply
+# because nobody ever typed `time <epoch>`.
+GOT="$(python3 - "$PORT" <<'PY' 2>/dev/null || true
 import re, struct, sys, time
 try:
     import serial
@@ -171,7 +180,19 @@ for attempt in range(5):
         out = s.read(s.in_waiting or 1).decode("utf-8", "replace")
         m = re.search(r"v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?", out)
         if m:
-            s.close(); print(m.group(0)); break
+            print("VER\t" + m.group(0))
+            # Set the clock, then read it back. The read-back is what decides:
+            # `time` answers "(ERR: clock cannot go backwards)" when the board is
+            # already right -- which happens once the build epoch seeds the RTC,
+            # and is SUCCESS, not failure. Never trust the setter's own reply.
+            s.reset_input_buffer()
+            s.write(("time %d\r\n" % int(time.time())).encode()); s.flush()
+            time.sleep(1.5); s.reset_input_buffer()
+            s.write(b"clock\r\n"); s.flush(); time.sleep(1.5)
+            got = s.read(s.in_waiting or 1).decode("utf-8", "replace")
+            c = re.search(r"\d{1,2}:\d{2} - \d{1,2}/\d{1,2}/\d{4} UTC(?: \(epoch \d+\))?", got)
+            print("CLOCK\t" + (c.group(0) if c else "?"))
+            s.close(); break
         # No text console means this is a companion_radio build, which has no
         # `ver` command at all -- ask in its own language rather than calling a
         # perfectly good flash unverified (it did exactly that on x2).
@@ -182,7 +203,12 @@ for attempt in range(5):
         s.write(b"<" + struct.pack("<H", 2) + bytes([22, 10])); s.flush()
         time.sleep(1.0)
         buf = s.read(s.in_waiting or 1)
-        s.close()
+        # The port stays OPEN here on purpose. It used to be closed on this line,
+        # before the reply was even parsed -- which was harmless while the only
+        # thing left to do was print, and became a PortNotOpenError the moment
+        # the clock was set afterwards (caught by the outer handler, so it looked
+        # like four silent retries printing VER over and over). Closed on both
+        # exits below instead.
         i = buf.find(b">")
         if i >= 0 and len(buf) >= i + 3:
             ln = struct.unpack("<H", buf[i+1:i+3])[0]
@@ -190,12 +216,39 @@ for attempt in range(5):
             if len(f) >= 80 and f[0] == 13:
                 v = f[60:80].split(b"\0")[0].decode("utf-8", "replace")
                 if v:
-                    print(v); break
+                    print("VER\t" + v)
+                    # Companion builds have no `time` command at all -- the app
+                    # sets the clock with CMD_SET_DEVICE_TIME(6). Same guard as
+                    # the console (`secs >= curr`), so an ERR frame here is not a
+                    # failure either; CMD_GET_DEVICE_TIME(5) -> RESP(9) decides.
+                    now = int(time.time())
+                    s.reset_input_buffer()
+                    fr = bytes([6]) + struct.pack("<I", now)
+                    s.write(b"<" + struct.pack("<H", len(fr)) + fr); s.flush()
+                    time.sleep(1.0); s.reset_input_buffer()
+                    s.write(b"<" + struct.pack("<H", 1) + bytes([5])); s.flush()
+                    time.sleep(1.0)
+                    rb = s.read(s.in_waiting or 1)
+                    shown = "?"
+                    j = rb.find(b">")
+                    if j >= 0 and len(rb) >= j + 3:
+                        rl = struct.unpack("<H", rb[j+1:j+3])[0]
+                        rf = rb[j+3:j+3+rl]
+                        if len(rf) >= 5 and rf[0] == 9:
+                            t = struct.unpack("<I", rf[1:5])[0]
+                            shown = time.strftime("%H:%M - %-d/%-m/%Y UTC",
+                                                  time.gmtime(t)) + " (epoch %d)" % t
+                    print("CLOCK\t" + shown)
+                    s.close(); break
+        s.close()   # neither dialect answered -- close before the retry reopens
     except Exception:
         pass
     time.sleep(3)
 PY
 )"
+
+GOT_VER="$(printf '%s\n' "$GOT" | sed -n 's/^VER\t//p' | head -1)"
+GOT_CLOCK="$(printf '%s\n' "$GOT" | sed -n 's/^CLOCK\t//p' | head -1)"
 
 if [ -z "$GOT_VER" ]; then
   echo "!! deska neodpovedela ani konzoli, ani companion protokolu -- flash NEOVERENY (drzi konzoli BLE klient?)" >&2
@@ -205,3 +258,17 @@ if [ "$GOT_VER" != "$WANT_VER" ]; then
   die "deska hlasi $GOT_VER, ale v obrazu bylo $WANT_VER -- flash NEPROSEL"
 fi
 echo "== OK: $SERIAL bezi $GOT_VER  ($PORT)"
+
+# Warn rather than fail: a wrong clock does not mean the flash was bad, and this
+# script's contract is "the image landed". But it must not pass silently -- an
+# unset clock is exactly what went unnoticed on x3 for 811 days.
+# Only the year is checked, because that is what a volatile RTC gets wrong: it
+# comes up in 2024 and stays there. (Around midnight on 31 December this warns
+# for one minute on a board that is actually right. Non-fatal, once a year.)
+case "$GOT_CLOCK" in
+  "")   echo "!! hodiny se necetly zpatky -- nastav je rucne: time \$(date +%s)" >&2 ;;
+  "?")  echo "!! hodiny neodpovedely ve znamem formatu -- zkontroluj 'clock' rucne" >&2 ;;
+  *"/$(date -u +%Y)"*)
+        echo "== hodiny: $GOT_CLOCK" ;;
+  *)    echo "!! hodiny hlasi $GOT_CLOCK -- nesedi rok, nastav je rucne: time \$(date +%s)" >&2 ;;
+esac
