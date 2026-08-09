@@ -10,6 +10,12 @@
 #define BRIDGE_MAX_BAUD 115200
 #endif
 
+// CUSTOM (TeTeHacko): defined by apps that keep the wall clock in retained RAM
+// across a soft reset (examples/simple_repeater/main.cpp). Weak, so every build
+// that does not links fine and the pointer is simply NULL. `clkreboot` has to
+// clear that record or it would undo itself -- see the call site below.
+extern "C" void retainedClockInvalidate() __attribute__((weak));
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -246,8 +252,18 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "reboot", 6) == 0) {
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "clkreboot", 9) == 0) {
-      // Reset clock
-      getRTCClock()->setCurrentTime(1715770351);  // 15 May 2024, 8:50pm
+      // Reset clock. On a volatile clock this write is redundant -- the reboot
+      // re-runs the constructor, which seeds the same value -- but on a battery
+      // backed I2C RTC it really does rewrite the chip, so it must not put the
+      // year 2024 there. This is also the ONLY way to move a clock BACKWARDS:
+      // `time` and `clock sync` both refuse to, so an over-set clock can only be
+      // fixed by resetting it here and setting it again.
+      //
+      // The retained-RAM copy has to die with it. Otherwise the reboot restores
+      // the very value being thrown away here, and the command silently does
+      // nothing on exactly the nodes that keep their clock across a reset.
+      if (retainedClockInvalidate) retainedClockInvalidate();
+      getRTCClock()->setCurrentTime(FIRMWARE_BUILD_EPOCH);
       _board->reboot();  // doesn't return
      } else if (memcmp(command, "advert.zerohop", 14) == 0 && (command[14] == 0 || command[14] == ' ')) {
       // send zerohop advert
@@ -274,7 +290,14 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "clock", 5) == 0) {
       uint32_t now = getRTCClock()->getCurrentTime();
       DateTime dt = DateTime(now);
-      sprintf(reply, "%02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
+      // CUSTOM (TeTeHacko): the epoch goes on the end. The human part is minutes
+      // only, so a host comparing its own clock against this one cannot see a
+      // difference smaller than a minute -- meaning it cannot tell a node that is
+      // 40 s out from one that is exact, and has to leave a >59 s deadband. The
+      // epoch makes the comparison exact. Appended, so anything that only reads
+      // or prints the reply is unaffected.
+      sprintf(reply, "%02d:%02d - %d/%d/%d UTC (epoch %u)", dt.hour(), dt.minute(),
+              dt.day(), dt.month(), dt.year(), (unsigned) now);
     } else if (memcmp(command, "time ", 5) == 0) {  // set time (to epoch seconds)
       uint32_t secs = _atoi(&command[5]);
       uint32_t curr = getRTCClock()->getCurrentTime();

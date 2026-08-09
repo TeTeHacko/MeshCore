@@ -27,6 +27,15 @@ reason only: the RTC is volatile, and a node whose clock is wrong has its
 replies dropped by clients. It does not need a continuous fix — it needs the
 clock set.
 
+GPS is no longer the *only* way to get that (since 7. 8. 2026 a node starts at
+its build epoch and any attached host sets it — see `docs/cli_commands.md` under
+`time`). A reboot still throws the clock back to the build epoch: carrying it
+across one in retained RAM was tried and measured not to work, because the
+bootloader's stack owns the top of RAM. GPS is still
+what makes a mast node's clock **absolutely** right months after the flash, with
+nobody there to set it, so this reasoning stands for anything on a mast. What
+changed is that a node without GPS is no longer stuck in 2024.
+
 `gps duty` (`gps_enabled == 2`, so no prefs-layout change) powers the receiver
 only around a sync, at the same 30-minute cadence `gps on` already re-syncs at,
 so clock accuracy is unchanged. Verified on hardware in both paths:

@@ -71,9 +71,30 @@ if len(version) > VER_LIMIT:
 
 # yymmdd hhmm = exactly 11. Not pretty, but complete and sortable; the readable
 # "%d %b %Y %H:%M" is 17 and lost its time to the 12-byte field.
-build_date = datetime.now().strftime("%y%m%d %H%M")[:DATE_LIMIT]
+now = datetime.now()
+build_date = now.strftime("%y%m%d %H%M")[:DATE_LIMIT]
+
+# The same instant as an epoch, which VolatileRTCClock uses as its base_time
+# instead of the hardcoded 15 May 2024 (src/helpers/ArduinoHelpers.h). This is
+# the ONLY way a node gets a sane clock with no GPS, no I2C RTC, nothing
+# carrying a correct time on air, and no host attached -- i.e. a bench board.
+# It is not cosmetic: the RTC stamps every advert the node transmits, and a
+# receiver drops a stale timestamp as a replay, so a 2024 clock turns into
+# dropped replies. Measured 7. 8. 2026: tth-x3 had run 811 days behind since
+# deployment and every board on the bench was 812 days behind, all because
+# `time <epoch>` was a manual step nobody performed.
+#
+# NOT StringifyMacro: this has to reach the compiler as the integer 1786095587,
+# not as the string "1786095587". SCons renders a (name, value) tuple as
+# -Dname=value verbatim.
+#
+# Costs no extra rebuilds -- FIRMWARE_BUILD_DATE already changes every build, so
+# the tree is already fully recompiled each time.
+build_epoch = int(now.timestamp())
+
 env.Append(CPPDEFINES=[
     ("FIRMWARE_VERSION", env.StringifyMacro(version)),
     ("FIRMWARE_BUILD_DATE", env.StringifyMacro(build_date)),
+    ("FIRMWARE_BUILD_EPOCH", str(build_epoch)),
 ])
-print("build_version.py: %s (Build: %s)" % (version, build_date))
+print("build_version.py: %s (Build: %s, epoch %d)" % (version, build_date, build_epoch))

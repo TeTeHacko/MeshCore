@@ -74,6 +74,26 @@ public:
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
 };
 
+// CUSTOM (TeTeHacko): the time a clock with no other source comes up at.
+//
+// tools/build_version.py injects FIRMWARE_BUILD_EPOCH = the moment of compile, so
+// a freshly flashed board is right to within "time since build" -- seconds on the
+// bench -- with no GPS, no I2C RTC, nothing carrying a correct time on air and no
+// host attached. Without it the value is upstream's hardcoded 15 May 2024, which
+// is where tth-x3 sat for 811 days and every bench board for 812: the clock had
+// simply never been set, because setting it was a manual step.
+//
+// That is not cosmetic. Mesh.cpp stamps every advert this node transmits from the
+// RTC, and a receiver drops a stale timestamp as a replay (BaseChatMesh.cpp), so
+// a wrong clock turns into replies that vanish.
+//
+// The fallback is NOT optional: build_version.py is wired in through
+// ${stamped.extra_scripts}, which is nRF52-only and reaches 7 of the 16 envs in
+// platformio.local.ini. Upstream envs never define it and must keep compiling.
+#ifndef FIRMWARE_BUILD_EPOCH
+  #define FIRMWARE_BUILD_EPOCH 1715770351   // 15 May 2024, 8:50pm
+#endif
+
 /**
  * An abstraction of the device's Realtime Clock.
 */

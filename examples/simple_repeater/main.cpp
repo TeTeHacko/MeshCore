@@ -657,6 +657,65 @@ static unsigned long userBtnDownAt = 0;
 #define USER_BTN_HOLD_OFF_MILLIS 1500
 #endif
 
+#if defined(RETAINED_CLOCK_ADDR) && defined(NRF52_PLATFORM)
+// CUSTOM (TeTeHacko): carry the wall clock across a soft reset in retained RAM.
+//
+// ESP32 already gets this for free -- ESP32RTCClock::begin() only re-seeds the
+// clock when esp_reset_reason() == ESP_RST_POWERON, so a reboot there keeps the
+// time. nRF52 had nothing: VolatileRTCClock's constructor runs on every boot and
+// throws the clock back to the build epoch, so a node with no GPS and no I2C RTC
+// lost a correct clock to any `reboot`, `dfu` or watchdog.
+//
+// RAM survives a soft reset physically; the only thing that destroys it is the
+// startup code zeroing .bss. So the record lives at a fixed address kept OUTSIDE
+// the linker's RAM region -- the same trick, and the neighbouring 16 bytes, as the
+// hardfault record printed in setup() below. Reserved in
+// boards/nrf52840_s140_v7_extrafs.ld; RETAINED_CLOCK_ADDR is only defined for envs
+// that use that script, because the other nRF52 ldscripts run RAM to 0x20040000
+// and writing there would land in live memory.
+//
+// Cost: 12 bytes of RAM and a store every 60 s. No flash, so no wear.
+#define RETAINED_CLOCK_MAGIC  0xC10CB0DE
+
+extern "C" { extern uint32_t __StackTop; }   // = ORIGIN(RAM) + LENGTH(RAM)
+
+static volatile uint32_t* _retainedClock() {
+  // Refuse to touch the address unless it really is above everything the linker
+  // handed out. This is what catches RETAINED_CLOCK_ADDR being paired with an
+  // ldscript that does not reserve it -- otherwise the symptom would be silent
+  // corruption of whatever variable happens to live there.
+  if ((uint32_t) RETAINED_CLOCK_ADDR < (uint32_t) (uintptr_t) &__StackTop) return NULL;
+  return (volatile uint32_t*) (uintptr_t) RETAINED_CLOCK_ADDR;
+}
+
+static void retainedClockSave(uint32_t now) {
+  volatile uint32_t* rc = _retainedClock();
+  if (rc == NULL) return;
+  rc[1] = now;
+  rc[2] = ~now;
+  rc[0] = RETAINED_CLOCK_MAGIC;   // magic last: a reset mid-write leaves it invalid
+}
+
+// 0 = nothing trustworthy stored. The complement makes a chance match of
+// uninitialised RAM about 2^-64, so this does not need a checksum.
+static uint32_t retainedClockLoad() {
+  volatile uint32_t* rc = _retainedClock();
+  if (rc == NULL || rc[0] != RETAINED_CLOCK_MAGIC) return 0;
+  uint32_t t = rc[1];
+  return (rc[2] == ~t) ? t : 0;
+}
+
+// Called by `clkreboot` (CommonCLI.cpp) through a weak symbol. WITHOUT THIS the
+// retained record defeats the one command that exists to fix a wrong clock:
+// clkreboot writes the build epoch and reboots, and the restore above would then
+// see the stale record sitting above it and put the bad time straight back. The
+// only way out of an over-set clock would be a power cycle.
+extern "C" void retainedClockInvalidate() {
+  volatile uint32_t* rc = _retainedClock();
+  if (rc != NULL) rc[0] = 0;
+}
+#endif
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -690,6 +749,12 @@ void setup() {
   // while chasing boards that vanished from USB after `dfu`.
   {
     uint32_t rr = readResetReason();
+    // The build epoch belongs next to it: it is what the clock comes up at when
+    // nothing else sets it, so without it printed you cannot tell "fell back to
+    // the build epoch" from "restored something" -- and comparing against the
+    // epoch of a DIFFERENT build of the same tree invents discrepancies that are
+    // not there. Cost one wrong conclusion here.
+    Serial.printf("boot: FIRMWARE_BUILD_EPOCH=%lu\n", (unsigned long) FIRMWARE_BUILD_EPOCH);
     Serial.printf("boot: RESETREAS=0x%08lX%s%s%s%s%s\n", (unsigned long)rr,
                   rr == 0      ? " (none set = power-on/brownout: power was removed)" : "",
                   (rr & 0x01)  ? " RESETPIN" : "",
@@ -792,6 +857,49 @@ void setup() {
     MESH_DEBUG_PRINTLN("Radio init failed!");
     halt();
   }
+
+#if defined(RETAINED_CLOCK_ADDR) && defined(NRF52_PLATFORM)
+  // Deliberately AFTER radio_init(), which is what calls rtc_clock.begin(Wire) and
+  // therefore what decides whether this node has a hardware RTC at all. Run any
+  // earlier and getCurrentTime() below would read the volatile fallback instead of
+  // the chip, and the "do not go backwards" test would compare against the wrong
+  // clock. See the record layout above, near the hardfault record it sits beside.
+  {
+    uint32_t saved = retainedClockLoad();
+    uint32_t rr = readResetReason();
+    if (saved == 0) {
+      // NOT silent. A quiet "nothing stored" branch is indistinguishable from
+      // "the feature is working", and that cost a whole flash-and-reboot cycle
+      // to notice: the clock came up at the build epoch with no message at all,
+      // which looked identical to a node that had simply never saved. Print the
+      // raw words so the next boot says WHY -- gated off, wrong address, or a
+      // record that really was wiped.
+      volatile uint32_t* rc = _retainedClock();
+      if (rc == NULL) {
+        Serial.printf("boot: retained hodiny VYPNUTY -- adresa %08lX je pod __StackTop %08lX\n",
+                      (unsigned long) RETAINED_CLOCK_ADDR, (unsigned long) (uintptr_t) &__StackTop);
+      } else {
+        Serial.printf("boot: retained hodiny prazdne (%08lX: %08lX %08lX %08lX, cekal magic %08lX)\n",
+                      (unsigned long) RETAINED_CLOCK_ADDR, (unsigned long) rc[0],
+                      (unsigned long) rc[1], (unsigned long) rc[2],
+                      (unsigned long) RETAINED_CLOCK_MAGIC);
+      }
+    } else if (rr == 0) {
+      // No bit set = power-on/brownout. RAM can still hold its contents through a
+      // short outage, so the record may well validate -- but it is then stale by
+      // however long the power was gone, which is unknowable. Build epoch is the
+      // honest answer.
+      Serial.println("boot: retained hodiny ignorovany (power-on, stara hodnota by lhala)");
+    } else if (saved > rtc_clock.getCurrentTime()) {
+      rtc_clock.setCurrentTime(saved);
+      Serial.printf("boot: hodiny obnoveny z retained RAM (epoch %lu)\n",
+                    (unsigned long) saved);
+    }
+    // else: the clock is already ahead of the record -- a battery-backed I2C RTC,
+    // or a build newer than the record. Leave it alone; this is the guard that
+    // keeps the restore from ever making a good clock worse.
+  }
+#endif
 
   fast_rng.begin(radio_driver.getRngSeed());
 
@@ -1034,6 +1142,21 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+#if defined(RETAINED_CLOCK_ADDR) && defined(NRF52_PLATFORM)
+  // Stash the clock once a minute, so a reboot resumes from at most a minute ago.
+  // It has to be periodic rather than written on the way out: a watchdog reset or
+  // a lockup never reaches a shutdown path, and those are exactly the reboots
+  // nobody planned for. int32_t delta so the 49-day millis() wrap cannot park this
+  // either permanently on or permanently off -- same reason as the gps duty timers.
+  {
+    static unsigned long next_clock_save = 0;
+    if ((int32_t) (millis() - next_clock_save) >= 0) {
+      next_clock_save = millis() + 60000;
+      retainedClockSave(rtc_clock.getCurrentTime());
+    }
+  }
+#endif
 
   bool ble_tx_busy = false;
 #if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM)

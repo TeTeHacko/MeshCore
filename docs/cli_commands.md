@@ -47,17 +47,35 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** No reply is sent.
 
+Resets the clock to the firmware's build epoch (or, on an unstamped build, the
+upstream 15 May 2024 literal) and reboots. This is the **only** way to move a
+clock backwards: `time` and `clock sync` both refuse to.
+
 ---
 
 ### Sync the clock with the remote device
 **Usage:** 
 - `clock sync`
 
+Takes the time from the *packet's* `sender_timestamp`, so it works **only over
+the remote admin CLI**, never from the USB or BLE console — those pass
+`sender_timestamp = 0` (they share one command buffer, see
+`examples/simple_repeater/main.cpp`), and `0 > curr` is never true, so a local
+`clock sync` always answers `ERR: clock cannot go backwards`. Use `time <epoch>`
+locally.
+
 ---
 
 ### Display current time in UTC
 **Usage:**
 - `clock`
+
+**Reply:** `HH:MM - D/M/YYYY UTC (epoch <seconds>)`
+
+The epoch is a TeTeHacko addition. The human part is minutes only, so a host
+comparing clocks cannot see a difference smaller than a minute and has to leave
+a deadband of over 59 s; the epoch makes the comparison exact. It is appended,
+so anything that only prints the reply is unaffected.
 
 ---
 
@@ -67,6 +85,23 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Parameters:**
 - `epoch_seconds`: Unix epoch time
+
+Refuses to go backwards (`secs > curr`), answering
+`(ERR: clock cannot go backwards)`. That reply usually means the clock was
+already right, so treat it as success and judge by reading `clock` back.
+
+**Where the clock comes from if nobody sets it.** Without GPS and without an
+I2C RTC the clock is volatile: it starts at the build epoch and only ticks from
+`millis()`. It is worth setting, because the RTC stamps every advert the node
+transmits and a receiver drops a stale timestamp as a replay. Automatic sources,
+in order of preference:
+
+- **GPS** (`gps duty` is enough — see `docs/power-saving.md`);
+- **an attached host** — `tools/ble_cli.py <MAC> "time {epoch}"`, the
+  `meshcore-ble-bridge`/`meshcore-serial-bridge` scrape, or
+  `tools/xiao_uf2_flash.sh`, which sets it right after every flash;
+- **the build epoch**, which is where a freshly flashed board starts, and
+  which needs nothing at all.
 
 ---
 

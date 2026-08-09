@@ -165,7 +165,7 @@ public:
     if (reason == ESP_RST_POWERON) {
       // start with some date/time in the recent past
       struct timeval tv;
-      tv.tv_sec = 1715770351;  // 15 May 2024, 8:50pm
+      tv.tv_sec = FIRMWARE_BUILD_EPOCH;   // compile time when stamped, else 15 May 2024
     tv.tv_usec = 0;
     settimeofday(&tv, NULL);
   }
