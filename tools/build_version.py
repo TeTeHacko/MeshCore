@@ -14,6 +14,7 @@
 # FIRMWARE_BUILD_DATE (compile time). NOTE: the define changes every build =
 # full rebuild each time (~10-30 s) -- the price for an always-fresh timestamp.
 Import("env")
+import re
 import subprocess
 from datetime import datetime
 
@@ -41,8 +42,12 @@ try:
     tag = git(cwd, "describe", "--tags", "--abbrev=0",
               "--match", "*v[0-9]*", "--exclude", "*+tth*",
               "--exclude", "backup/*")
-    i = tag.find("v")
-    base = tag[i:] if i >= 0 else tag
+    # Cut at the 'v' that STARTS THE VERSION, not at the first 'v' in the tag:
+    # "room-server-v1.17.0" has one in "server", and find("v") turned the base
+    # into "ver-v1.17.0". Every earlier upstream tag we saw (companion-, repeater-)
+    # happened to have no 'v' in its prefix, so this hid until v1.17.0.
+    m = re.search(r"v[0-9]", tag)
+    base = tag[m.start():] if m else tag
 except Exception:
     pass
 
