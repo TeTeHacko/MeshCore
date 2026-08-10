@@ -167,6 +167,8 @@ one changes which flashing path works:
 | XIAO nRF52840 | buttonless over BLE | `AdaDFU`, same MAC, MTU 247 | yes |
 | SenseCap Solar | buttonless over BLE | `AdaDFU`, same MAC, MTU stays 23 | — |
 | SenseCap Solar (mast unit) | buttonless over BLE | `SCAP_DFU`, **MAC+1**, MTU 247 | — |
+| T1000-E | buttonless over BLE | `AdaDFU`, same MAC, MTU 23 | — |
+| Wio Tracker L1 | 1200-baud touch on USB | UF2 mass storage `TRACKER L1` | **yes**, in ~10 s |
 
 The first row is the one that wastes an afternoon: the 1200-baud touch *works*,
 the board *is* in the bootloader, and no UF2 drive ever appears — because the
@@ -177,6 +179,34 @@ touch requests Adafruit's serial-DFU mode specifically. Flash it with
 adafruit-nrfutil dfu serial -pkg firmware.zip \
     -p /dev/serial/by-id/<...matched on serial...> -b 115200 --singlebank
 ```
+
+**In practice you don't have to run that by hand.** `variants/xiao_nrf52` sets
+`upload_protocol = nrfutil`, so PlatformIO does the touch and the serial DFU for
+you:
+
+```sh
+pio run -e Xiao_x2_cmp -t upload \
+    --upload-port /dev/serial/by-id/usb-Seeed_Studio_XIAO_nRF52840_<serial>-if00
+```
+
+**This is THE path for companion builds.** They have no text console, so they
+have no `dfu` command, and `xiao_uf2_flash.sh` can only wait for a disk somebody
+has to produce by hand. On 10. 8. 2026 the double-tap on x2 refused to take
+(board healthy — a replug brought it back as the application, `idProduct=8044`,
+no drive), and the upload above landed it in **36 seconds on the first try**.
+The lesson is not "the touch is unreliable": serial DFU was deaf on the
+**T1000-E**, and that single case got generalised to the whole nRF52 fleet.
+
+Still true, and the reason not to just retry: **one touch per power session.**
+A second one in the same session takes the board off USB *and* BLE with no
+self-recovery. If the upload fails, ask for a replug.
+
+The last row is the opposite case: the L1's bootloader is not Adafruit's, and
+there the touch *does* produce a drive. Canonically `MeshCore-solo/flash-l1.sh`.
+Two caveats — it verifies only that the port came back, not what version is on
+the board, and the port comes back **before the firmware answers**: the first
+`meshcli -s … infos` fails with `Are you sure your node is a serial companion ?`
+and passes on its own a couple of minutes later. Don't diagnose that, wait.
 
 A SenseCap that has just taken a 1200-baud touch takes **60–300 s** to
 re-enumerate. That is not a wedge — wait before concluding anything.
@@ -304,6 +334,48 @@ it must not pass silently, which is exactly how x3 went unnoticed.
 was already right, which is now the normal case straight after a flash because
 `build_version.py` seeds the clock with the build epoch. The read-back decides,
 never the setter's reply.
+
+## Flashing the nodes that live on dopey
+
+Two of them are not on this bench: `tth-x3` hangs off dopey by USB, and `tth-ltm`
+is only in dopey's Bluetooth range. Both have a bridge holding them open, so the
+sequence is stop bridge → flash → verify → start bridge. `sudo` needs no password
+there, and `udisksctl`/`lsblk`/`pyserial` are all present, so
+`xiao_uf2_flash.sh` runs unmodified (the drive mounts at `/media/root/XIAO-SENSE`).
+
+```sh
+ssh dopey 'sudo systemctl stop meshcore-serial-bridge'   # x3, USB
+ssh dopey 'sudo systemctl stop meshcore-ble-bridge'      # tth-ltm, BLE
+```
+
+**Copy with `scp -p`.** Without it the files get the time of transfer in the order
+they are copied, `firmware.elf` ends up newer than `firmware.uf2`, and the
+staleness guard refuses the flash — correctly, for a false reason.
+
+**Stopping the bridge is not enough for BLE.** After the unit had been stopped,
+`ble_cli.py` still reported `not advertising (already connected?)` five times over:
+the connection was being held by BlueZ itself, because the node is bonded and
+trusted. It only started advertising after
+
+```sh
+ssh dopey 'bluetoothctl disconnect FA:4F:30:E3:1B:7A'
+```
+
+**And check you are even in range.** `bluetoothctl devices` lists `tth-ltm` on this
+workstation too, from cache — but a scan never finds it. The tell is a missing
+RSSI. Cached name is not reachability; that node can only be flashed from dopey.
+
+**DFU duration tracks the MTU, not the image size.** tth-ltm took ~3 minutes for
+407 kB (~244 B chunks); the T1000-E took ~14 minutes for 372 kB, because its
+bootloader stays at MTU 23 and falls back to 20 B chunks. A DFU that looks slow is
+usually just a small MTU.
+
+Restarting the bridge afterwards needs no cursor surgery — it notices the reboot
+and replays the ring from zero:
+
+```
+WARNING rxlog: cursor 137936 > newest 38 — uzel rebootoval (seq reset), jedu od začátku ringu
+```
 
 ## When a board vanishes from USB and only a replug helps
 

@@ -19,6 +19,20 @@ deploy cíl.
 - **Flashování XIAO: `tools/xiao_uf2_flash.sh <firmware.uf2> [serial|0..4]`.**
   Odmítá zastaralý obraz, hádání cílové desky a hlásí úspěch až po přečtení verze
   z desky. Kanonický BLE DFU je `tools/ble_dfu.py` — nepiš ho znovu.
+- **Build BEZ textové konzole (companion) se flashuje po USB serial DFU:**
+  `pio run -e <env> -t upload --upload-port /dev/serial/by-id/...`. XIAO env má
+  `upload_protocol = nrfutil`, takže si PlatformIO udělá touch samo a nalije po
+  CDC — **36 s, bez tlačítek**. Companion `dfu` příkaz nemá (žádná konzole) a
+  dvojklik na x2 opakovaně nezabral; ťukání kvůli tomu stálo čas zbytečně. Touch
+  dává serial mode, což je přesně to, co nrfutil chce — potíž nikdy nebyla
+  v touchi, ale v čekání na UF2 disk, který v tom režimu nepřijde. Serial DFU
+  bylo hluché na **T1000-E**, ne obecně. Pořád platí jeden touch na power
+  session: když upload selže, chtěj replug, ne druhý pokus.
+- **Wio Tracker L1 má jiný bootloader** — tam touch UF2 disk (`TRACKER L1`)
+  naopak DÁ, do ~10 s. Kanonicky `MeshCore-solo/flash-l1.sh`. Ten ale ověřuje jen
+  návrat portu, ne verzi, a **port se vrací dřív, než firmware odpovídá**: první
+  `meshcli … infos` po flashi selže na „serial companion?" a za dvě minuty projde
+  sám. Než z toho uděláš diagnózu, počkej a zkus znovu.
 - **Softwarový reset může desku shodit z USB až do replugu** — `reboot` i `dfu`,
   změřeno ~5 z 10. Reset pinem (dvojklik) neselhal ani jednou. Co potřebuješ
   ověřit, ověř PŘED resetem. **Flashuj po jedné a mezi tím kontroluj**; dávka
@@ -31,6 +45,13 @@ deploy cíl.
 - **Každý flashovaný env MUSÍ mít `${stamped.extra_scripts}`** (`tools/build_version.py`),
   jinak uzel hlásí literál `v1.16.0` stejný ve všech buildech a nepoznáš, co na něm
   doopravdy je. Flashuj z čistého stromu.
+- **Základní verzi bere stamping z git tagu, takže si na tagy dávej pozor.**
+  Záložní tag `backup/*` před mergem matchoval `*v[0-9]*` a jako nejnovější vyhrál
+  → T1000-E hlásí `v117-merge-tth7c50c`. A **upstream release tag nemusí být tvůj
+  předek**: v1.17.0 sedí na commitu se stejným stromem jako `origin/main`, ale
+  jinou historií, takže ho `git describe` neviděl — dotáhni ho
+  `git merge -s ours <tag>` (obsah se nezmění, ověř na tree hashi). Detaily:
+  `docs/upstream-v1.17.0.md`.
 - **`-U` k přebití děděného `-D` NEFUNGUJE** (SCons dá `-U` až za CPPDEFINES).
   Spoléhej na „poslední `-D` vyhrává" a ověř přes `strings` na ELF.
 - **Dock-quiet:** USB drží DTR ⇒ BLE neadvertuje; připojený BLE klient ⇒ USB mlčí.
