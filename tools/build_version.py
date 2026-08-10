@@ -32,10 +32,15 @@ cwd = env.subst("$PROJECT_DIR")
 # Upstream tags them per-example ("companion-v1.16.0", "repeater-v1.16.0"), so
 # match anything carrying a v<digit> and strip the prefix. Our own release tags
 # (`...+tth.<timestamp>`) are excluded so they cannot shadow the upstream base.
+# So are backup/* tags: `backup/feat-ble-diag-pre-v117-merge` matched *v[0-9]*
+# and, being the newest tag, won -- so the T1000-E flashed on 10. 8. 2026 reports
+# a base of "v117-merge". A pre-flight safety tag must never end up in the
+# version string of the thing it was protecting.
 base = "nover"
 try:
     tag = git(cwd, "describe", "--tags", "--abbrev=0",
-              "--match", "*v[0-9]*", "--exclude", "*+tth*")
+              "--match", "*v[0-9]*", "--exclude", "*+tth*",
+              "--exclude", "backup/*")
     i = tag.find("v")
     base = tag[i:] if i >= 0 else tag
 except Exception:
