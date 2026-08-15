@@ -28,6 +28,16 @@ deploy cíl.
   v touchi, ale v čekání na UF2 disk, který v tom režimu nepřijde. Serial DFU
   bylo hluché na **T1000-E**, ne obecně. Pořád platí jeden touch na power
   session: když upload selže, chtěj replug, ne druhý pokus.
+- **`pio ... -t upload` patří na desku v APLIKACI, ne v bootloaderu.** Touch dělá
+  vždycky, takže desku, která už v DFU je, jím vykopneš ven (`Couldn't find a
+  board`) — a je to zároveň ten zakázaný druhý touch. Na desku v bootloaderu
+  posílej ruční nrfutil, ten netouchuje:
+  `PYTHONPATH=~/.platformio/packages/tool-adafruit-nrfutil/site-packages
+  ~/.platformio/penv/bin/python
+  ~/.platformio/packages/tool-adafruit-nrfutil/adafruit-nrfutil.py dfu serial
+  -pkg .pio/build/<env>/firmware.zip -p <port> -b 115200 --singlebank`.
+  Režim poznáš z `idProduct` (`8044` aplikace, `0044` bootloader) a podle toho,
+  že bootloader se na USB hlásí bez „Studio" v názvu portu.
 - **Wio Tracker L1 má jiný bootloader** — tam touch UF2 disk (`TRACKER L1`)
   naopak DÁ, do ~10 s. Kanonicky `MeshCore-solo/flash-l1.sh`. Ten ale ověřuje jen
   návrat portu, ne verzi, a **port se vrací dřív, než firmware odpovídá**: první

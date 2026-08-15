@@ -204,3 +204,36 @@ Stejnou cestou jako u 1.17.0 a bez překvapení: bench XIAO přes `dfu uf2` →
 `xiao_uf2_flash.sh`, **x2 rovnou serial DFU** (`pio run -t upload`, 36 s — žádné
 ťukání, viz `AGENTS.md`), x3 přes SSH na dopey, tth-ltm a T1000-E po BLE OTA.
 Mosty na dopey zastavit a vrátit; u BLE nezapomenout na `bluetoothctl disconnect`.
+
+## Stožárové SenseCapy (15. 8. 2026)
+
+Plešivec i Hřebečná dostaly `v1.17.1-tth1a6b0db` ještě na stole, před montáží.
+Prefs přežily: jméno, 869.432, `repeat off`, `advert.interval 0` — tedy pořád
+tiché, aktivace patří až na místo.
+
+Cesta byla `pio run -e <env> -t upload --upload-port <by-id>` (SenseCap má
+`upload_protocol = nrfutil` stejně jako XIAO). Na Plešivci 36 s a hotovo,
+na Hřebečné to dopadlo hůř a stojí to za zapamatování:
+
+* `SUCCESS` za 28 s, ale **bez `Activating new firmware` / `Device programmed`**.
+  Obraz se nenalil, deska jen skočila do DFU. Ten tichý úspěch je jediný signál.
+* **Druhý pokus přes `pio -t upload` byl chyba**: touch se dělá vždycky, takže
+  desku už sedící v bootloaderu vykopne ven (`Couldn't find a board`) — a je to
+  zároveň ten zakázaný druhý touch. Na desku v DFU patří ruční
+  `adafruit-nrfutil`, který netouchuje.
+* Ruční nrfutil pak hlásil `Device programmed.`, ale aplikace nenaskočila ani po
+  třech minutách; kopie UF2 na `XIAO-BOOT` se napoprvé nezapsala a napodruhé
+  desku shodila z USB. **Replug to vyřešil** — deska naběhla na v1.17.1, takže
+  některý ze zápisů dosedl a chyběl jen reboot.
+
+Poučení: po `Device programmed.` bez návratu aplikace chtít **replug hned**,
+ne třetí cestu.
+
+### Oprava v `xiao_uf2_flash.sh`
+
+Skript ten SenseCap obraz odmítl s „obraz nema verzi od build_version.py", a
+přitom ji měl (`v1.17.1-tth1a6b0db` byla v ELF). Kontrola grepovala **syrový
+UF2**, jenže ten je 512 B bloky (32 B hlavička + 256 B dat), takže řetězec může
+padnout na hranici bloku a zmizet — u SenseCap buildu padl, u XIAO ne. Skript
+teď payload skládá zpátky a hledá v něm; ověřeno, že SenseCap i XIAO obrazy
+projdou.

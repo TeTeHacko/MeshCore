@@ -53,7 +53,22 @@ if [ -f "$ELF" ] && [ "$ELF" -nt "$UF2" ]; then
        Sprav: pio run -e <env> && pio run -e <env> -t create_uf2"
 fi
 
-WANT_VER="$(grep -aoE 'v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?' "$UF2" | head -1 || true)"
+# Read the version out of the UF2 PAYLOAD, not the raw file. A UF2 is 512-byte
+# blocks of 32 B header + 256 B data, so any string in the image can be cut in
+# half by a block boundary -- and then a plain grep over the file finds nothing
+# and this script refuses a perfectly good build. That is not hypothetical: it
+# happened to SenseCap_hreb_rpt on 15. 8. 2026 (the version was in the ELF the
+# whole time), and it cost a hand-copied flash and a board that had to be
+# replugged. Stitching the payload back together makes the check depend on the
+# image rather than on where the linker happened to put the string.
+WANT_VER="$(python3 - "$UF2" <<'PY' 2>/dev/null || true
+import re, sys
+raw = open(sys.argv[1], "rb").read()
+payload = b"".join(raw[i+32:i+288] for i in range(0, len(raw), 512))
+m = re.search(rb"v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?", payload)
+if m: print(m.group(0).decode())
+PY
+)"
 if [ -z "$WANT_VER" ]; then
   die "obraz nema verzi od tools/build_version.py -- po flashi by neslo overit,
        co na desce doopravdy je. Zapoj do envu: extra_scripts = \${stamped.extra_scripts}"
