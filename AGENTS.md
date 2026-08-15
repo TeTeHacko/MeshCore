@@ -59,7 +59,7 @@ deploy cíl.
 - **Energetika uzlu: `docs/power-saving.md`** (změřená čísla, knoby, pasti měření).
 - **Pořadí úspor je změřené, nehádej ho:** GPS **46 mA** (párové A/B na SenseCapu
   5. 8. 2026; datasheetových 25–35 mA bylo nízko) ≫ BLE advertising + blikající
-  LED > `powersaving` (MCU spánek) ~jednotky mA > rxps ~2 mA > `rxgain off`
+  LED > `powersaving` (MCU spánek) ~jednotky mA > rxps ~2 mA > `set radio.rxgain off`
   0,7 mA (za cenu citlivosti ⇒ na stožár NE). `gps duty` z toho ušetří 42–45 mA
   i v případě, že uzel fix nikdy nedostane. Cokoliv jiného řeš až po GPS.
 - **Spotřebu solárního uzlu NEMĚŘ přes USB** — měřák tam vidí nabíječku článku

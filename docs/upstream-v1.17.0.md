@@ -1,4 +1,10 @@
-# Merge upstreamu v1.17.0 a rozvoz na flotilu (9.–10. 8. 2026)
+# Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026)
+
+> **v1.17.1 (15. 8. 2026)** je na konci dokumentu — proti níže popsanému mergi
+> to byla rutina: 57 souborů, **nula konfliktů**. Ale přejmenovala CLI příkaz,
+> který používáme.
+
+## v1.17.0 (9.–10. 8. 2026)
 
 Záznam toho, co merge změnil na chování, jak se konflikty rozhodly a co při
 rozvozu na uzly vylezlo. Cílem není historie commitů (ta je v gitu), ale ty věci,
@@ -129,6 +135,11 @@ Hodiny srovnány všude (`xiao_uf2_flash.sh` to dělá sám, jinak `time <epoch>
 
 ## Co zůstalo otevřené
 
+*(Stav k v1.17.0. První dva body vyřešil rozvoz v1.17.1 — viz konec dokumentu:
+T1000-E dostal řádnou verzi `v1.17.1-…` a `main` byl srovnán na feature větev,
+takže má `tools/build_version.py` i oba fixy. Otevřená zůstává jen ztráta USB
+companionu na `T1000E_cmp_cz` a obojí kolem Sola.)*
+
 * `T1000E_cmp_cz` běží `v117-merge-tth7c50c` (nekonvenční base) a **bez USB
   companionu**. Oprava obojího = reflash, tj. ~15 min OTA.
 * **`main` stampuje verzi po staru.** Má `variants/sensecap_solar/build_version.py`
@@ -142,3 +153,54 @@ Hodiny srovnány všude (`xiao_uf2_flash.sh` to dělá sám, jinak `time <epoch>
   `xiao_uf2_flash.sh`.
 * `build.sh` v Solo repu dělá `rm -rf out` **před** validací argumentů, takže
   spadne na chybějící `FIRMWARE_VERSION` a stejně ti smaže předchozí artefakt.
+
+---
+
+# v1.17.1 (15. 8. 2026)
+
+Malý release, a merge to potvrdil: **57 souborů, +825/−200, nula konfliktů.**
+Zpětný tag `backup/feat-ble-diag-pre-v1171-merge`.
+
+Dva rozdíly proti v1.17.0, oba usnadňují práci:
+
+* **Release tagy sedí přímo na `origin/main`** (`d9296435 * version 1.17.1`), takže
+  `git merge -s ours` tentokrát potřeba nebyl — `git describe` release vidí sám.
+* **Fix `--exclude 'backup/*'` ve stampingu se ostře osvědčil.** Záložní tag byl
+  založen minutu před mergem a base verze přesto zůstala `companion-v1.17.1`.
+  Bez toho fixu by se firmware jmenoval po pojistce, jako se to stalo u 1.17.0.
+
+Nalito jako `v1.17.1-ttha0f3ce9`.
+
+## `rxgain` se přejmenoval na `radio.rxgain`
+
+Release notes žádají, ať si repeater admini po updatu ověří `radio.rxgain`.
+Důvod je konkrétnější, než se z nich zdá: **starý název `rxgain` firmware už
+nezná** a odpoví `??: rxgain`. Každý skript nebo provisioning soubor, který ho
+používá, tedy tiše přestane fungovat — příkaz se nevykoná a nic nespadne.
+
+Ověřeno na celé flotile po flashi: hodnota přechod přežila, `radio.rxgain` je
+`on` na x0, x1, x4, x3 i tth-ltm. Pro repeatery je to správně; `off` je jen ta
+úsporná varianta (0,7 mA za cenu citlivosti), kterou na stožár nechceme.
+
+Opraveno v `AGENTS.md`; soubory v `tools/provision/` starý název nepoužívaly.
+
+## Co dál se týká našich desek
+
+* **Rx gain se resetoval po AGC** — fix mění `CustomSX1262Wrapper.h` (XIAO)
+  i `CustomLR1110Wrapper.h` (T1000-E), takže ne jen Station G3, kvůli které
+  vznikl.
+* **`resetAGC()` je teď virtuální hook `doResetAGC()`.** Náš reset noise-floor
+  sběru kolem něj se slil bez konfliktu a je na místě
+  (`RadioLibWrappers.cpp`) — bez něj se zaseknutý `_noise_floor` na −120
+  sám udržuje.
+* **CC310 crypto se inicializuje jednou** místo při každém volání a RNG míchá
+  entropii z rádia s CC310. Týká se všech nRF52, tedy celé flotily.
+* Nové `get/set radio.fem.rxgain/txgain` se nás netýkají (žádná naše deska FEM
+  nemá) a companion je stejně zatím konfigurovat neumí.
+
+## Rozvoz
+
+Stejnou cestou jako u 1.17.0 a bez překvapení: bench XIAO přes `dfu uf2` →
+`xiao_uf2_flash.sh`, **x2 rovnou serial DFU** (`pio run -t upload`, 36 s — žádné
+ťukání, viz `AGENTS.md`), x3 přes SSH na dopey, tth-ltm a T1000-E po BLE OTA.
+Mosty na dopey zastavit a vrátit; u BLE nezapomenout na `bluetoothctl disconnect`.
