@@ -1,0 +1,97 @@
+diff --git a/firmware/platformio.ini b/firmware/platformio.ini
+index b0b4c9d..aaa5ff4 100644
+--- a/firmware/platformio.ini
++++ b/firmware/platformio.ini
+@@ -380,6 +380,17 @@ build_src_filter =
+     -<oled_display.cpp>
+     -<tft_display.cpp>
+ 
++[env:xiao_nrf52_wio_pollirq]
++; Same board as above, for tth-x0 (sn 30911219DA28411D) whose DIO1 net was
++; killed by a breadboard short (GND on D1) on 29. 7. 2026. `dio1` on the
++; MeshCore firmware reports irq=0x0001 (TX_DONE latched) while the pin reads
++; 0, so the stock interrupt-driven modem firmware is deaf and mute on this
++; board. PYMC_POLL_IRQ reads the SX1262 IRQ register over SPI instead.
++extends = env:xiao_nrf52_wio
++build_flags =
++    ${env:xiao_nrf52_wio.build_flags}
++    -DPYMC_POLL_IRQ=1
++
+ [env:rak4631_wismesh_eth]
+ ; RAKwireless WisMesh Ethernet Gateway:
+ ;   RAK4631 Core Module + RAK19007 Base + RAK13800 W5100S Ethernet
+diff --git a/firmware/src/main.cpp b/firmware/src/main.cpp
+index bd5fc1e..f72b677 100644
+--- a/firmware/src/main.cpp
++++ b/firmware/src/main.cpp
+@@ -417,6 +417,37 @@ void onDio1Rise() {
+     dio1IrqCount = dio1IrqCount + 1;
+ }
+ 
++// ─── DIO1-less completion detection (PYMC_POLL_IRQ) ─────────
++// For boards whose DIO1 net is physically broken. setDio1Action() is the
++// only thing that ever sets dio1Flag, so a dead line means RX_DONE/TX_DONE
++// never reach the MCU: handleLoRaRx() is never called (radio looks deaf at
++// full signal) and every TX ends in the "hard timeout" reset path while the
++// frames actually radiate.
++//
++// The SX1262 latches those events in its IRQ status register whether or not
++// they are routed out to a DIO pin, so reading it over SPI bypasses the net
++// entirely — and therefore works regardless of WHICH end died (nRF52 input
++// pad, SX1262 output, or a cut trace). Rewiring DIO1 to a spare GPIO only
++// helps in the first of those three cases.
++//
++// Cost: one SPI read per loop() pass plus one per wait-loop iteration, and
++// completion is noticed on the next pass instead of instantly.
++#ifdef PYMC_POLL_IRQ
++static const uint16_t POLL_IRQ_MASK =
++    RADIOLIB_SX126X_IRQ_RX_DONE  | RADIOLIB_SX126X_IRQ_TX_DONE |
++    RADIOLIB_SX126X_IRQ_CAD_DONE | RADIOLIB_SX126X_IRQ_TIMEOUT;
++
++static inline void pollDio1() {
++    if (!radioReady || dio1Flag) return;
++    if (radio.getIrqFlags() & POLL_IRQ_MASK) {
++        dio1Flag = true;
++        dio1IrqCount = dio1IrqCount + 1;
++    }
++}
++#else
++static inline void pollDio1() {}
++#endif
++
+ // ─── E22 RF switch boot sequence ────────────────────────────
+ // Some carrier boards (Ebyte E22P series, see datasheet §4.2) need
+ // their EN pin held LOW for several seconds at power-up so the LDOs
+@@ -904,6 +935,7 @@ void processHostCommand(uint8_t cmd, const uint8_t* payload, uint16_t len,
+                 uint32_t cad_t0 = millis();
+                 while (!dio1Flag && (millis() - cad_t0) < CAD_TIMEOUT_MS) {
+                     compatWdtReset();
++                    pollDio1();
+                     delay(2);
+                 }
+                 uint16_t irq = radio.getIrqFlags();
+@@ -955,6 +987,7 @@ void processHostCommand(uint8_t cmd, const uint8_t* payload, uint16_t len,
+         uint32_t txStart = millis();
+         while (!dio1Flag && (millis() - txStart) < TX_TIMEOUT_MS) {
+             compatWdtReset();   // keep watchdog happy while we poll
++            pollDio1();
+             delay(2);
+         }
+ 
+@@ -1031,6 +1064,7 @@ void processHostCommand(uint8_t cmd, const uint8_t* payload, uint16_t len,
+         uint32_t cadStart = millis();
+         while (!dio1Flag && (millis() - cadStart) < CAD_TIMEOUT_MS) {
+             compatWdtReset();
++            pollDio1();
+             delay(1);
+         }
+ 
+@@ -1721,6 +1755,8 @@ void loop() {
+ 
+     compatWdtReset();   // feed the loop watchdog every pass
+ 
++    pollDio1();   // no-op unless PYMC_POLL_IRQ
++
+     // DIO1 during TX is consumed by the TX handler's own wait loop; in
+     // loop() we only act on it when the radio is in RX mode.
+     if (dio1Flag && !isTxActive) {

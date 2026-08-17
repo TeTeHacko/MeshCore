@@ -14,6 +14,7 @@ cannot be repeated by hand.
 | `build_version.py` | PlatformIO pre-script that stamps a real version into the binary |
 | `xiao_uf2_flash.sh` | flash a named XIAO through its UF2 drive, and prove it took |
 | `power_ab.py` | A/B current measurement of a bench node through the UC96 meter's exporter |
+| `mesh_sniffer.py` | passive capture of every frame on the air, decoded on the host to JSONL/pcap |
 
 The usual sequence against a node you have never talked to before:
 
@@ -613,6 +614,110 @@ mode is **width − 1** (0=1 B, 1=2 B, 2=3 B) and firmware ≤v1.13 drops 2-byte
 TRACE packets encode the width differently — `flags & 3` giving `1 << n`, so 1/2/4/8
 bytes and no such thing as three (`Mesh.cpp:54`). Do not carry one rule over to the
 other.
+
+## `mesh_sniffer.py` — every frame on the air, decoded on the host
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install openhop-core pyserial
+.venv/bin/python tools/mesh_sniffer.py --board 0 --preset cz --jsonl cz.jsonl --pcap cz.pcap
+.venv/bin/python tools/mesh_sniffer.py --board 0 --preset bench --psk <hex>   # + channel text
+```
+
+The board runs the **openHop modem** firmware (`openhop-dev/openhop_modem`), which turns
+the SX1262 into a dumb PHY on USB-CDC at 921600: it hands up every frame that passes
+CRC with RSSI/SNR attached, and MeshCore is decoded here in Python by
+[`openhop-core`](https://github.com/openhop-dev/openhop_core), a reimplementation of
+our own C++ stack (MIT). Both projects understand the multi-byte path hash, so a
+2-byte or 3-byte sender decodes without a rebuild.
+
+Why this exists next to the observer + BLE bridge, which already feed the analyzer:
+
+* **A companion node only surfaces what its own firmware chose to process** — its
+  channels, its DMs, adverts, packets addressed to it. Foreign-PSK channel traffic and
+  DIRECT packets for other destinations are dropped long before the companion protocol
+  sees them. The modem has no opinion, so `docs`' open question ("the SDR sees twice
+  what the observer decodes") becomes measurable: the status line prints the modem's own
+  `rx_count` next to the number of frames that actually parsed.
+* **No BLE on the path** — no dock-quiet interaction, no BlueZ holding the link, no
+  `MC_BLE_OFF_INTERVAL` windows costing 42 % of the capture.
+
+**Receive-only by construction.** No `radio.send()` anywhere in the file, no dispatcher
+and no handler registered, so nothing can answer, ACK or forward; `tx_power` is left at
+its floor as a second line of defence. That is what makes it safe to point at 869.432
+without announcing a node.
+
+### Getting a modem board (measured on x0, 17. 8. 2026)
+
+`firmware/xiao_nrf52_wio/firmware.{uf2,zip,hex}` is prebuilt for our exact board (XIAO
+nRF52840 + Wio-SX1262, SKU 102010710) — but it is **fully DIO1-interrupt driven**
+(`setDio1Action`, every RX/TX/CAD completion waits on the ISR flag), so on **x0** it is
+deaf and mute: that board's DIO1 net died in the 29. 7. breadboard short.
+`tools/openhop-modem-pollirq.patch` adds `[env:xiao_nrf52_wio_pollirq]` and reads the
+SX1262 IRQ register over SPI instead — the same repair as `LORA_POLL_IRQ` in our tree,
+for the same reason (it does not care which end of the line is broken).
+
+```sh
+git clone https://github.com/openhop-dev/openhop_modem.git && cd openhop_modem
+git apply /path/to/MeshCore/tools/openhop-modem-pollirq.patch
+cd firmware && pio run -e xiao_nrf52_wio_pollirq \
+    -t upload --upload-port /dev/serial/by-id/usb-Seeed_Studio_XIAO_nRF52840_30911219DA28411D-if00
+```
+
+11.5 s, one touch, no buttons — the board must be in the APPLICATION for this, as always.
+Stock (healthy) boards want `-e xiao_nrf52_wio` and no patch.
+
+Three things the flash changes, all of which cost time if unexpected:
+
+* The port is **renamed** to `usb-Seeed_XIAO-Wio-SX1262_<sn>`, so anything matching on
+  the by-id *name* breaks. `mesh_sniffer.py` matches on the serial number (Rule 0).
+* **`idProduct` becomes `0x0044`** — the value AGENTS.md reads as "bootloader". The
+  board JSON claims both `0x0044` and `0x8044`, and this application enumerates as the
+  first, so the mode heuristic simply does not apply to a modem board.
+* The first `begin()` right after DFU failed with `Could not configure port: (5, 'Input/
+  output error')`; the same call a minute later worked. Give the CDC a moment to settle
+  before diagnosing anything.
+
+The board stops being a MeshCore node while it carries this firmware — no identity, no
+prefs, no console. Reflash `Xiao_x0_rpt` to get x0 back (its key before the experiment:
+`6905…`, name `tth-x0`, 866.5 MHz).
+
+### What it proved
+
+x4 sending three zero-hop adverts on the bench band: **3/3 decoded** at −40 dBm / 13.5 dB,
+`hash_size=2`, `path_hash=c327` — the first two bytes of x4's public key, i.e. our
+2-byte default read straight off the air.
+
+Then seven minutes on 869.432, 17. 8. 2026, from the bench antenna:
+
+| | |
+|---|---|
+| frames | **69 heard, 69 parsed, 0 CRC errors** |
+| types | GRP_TXT 24, REQ 14, ADVERT 12, PATH 10, RESPONSE 8, ANON_REQ 1 |
+| path hash width | 53 × 2 bytes, 16 × 1 byte — both on the same air, same run |
+| hops | 2 … **32** |
+| distinct nodes named in adverts | 7 (`mraveniste.meshcore.cz`, `CESKAKANADA.SOLAR`, `OK2ZAW MeshGate Zdar`, …) |
+
+The interesting split is by signal: **35 of the 69 arrived at −52…−53 dBm and every one
+of them has `tth-ltm` as its last hop** — 26 as `025c`, 9 as `02`, the same node under
+both hash widths, because the width is the *sender's* choice and not the forwarder's.
+The other 34 came in at −111…−115 dBm straight from distant repeaters, never through
+`tth-ltm` at all. So this is a **host-side witness of tth-ltm's forwarding** — its own
+counters cannot certify it, and here is a second board that sees each relay with its
+path and RSSI, without touching the node. Several floods also show up twice seconds
+apart with different tails, which is exactly the observation a dedupe window eats.
+
+Traps encoded in the script:
+
+* **openhop_core's own `Dispatcher` is the wrong tool for this.** Its `PacketFilter`
+  drops byte-identical frames for 30 s, which is right for a repeater and wrong for a
+  sniffer. The script parses packets itself and *counts* repeats instead.
+* **`set_rx_callback()` loses the signal metadata.** The callback is handed only the
+  payload; RSSI/SNR live in `radio.last_rssi`/`last_snr`, which the next frame overwrites
+  before a queued callback runs. `SnifferRadio` takes them out of the `CMD_RX_PACKET`
+  frame, where they are atomic with the bytes.
+* Presets are mirrored from `platformio.ini` / `.local.ini` (`cz` = 869.432/62.5/SF7/CR5,
+  `bench` = 866.5/62.5/SF8/CR5): two radios on different spreading factors cannot hear
+  each other, and that looks exactly like broken hardware.
 
 ## `provision/` — command files with expected answers
 
