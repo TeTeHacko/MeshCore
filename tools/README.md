@@ -15,6 +15,7 @@ cannot be repeated by hand.
 | `xiao_uf2_flash.sh` | flash a named XIAO through its UF2 drive, and prove it took |
 | `power_ab.py` | A/B current measurement of a bench node through the UC96 meter's exporter |
 | `mesh_sniffer.py` | passive capture of every frame on the air, decoded on the host to JSONL/pcap |
+| `openhop_observer_config.py` | config for an openHop observer (`mode: no_tx`) over a modem board |
 
 The usual sequence against a node you have never talked to before:
 
@@ -757,3 +758,29 @@ This is not hypothetical. A node built without those defaults transmitted for
 
 `stats-radio`'s `tx_air_secs` staying at 0 is the only direct evidence that a
 node is actually silent. Check it twice, minutes apart, before shipping one.
+
+## `openhop_observer_config.py` — config pro openHop observer
+
+```sh
+tools/openhop_observer_config.py --name tth-ob1 --iata ULK \
+    --key out/identities/tth-ob1.key --serial 67901109B61E604A \
+    --storage /var/lib/openhop-ob1 --out out/openhop/ob1/config.yaml
+```
+
+Vygeneruje `config.yaml` (0600) pro `openhop_repeater` v roli **pasivního
+observeru**: `mode: no_tx`, adverty 0, discovery off, LBT off, tx_power 2 dBm,
+CZ preset, `radio_type: pymc_usb` na desce s firmwarem openhop_modem, lokální
+CoreScope zapnutý a komunitní brokery `CZ 1`/`CZ 2` zapsané s `enabled: false`.
+
+Existuje jako skript, protože **démon si config.yaml sám přepisuje** (uloží do
+něj vygenerovaný JWT secret a znormalizuje celý YAML) — komentáře v tom souboru
+nepřežijí ani první start, takže zdrojem pravdy musí být generátor.
+
+Identitu si vezme z 64bajtového `prv.key` v hexu (výstup `gen_node_id.py`) a
+vloží ji jako `repeater.identity_key`, tedy tu samou cestu, kterou používá
+`convert_firmware_key.sh` z openhopu. Pozor na rozdíl: `identity_file`, který si
+démon generuje sám, je base64 **32** bajtů, kdežto MeshCore klíč má 64
+(scalar‖nonce) — proto `identity_key`, ne `identity_file`.
+
+Nasazení, pasti a co se ztratí přeflashováním desky na modem:
+`INFRA/openhop-observer/README.md`.
