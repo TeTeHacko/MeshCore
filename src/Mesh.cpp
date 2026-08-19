@@ -41,6 +41,12 @@ int Mesh::searchChannelsByHash(const uint8_t* hash, GroupChannel channels[], int
 DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
   if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_TRACE) {
     if (pkt->path_len < MAX_PATH_SIZE) {
+      // The TRACE header is trace_tag(4) + auth_code(4) + flags(1) = 9 bytes. Without
+      // this guard, a TRACE that claims fewer than 9 payload bytes underflows the
+      // uint8_t `len` below to a large value, and the isHashMatch() read then walks
+      // off the end of pkt->payload.
+      if (pkt->payload_len < 9) return ACTION_RELEASE;
+
       uint8_t i = 0;
       uint32_t trace_tag;
       memcpy(&trace_tag, &pkt->payload[i], 4); i += 4;
@@ -55,7 +61,11 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint16_t offset = (uint16_t)pkt->path_len << path_sz;
       if (offset >= len) {   // TRACE has reached end of given path
         onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
-      } else if (self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
+      // `offset < len` only says the hash starts inside the payload; the hash itself
+      // (1 << path_sz bytes, up to 8) can still run past the end, so check the whole
+      // read before handing it to isHashMatch().
+      } else if ((size_t)i + offset + (1u << path_sz) <= pkt->payload_len
+                 && self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
         _tables->markSeen(pkt);
         // append SNR (Not hash!)
         pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
@@ -167,6 +177,15 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 uint8_t hash_size = (path_len >> 6) + 1;
                 uint8_t hash_count = path_len & 63;
                 uint8_t* path = &data[k]; k += hash_size*hash_count;
+                // path_len is a valid *encoding* by now, but hash_size*hash_count can
+                // still be longer than what was actually decrypted: k reaches 252 at
+                // most, while `data` is MAX_PACKET_PAYLOAD and `len` is usually far
+                // less. Unchecked, data[k++] reads past both, and the uint8_t
+                // `extra_len = len - k` underflows to ~255.
+                if (k >= len) {
+                  MESH_DEBUG_PRINTLN("%s PAYLOAD_TYPE_PATH, path longer than payload: k=%d, len=%d", getLogDateTime(), k, len);
+                  break;   // reject bad encoding
+                }
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
                 uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
