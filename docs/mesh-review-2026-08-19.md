@@ -1,0 +1,108 @@
+# Revize meshe: šířka path hashe a čas (19. 8. 2026)
+
+Kontrola všech uzlů, které CoreScope slyšel za posledních 24 h — našich
+i komunitních. Zadání: **minimálně 2 bajty path hashe (3 B je záměrný
+experiment, 1 B nepřípustný)** a srovnaný čas.
+
+Zdroj: `http://stor.grg:8081/api/nodes?limit=5000` (734 uzlů historicky,
+**643 slyšených za 24 h**) a `/api/packets?limit=3000` pro čas.
+
+## PAST: `hash_size` z CoreScope je DOLNÍ HRANICE, ne konfigurace uzlu
+
+Než z těch čísel začneš cokoli vyvozovat: CoreScope šířku **odvozuje
+z pozorovaných paketů**, a to je něco jiného než nastavení uzlu. Dokázáno na
+vlastním uzlu:
+
+| | CoreScope | uzel sám |
+|---|---|---|
+| `TTH` (T1000-E, pubkey `3080796b…`) | `hash_size 2`, status **confirmed**, evidence `advert` | `path_hash_mode: 2` = **3 bajty** |
+
+Takže i „confirmed" znamená jen *„viděli jsme aspoň tolik"*. Vysvětlení je
+v AGENTS.md: **šířku path hashe v paketu volí ODESÍLATEL**, ne uzel, jehož hash
+se v cestě objeví. Z pozorování cizí cesty se tedy o konfiguraci uzlu nedá
+spolehlivě soudit vůbec nic.
+
+Sémantika polí, jak vyšla z dat (643 živých uzlů):
+
+| evidence | status | hash_size | počet | jak to čtu |
+|---|---|---|---|---|
+| `advert` | confirmed | 2 | 462 | **aspoň** 2 B, tvrdý důkaz z vlastního advertu |
+| `advert` | confirmed | 3 | 6 | aspoň 3 B |
+| `path` | suspected | 1 | 115 | jen z cizí cesty ⇒ **není to důkaz o tomto uzlu** |
+| (žádná) | unknown | 1 | 59 | žádný důkaz; `1` je výchozí hodnota, ne měření |
+
+`hash_size_inconsistent` je `False` u všech 643 — nikde se šířka nerozchází.
+
+## Naše uzly
+
+CoreScope zná čtyři, všechny **confirmed ≥2 B**:
+
+| uzel | role | CoreScope | čas |
+|---|---|---|---|
+| `mc-tth-ltm.rfa.cz☀️` | repeater | 2 B confirmed | skew **2–3 s** (z mostu) |
+| `tth-ob1` | repeater | 2 B confirmed | **2 s** |
+| `tth-room` | room | 2 B confirmed | **2 s** |
+| `TTH` (T1000-E) | companion | 2 B confirmed — ale reálně **3 B** | — |
+
+Zbytek našich CoreScope znát nemůže, tak jsem je přečetl přímo přes BLE:
+
+| uzel | `path.hash.mode` | = bajty | hodiny |
+|---|---|---|---|
+| `tth-hrebecna` | 1 | **2 B** | 19:08 UTC ✔ |
+| `tth-plesivec-abertamy` | 1 | **2 B** | 19:10 UTC ✔ |
+
+(`mode` je o jeden menší než počet bajtů: `path_hash_size = mode + 1`.)
+`tth-ob2` je momentálně dole (deska čeká na přesun na chatu), `tth-x*` jsou
+lavicové a na 866.5, mimo ostrý mesh.
+
+**Závěr pro nás: nikde není 1 B.** Jediná odchylka je záměrná — T1000-E na 3 B.
+
+## Komunita
+
+Z 639 živých komunitních uzlů:
+
+- **468 potvrzeně ≥2 B** (462× 2 B, 6× 3 B)
+- **115 „suspected 1 B"** — ale jen z pozorované cesty, což podle pravidla výš
+  vypovídá o odesílateli, ne o nich. Nelze z toho tvrdit, že jsou na 1 B.
+- **59 „unknown"** — žádný důkaz.
+
+Šest uzlů na 3 B: MNICHOVICE, Strojovna🔩, ☠️ DEAD 🥩 BEEF R, Pičhora,
+Roztoky1📬, olomouc.meshcore.cz.
+
+Mezi „suspected 1 B" je 39 uzlů, které **aktivně přeposílají** (>100 relayů /
+24 h), nejvíc rip5.meshcore.cz (2446), roudnice.meshcore.cz (1776),
+lmkz.meshcore.cz (1324). Kdyby na 1 B doopravdy byly, jsou to přesně ty, které
+routing bolí nejvíc — ale bez tvrdého důkazu je to podezření, ne obvinění.
+
+## Čas
+
+Z 634 advertů s časovou značkou od 384 uzlů (skew = pozorování − čas v advertu,
+plus znamená „uzel je pozadu"):
+
+| odchylka | uzlů |
+|---|---|
+| OK (< 60 s) | **173** |
+| 60 s – 1 h | 35 |
+| 1 – 24 h | 17 |
+| **> 1 den** | **159** |
+
+Těch 159 není rozptýlených: shlukují se na **820–826 dnech pozadu**, což je
+tentýž podpis, jaký měla naše flotila (811–812 dní) — uzel bez GPS nabootuje na
+zadrátovanou epochu a nikdo mu čas nenastaví. Nejhorší: VISNOVA.SOLAR 825,9 d,
+UJEZDEC.SOLAR 825,9 d, OK1MDX Repeater 825,2 d.
+
+Naše uzly jsou všechny v jednotkách sekund. To u tth-ltm ukázalo 270 s jen
+proto, že jsem ho 20 minut před měřením přeflashoval a vzorek (n=2) padl do
+okna po rebootu; aktuální `clock_skew_secs` z mostu je **2–3 s** a
+`clock_set_count: 0`, tedy most ho ani nemusel dorovnávat.
+
+## Co z toho plyne
+
+1. **U nás je hotovo** — nikde 1 B, čas srovnaný, jediná odchylka (3 B na
+   T1000-E) je záměrná.
+2. **Čísla o komunitě neber jako diagnózu jejich uzlů.** 174 „jednobajtových" je
+   z 90 % artefakt toho, že šířku v cestě volí odesílatel. Kdo to chce vědět
+   jistě, musí se zeptat uzlu (jeho `path.hash.mode`), ne odvozovat z provozu.
+3. **Čas je v komunitě reálný problém**, a ten se odvodit dá: 159 uzlů 820+ dní
+   pozadu je tvrdé číslo z jejich vlastních advertů. Klienti pak zahazují jejich
+   odpovědi na timestampu.
