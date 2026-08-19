@@ -265,6 +265,12 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
         uint8_t pub_key[32];
         uint8_t unused;
 
+        // The on-disk record has no shared_secret/shared_secret_valid, so those
+        // two members are never written by the reads below. Left indeterminate,
+        // a non-zero shared_secret_valid makes getSharedSecret() return an
+        // uninitialised secret for a contact loaded at boot.
+        memset(&c, 0, sizeof(c));
+
         bool success = (file.read(pub_key, 32) == 32);
         success = success && (file.read((uint8_t *)&c.name, 32) == 32);
         success = success && (file.read(&c.type, 1) == 1);
