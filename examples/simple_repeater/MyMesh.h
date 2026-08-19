@@ -57,7 +57,27 @@ struct RepeaterStats {
   uint16_t n_direct_dups, n_flood_dups;
   uint32_t total_rx_air_time_secs;
   uint32_t n_recv_errors;
+  // CUSTOM (TeTeHacko): appended at the END on purpose. Clients parse this
+  // struct by fixed offsets, so fields added here are simply invisible to older
+  // ones instead of shifting everything after them -- the same way upstream
+  // grew its companion stats frame (docs/stats_binary_frames.md documents a
+  // 26-byte "legacy" and a 30-byte frame that appends recv_errors).
+  //
+  // These two come from the Dispatcher requeue counters. Without them a
+  // repeater that keeps failing to get its transmits out looks perfectly
+  // healthy in every other field: sent/airtime just stop growing, and there is
+  // nothing in the status that says why.
+  uint32_t n_tx_start_fail, n_tx_timeout;
 };
+
+// This struct goes on the air byte-for-byte, so its size is part of the
+// protocol: 56 bytes up to n_recv_errors (what upstream clients expect and
+// gate on -- meshcore-py's parse_status() reads recv_errors only
+// `if len(data) >= offset + 56`), plus the 8 appended here. Reordering a field
+// or letting the compiler insert padding would silently shift every offset
+// after it, so pin the number instead of trusting review.
+static_assert(sizeof(RepeaterStats) == 64,
+              "RepeaterStats is a wire format: append only, keep it padding-free");
 
 #ifndef MAX_CLIENTS
   #define MAX_CLIENTS           32
