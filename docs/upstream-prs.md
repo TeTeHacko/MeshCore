@@ -82,3 +82,187 @@ Poznámky k jednotlivým:
    naměřenými čísly.
 3. Teprve pak hromádku 2, po jednom, každý zvlášť ověřený proti `dev`
    (znovu: `dev` se hýbe, půlka práce je zjistit, co už tam je).
+
+
+---
+
+# openHop a RemoteTerm (19. 8. 2026)
+
+Do MeshCore upstreamu **neposíláme nic** (rozhodnuto 19. 8. 2026). Tři větve
+z první části dokumentu zůstávají připravené na forku, ale PR se neotevírají.
+Co se posílá, jde do openHopu a RemoteTermu.
+
+## Stav větví
+
+| projekt | fork | větev | proti | stav |
+|---|---|---|---|---|
+| openHop | `TeTeHacko/openhop_repeater` | `fix/room-advert-node-name` | `dev` | pushnuto, 23 testů zelených, PR **neotevřen** |
+| RemoteTerm | `TeTeHacko/Remote-Terminal-for-MeshCore` | `feature/configurable-map-tiles` | `main` | pushnuto (commit `76f81c8`), `all_quality.sh` **nedojel** — před PR znovu pustit |
+
+RemoteTerm chce podle CONTRIBUTING **nejdřív issue**, teprve pak PR
+(„a brand new feature appearing first in a PR is an antipattern"). Text issue je níž.
+
+## openHop PR: room advert name
+
+### Problem
+
+A room server adverts under two different names depending on what triggered the advert.
+
+`repeater/handler_helpers/room_server.py:149` reads
+
+```python
+node_name = room_settings.get("room_name", room_name)
+```
+
+but `room_name` is not a documented setting — it appears nowhere in `config.yaml.example`
+or `docs/`. Every other advert path reads `node_name`:
+
+- `repeater/web/api_endpoints.py:6517` — `POST /api/send_room_server_advert`
+- `repeater/main.py:854`, `:1126`, `:1540` — the periodic advert scheduler
+
+`config.yaml.example` documents `settings.node_name`, and so does the existing test
+fixture for this very function (`tests/test_handler_helpers_room_server.py`:
+`settings: {"node_name": "Room Alpha", ...}`). So the CLI `advert` command always falls
+through to the identity's `name` and ignores the configured one.
+
+### How it shows up
+
+```yaml
+identities:
+  room_servers:
+    - name: RoomServer
+      settings:
+        node_name: "tth-room"
+```
+
+The scheduler and the HTTP endpoint advert as `tth-room`. An admin typing `advert` over
+RF adverts as `RoomServer` — and because clients take the newest advert for a public key,
+the room renames itself for everyone on the mesh.
+
+That is not hypothetical: this happened to our node today. The room had been `tth-room`
+for a day; one CLI advert renamed it to `RoomServer` on every client in range, and it took
+a second advert (after working around the bug in config) to put the name back.
+
+### Fix
+
+One line, so the CLI path reads the same key as every other path.
+
+Plus a regression test asserting `create_advert()` receives the configured name and
+coordinates. It fails on the old behaviour with `+ room-alpha`, and the full file passes
+with the fix:
+
+```
+tests/test_handler_helpers_room_server.py .......................  23 passed
+```
+
+(Run in a container built from this repo's image with `pytest`/`pytest-asyncio` added.)
+
+### Compatibility
+
+Anyone who worked around this by setting `room_name` would have to switch to `node_name`.
+The key is undocumented, so that looks safe — but if you would rather not break it, I am
+happy to push `room_settings.get("node_name", room_settings.get("room_name", room_name))`
+instead. Your call.
+
+
+## RemoteTerm issue: konfigurovatelné dlaždice
+
+**Title:** Map tile URL is hardcoded to osm.org in four components — no way to use another tile server
+
+### What I ran into
+
+osm.org answers my browser with `403` for RemoteTerm's map tiles, so every map view is
+blank. I already run a caching tile proxy for other tools, but there is no way to point
+RemoteTerm at it: the URL is hardcoded in four separate places.
+
+```
+frontend/src/components/MapView.tsx        (the 'light' base layer preset)
+frontend/src/components/PathRouteMap.tsx
+frontend/src/components/NeighborsMiniMap.tsx
+frontend/src/components/ContactInfoPane.tsx
+```
+
+The fourth one is easy to miss — I patched three, rebuilt, and the contact-detail mini map
+still went to osm.org.
+
+Two reasons this is worth a knob, beyond the 403:
+
+- **Caching.** A shared proxy serves tiles from disk, which is faster and much politer to
+  osm.org than every client fetching them directly.
+- **Deployments that should not reach osm.org at all.** Mine sits on a segment where the
+  browser can talk to my own hosts and nothing else. Right now that means no maps, even
+  though everything else works offline.
+
+### What I would like
+
+Two env vars, in the same shape as the existing server-side settings:
+
+- `MESHCORE_MAP_TILE_URL` — tile template (`{z}/{x}/{y}`), empty keeps OpenStreetMap
+- `MESHCORE_MAP_TILE_ATTRIBUTION` — optional, defaults to the OSM credit
+
+Only the **default** base layer would change. The other layer choices are named after
+their providers (CARTO, OpenTopoMap, Esri), so overriding those would make the labels lie.
+
+### Note on scope, because of the project principles
+
+This is only about where the *browser* fetches map imagery. It adds no radio traffic and
+no path from the internet onto the mesh — if anything it removes a network dependency,
+since the instance can then run with no route to osm.org at all.
+
+### Offer
+
+I have this implemented and passing `./scripts/quality/all_quality.sh` (config validation
++ `/api/health` plumbing + a small context, with backend and frontend tests). Happy to
+open the PR if you want it this way, or to adjust the shape first — filing the issue first
+per CONTRIBUTING.
+
+
+## RemoteTerm PR (referuje to issue)
+
+Closes #<issue>
+
+### What
+
+Adds `MESHCORE_MAP_TILE_URL` and `MESHCORE_MAP_TILE_ATTRIBUTION` so the default base map
+can point at another tile server, and replaces the four hardcoded osm.org URLs with a
+single resolved source.
+
+Default behaviour is unchanged: unset means the built-in OpenStreetMap layer, byte for
+byte the same URL and attribution as before.
+
+### Why
+
+osm.org answers some clients with `403`, which leaves every map blank; a caching proxy is
+both a fix and politer to osm.org; and some deployments should not reach osm.org at all.
+Details and discussion in the issue.
+
+### How
+
+- `app/config.py` — the two settings, plus validation: the URL must contain `{z}`, `{x}`
+  and `{y}` (a plain URL would render an empty map, so fail at startup instead), and an
+  attribution without a URL is rejected rather than silently mis-crediting tiles that
+  still come from OSM.
+- `app/routers/health.py` — surfaced on `/api/health`, the same way `bots_disabled` and
+  `basic_auth_enabled` already reach the frontend. No new endpoint.
+- `frontend/src/contexts/MapTileContext.tsx` — a small context in the shape of the
+  existing ones, with `resolveTileLayer()` holding the fallback rules.
+- The four map components consume `useMapTileLayer()`.
+- `MapView` only substitutes the `light` preset; CARTO / OpenTopoMap / Esri keep their own
+  URLs, since those labels name their source.
+- Docs: README env table and `docker-compose.example.yml`.
+
+A custom URL keeps the OpenStreetMap attribution unless an attribution is given too —
+self-hosted tile servers usually proxy OSM data, so dropping the credit would be wrong,
+while a genuinely different source can say so.
+
+### Tests
+
+- `tests/test_config.py::TestMapTileOverride` — defaults, a valid template, a URL without
+  placeholders, and attribution without a URL.
+- `frontend/src/test/mapTiles.test.ts` — fallback for null/undefined/empty/whitespace,
+  override, attribution defaulting, trimming.
+- `./scripts/quality/all_quality.sh` passes (ruff, pyright, pytest, eslint, prettier,
+  vitest, frontend build).
+
+Verified against a real proxy at zoom 13–19 before proposing this: the map renders, and
+with the vars unset the OSM layer is unchanged.
