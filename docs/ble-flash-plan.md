@@ -32,6 +32,42 @@ await s.start(); await asyncio.sleep(45); await s.stop()
 Když uzel opravdu nikde není, nejčastější důvod je **dock-quiet** (připojené USB
 drží DTR ⇒ BLE neadvertuje — vlastnost, ne závada) nebo vypnuté napájení.
 
+## Nejjednodušší cesta: `tools/ble_flash_node.sh`
+
+Celý postup níž je zabalený do jednoho příkazu, včetně věcí, které se dají
+zapomenout (čistý strom, předletová kontrola prefs, uvolnění linku, ověření
+verze proti obrazu, vrácení služby). Ověřeno 19. 8. 2026 na hrebecné, Plešivci
+a tth-ltm.
+
+```bash
+# lavice / uzel s ODPOJENOU antenou
+tools/ble_flash_node.sh --env SenseCap_hreb_rpt --mac CE:72:14:CD:FD:02 --require-silence
+
+# tth-ltm: BLE má metry, takže se flashuje Z DOPEY
+tools/ble_flash_node.sh --env SenseCap_Solar_repeater_ble --mac FA:4F:30:E3:1B:7A \
+    --via dopey.doma --python /opt/meshcore-ble-bridge/venv/bin/python \
+    --stop-service meshcore-ble-bridge.service
+
+# jen se podívat, co na uzlu je (nic nemění)
+tools/ble_flash_node.sh --mac DC:28:1D:8A:04:1A --check-only
+```
+
+Co skript dělá a co ne:
+
+- **Odmítne špinavý strom** — verze by dostala `+` a na stožáru bys nepoznal, co
+  na uzlu je.
+- **Porovná prefs před a po** (`repeat`, oba advert intervaly). Flash je
+  nepřepisuje, takže rozdíl znamená, že se něco stalo.
+- `--require-silence` **zastaví celý flash**, pokud uzel není tichý. U desky
+  s odpojenou antenou je to ta jediná pojistka, která fakt drží.
+- **Službu vrací traphem**, ne až na konci — když spadne build nebo DFU, most
+  se nesmí nechat dole.
+- Na `--via` hostu **nic neinstaluje**: použije python, který tam už je
+  (u dopey `venv` mostu, kde bleak je).
+- **Neaktivuje uzel.** `set repeat on` a advert intervaly jsou krok na místě.
+
+Zbytek téhle stránky je to samé ručně, plus proč jednotlivé kroky existují.
+
 ## Nástroj a build
 
 ```bash
@@ -118,6 +154,13 @@ Po flashi:
    těch šest řádků z `docs/` (viz commit `ec20d77e`).
 
 Během výpadku mostu bude v dashboardu díra. To je čekané.
+
+**Provedeno 19. 8. 2026**: `v1.17.1-ttha0f3ce9` → `v1.17.1-ttha29ed62`
+(Build: 260819 2121), DFU 408388/408388 B, IMAGE i VALIDATE ok. Prefs přežily
+(`repeat on`, `flood.advert.interval 25`, jméno i `freq 869.432`), hodiny
+19:22 UTC. Po nahození mostu `full scrape` do dvou minut a v Prometheu spadl
+`meshcore_uptime_seconds` z 370279 na 105 — tedy ověřeno až v datech, ne jen
+podle běžící služby.
 
 ## Co se může pokazit a co s tím
 
