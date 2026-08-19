@@ -1289,6 +1289,13 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeOKFrame();
     } else {
       ContactInfo contact;
+      // The frame's lat/lon/lastmod are optional, and clients omit them when the
+      // contact has no location -- so anything updateContactFromFrame() does not
+      // write stays as whatever was on the stack. That leaks garbage into
+      // gps_lat/gps_lon and, worse, into shared_secret_valid: a non-zero byte
+      // there makes getSharedSecret() hand out an uninitialised secret.
+      // populateContactFromAdvert() zeroes for the same reason.
+      memset(&contact, 0, sizeof(contact));
       updateContactFromFrame(contact, last_mod, cmd_frame, len);
       contact.lastmod = last_mod;
       contact.sync_since = 0;

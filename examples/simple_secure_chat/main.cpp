@@ -103,6 +103,10 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
           uint8_t unused;
           uint32_t reserved;
 
+          // No shared_secret/shared_secret_valid in the on-disk record; without
+          // this the flag is indeterminate for every contact loaded at boot.
+          memset(&c, 0, sizeof(c));
+
           bool success = (file.read(pub_key, 32) == 32);
           success = success && (file.read((uint8_t *) &c.name, 32) == 32);
           success = success && (file.read(&c.type, 1) == 1);
