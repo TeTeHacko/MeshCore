@@ -15,20 +15,22 @@ v dashboardu.
 
 ## Předpoklad, který je potřeba splnit dřív než cokoliv jiného
 
-Ani jeden z těch tří **teď po BLE neadvertuje** (25s scan z black-archu, 19. 8.
-19:xx — nula nálezů). Všechny tři jsou spárované a bondované, RSSI v cache je
-jen historie (hrebecna −68, Plešivec −62). Nejpravděpodobnější důvody:
+**hrebecna i Plešivec advertují** a jsou z black-archu připravené k OTA
+(19. 8. 2026, 45s scan): oba stabilně na **−60 dBm**, bondované. tth-ltm ve
+scanu z black-archu není a nebude — je u dopey, flashuje se odtud.
 
-- **dock-quiet**: připojené USB drží DTR ⇒ BLE neadvertuje (je to vlastnost, ne
-  závada — viz AGENTS.md). Na lavičních uzlech tedy **vytáhni USB**.
-- uzel je vypnutý / bez napájení.
+POZOR na metodu, stálo to falešný poplach: `bluetoothctl scan on | grep` **nic
+nenajde**, protože objevy vypisuje průběžně a jinak, než čekáš. Skenuj přes
+bleak s callbackem:
 
-Bez advertování nemá `ble_dfu.py` na co se připojit, takže **krok 0 každé
-sekce je scan**:
-
-```bash
-timeout 30 bluetoothctl --timeout 20 scan on | grep -i -E 'hrebecna|plesivec|ltm'
+```python
+from bleak import BleakScanner
+s = BleakScanner(detection_callback=lambda d, ad: print(ad.rssi, d.address, d.name))
+await s.start(); await asyncio.sleep(45); await s.stop()
 ```
+
+Když uzel opravdu nikde není, nejčastější důvod je **dock-quiet** (připojené USB
+drží DTR ⇒ BLE neadvertuje — vlastnost, ne závada) nebo vypnuté napájení.
 
 ## Nástroj a build
 
