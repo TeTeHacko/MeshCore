@@ -52,9 +52,24 @@ deploy cíl.
   nic, bez chyb enumerace, port `not attached`) jde vyrobit i na naprosto zdravé
   desce zásahem na hostu. **Port `disable` jako recovery NEPOUŽÍVAT** — sundá
   zdravou desku bez cesty zpět. Podrobnosti a čísla: `tools/README.md`.
-- **Každý flashovaný env MUSÍ mít `${stamped.extra_scripts}`** (`tools/build_version.py`),
-  jinak uzel hlásí literál `v1.16.0` stejný ve všech buildech a nepoznáš, co na něm
-  doopravdy je. Flashuj z čistého stromu.
+- **Stamping verze má od 19. 8. 2026 `[nrf52_base]`, takže ho dědí každý nRF52 env.**
+  Předtím ho z 585 envů měly DVA a deska na lavici hlásila literál z upstream headeru
+  — nešlo poznat, který build na ní je. T1000-E vypadal správně jen proto, že se
+  flashuje z lokálního envu. Ověřuj to na desce (`ver` musí dát
+  `v1.17.1-tth<sha>`, `+` = špinavý strom), ne v ini. Flashuj z čistého stromu.
+- **PREFS V InternalFS PŘEBÍJEJÍ BUILD FLAGY, a mlčí o tom.** Flash nastavení
+  nepřepíše — build default platí jen pro uzel BEZ prefs (čerstvý nebo po `erase`).
+  Stálo to 19. 8. 2026 hodinu na lavici, protože se to sečetlo do jednoho symptomu
+  „deska slyší adverty, ale na dotazy neodpovídá":
+  - **`path_hash_mode`**: x4 měl 1 (2 bajty), x2 pořád 0 (1 bajt) i po flashi
+    s `PATH_HASH_MODE_DEFAULT=2`. Broadcast advert projde, adresovaný REQ ne.
+    Řeší se na kontaktu: `update_contact(c, path="", path_hash_mode=1)`.
+  - **`ADMIN_PASSWORD`**: x4 si pamatoval STARÉ heslo z doby před zkrácením na
+    15 znaků, takže login tiše selhával. Napravit jde jen z konzole: `password <nové>`.
+  Praktický důsledek pro mlčení uzlu: `sensecap_prod_base` je mlčící z konstrukce
+  (`ENABLE_ADVERT_ON_BOOT=0`, oba advert intervaly 0, `DISABLE_FWD_DEFAULT=1`), ale
+  na uzlu, který už prefs má, to NEZARUČÍ nic — u desky s odpojenou antenou si
+  ticho ověř přes `get advert.interval`, `get flood.advert.interval`, `get repeat`.
 - **Základní verzi bere stamping z git tagu, takže si na tagy dávej pozor.**
   Záložní tag `backup/*` před mergem matchoval `*v[0-9]*` a jako nejnovější vyhrál
   → T1000-E hlásí `v117-merge-tth7c50c`. A **upstream release tag nemusí být tvůj
