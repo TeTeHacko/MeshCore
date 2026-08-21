@@ -228,6 +228,40 @@ takže je to nejspíš něčí lokální uzel, ne cesta do sítě. **Dokud nepů
 Plešivec, počítej s tím, že hrebecna může být ostrov** — repeat na ní pak nemá
 co přeposílat směrem k meshi.
 
+### Sonda dosahu: dva detektory, žádné nové nářadí
+
+Po aktivaci se hodí vědět, jestli uzel někam dosáhne, aniž bys musel slyšet
+protistranu. Recept:
+
+```bash
+# 1. detektor: co je slyšet na místě (observer publikuje syrové pakety)
+mosquitto_sub -h stor.grg -p 1883 -t 'meshcore/<IATA>/+/packets' -v
+
+# 2. detektor: slyšel nás někdo VENKU? (bez tokenu, stejné API jako CoreScope)
+curl -s 'https://analyzer.meshcore.cz/api/nodes?limit=5000'
+
+ble_cli.py <MAC> -w 45 -f <(printf 'advert\nadvert\nadvert\n')   # tři floody
+```
+
+Druhý detektor je ten cenný: **komunitní analyzer chytne i případ, kdy náš
+advert někdo přepošle dál, ale zpátky k nám to nedoletí.** Když se uzel po
+sérii advertů v `/api/nodes` neobjeví, nikdo z MQTT-přemostěných uzlů ho
+neslyšel. Naopak `last_relayed` + `relay_count_1h` u cizího uzlu dokazují, že
+**žije a přeposílá**, i když je jeho vlastní `last_heard` den starý (u
+`flood.advert.interval 25` je to normální).
+
+Cestu poznáš z `raw_hex`: druhý bajt je `path_length` — spodních 6 bitů je
+počet hopů, horní dva `šířka hashe − 1`. Paket s `hops ≥ 1` je vždycky
+retransmise, originál má 0.
+
+**Změřeno 21. 8. 2026 na hrebecné (anténa na půdě pod střechou):** tři adverty,
+**nula přeposlání, v komunitním analyzeru se neobjevila**. Sedí to s DEM
+analýzou z července — chata → Klínovec je blokovaná hřbetem 1012 m, spoj vede
+46 m pod terénem (≈ −1,6 F1, tedy ~20 dB difrakce navíc k 111 dB na 10,1 km).
+Výkonově by ta trasa byla pohodlná; **problém je čistě terén** a nespraví ho
+ani anténa na střeše. Odemyká to až repeater na Plešivci (3,07 km z chaty,
+LOS 169 % F1).
+
 ## Co v tomhle plánu záměrně není
 
 - **Změna identity ani jména.** Envy je mají zadrátované; `SenseCap_Solar_repeater_ble`
