@@ -145,7 +145,13 @@ def main():
                     help="reconnect for every command -- slower, but survives a "
                          "link that drops mid-sequence")
     ap.add_argument("--tries", type=int, default=5, help="connect attempts")
-    a = ap.parse_args()
+    # intermixed, not plain parse_args: with a trailing `cmds` of nargs="*", an
+    # option BETWEEN the MAC and the commands (`<MAC> -w 8 rxlog`, the form this
+    # tool's own help suggests) makes argparse on Python <= 3.12 drop the
+    # commands with "unrecognized arguments". 3.13 fixed it, so it works on an
+    # Arch workstation and fails on the Debian hosts (dopey, sneezy) that are
+    # the only way to reach a mast node -- exactly where you cannot debug it.
+    a = ap.parse_intermixed_args()
 
     cmds = list(a.cmds)
     if a.file:
