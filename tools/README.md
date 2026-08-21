@@ -724,12 +724,23 @@ Traps encoded in the script:
 
 `repeater-cz-silent.txt` configures a repeater for the live CZ preset and
 leaves it silent; `verify-cz-silent.txt` reads back every value that matters and
-documents what each answer must be.
+documents what each answer must be. `activate-cz-mast.txt` is the other end of
+the trip: it turns that silent node into a repeater once the antenna is bolted
+on, and reads the three values back in the same session.
 
 ```sh
 ble_cli.py <MAC> -f provision/repeater-cz-silent.txt
 ble_cli.py <MAC> -f provision/verify-cz-silent.txt
+ble_cli.py <MAC> -f provision/activate-cz-mast.txt      # antenna connected!
 ```
+
+An option *between* the MAC and the commands — `<MAC> -w 8 rxlog`, the form the
+examples above use — used to exit with `unrecognized arguments: rxlog` on
+Python ≤ 3.12, while working on a 3.13+ workstation. That is the wrong way
+round: the Debian hosts that run this tool for a mast node (dopey, sneezy) are
+the 3.11 ones. `ble_cli.py` now parses with `parse_intermixed_args()`, so every
+argument order works everywhere; the point of the note is that this class of bug
+does not reproduce locally.
 
 Two things worth knowing before you trust the output:
 

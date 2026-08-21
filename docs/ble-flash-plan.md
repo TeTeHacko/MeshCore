@@ -173,10 +173,66 @@ podle běžící služby.
 | po flashi mlčí i s antenou | prefs (`repeat off`, intervaly 0) přežily flash | `set repeat on`, nastavit intervaly |
 | login z jiného uzlu tiše selhává | v prefs je STARÉ `ADMIN_PASSWORD` | z konzole `password <nové>` |
 
+## Aktivace na místě — provedeno na hrebecné 21. 8. 2026
+
+Uzel je na chatě u Hřebečné, tedy **z black-archu nedosažitelný**. BLE dosah na
+něj má `sneezy.chata`, takže konzole jde odtamtud:
+
+```bash
+# na sneezy: bleak + obě BLE utility (venv, ne systémový python)
+python3 -m venv /opt/meshcore-tools/venv && /opt/meshcore-tools/venv/bin/pip install bleak
+scp tools/ble_cli.py tools/ble_pair.py sneezy.chata:/opt/meshcore-tools/tools/
+# PIN se NIKDY nevypisuje — jen se propíše rourou do souboru 0600 vedle tools/
+grep -E '^\s*ble_pin\s*=' platformio.local.ini | \
+  ssh sneezy.chata 'umask 077; { echo "[secrets]"; cat; } > /opt/meshcore-tools/platformio.local.ini'
+```
+
+**Bond je per-adaptér.** Uzel byl bondovaný s black-archem, sneezy je pro něj
+cizí adaptér — takže znovu `ble_pair.py`, a pak `bluetoothctl disconnect`, jinak
+uzel neadvertuje a `ble_cli.py` ho nenajde.
+
+```bash
+ssh sneezy.chata 'python3 /opt/meshcore-tools/tools/ble_pair.py CE:72:14:CD:FD:02'
+ssh sneezy.chata 'bluetoothctl disconnect CE:72:14:CD:FD:02'
+ssh sneezy.chata '/opt/meshcore-tools/venv/bin/python /opt/meshcore-tools/tools/ble_cli.py \
+    CE:72:14:CD:FD:02 -f /opt/meshcore-tools/tools/verify-cz-silent.txt'     # předletová
+ssh sneezy.chata '... ble_cli.py CE:72:14:CD:FD:02 -f .../activate-cz-mast.txt'
+```
+
+`ble_pair.py` potřebuje jen stdlib a `bluetoothctl`, takže běží systémovým
+pythonem; `ble_cli.py` chce bleak, tedy ten venv.
+
+Naměřeno: `ver` = `v1.17.1-ttha29ed62`, prefs přesně jak je nechal flash
+(`repeat off`, oba intervaly 0, `af 9`, `powersaving on`, `gps duty/prefs`,
+`path.hash.mode 1`), hodiny **správné bez zásahu** (`clock` na minutu sedělo
+s UTC, přestože `gps` hlásí `duty, asleep, no fix` — fix tedy někdy předtím
+proběhnout musel). Po aktivaci `repeat on / 120 / 25`.
+
+**Ověřuj to na cizím rádiu, ne na counterech uzlu.** Svědek byl openHop observer
+`tth-ob2`, který stojí na téže chatě:
+
+- ruční `advert` → ob2 ho zachytil jako ADVERT (`packet_type 4`, RSSI −14 dBm,
+  SNR 12,2), v raw je čitelné `tth-hrebecna` a payload začíná pubkey `5361aa08…`;
+- za dalších 5 minut ob2 viděl **tři cizí flood TXT dvakrát**: jednou od
+  původce (0 hopů, RSSI −48) a hned nato tutéž `hash` s cestou `5361` na začátku
+  — to je hrebecna, jak je přeposílá. `stats-packets` to potvrdil z druhé
+  strany: `flood_tx` +3;
+- CoreScope si ji do minuty založil jako `repeater 5361aa0892…`, `hash_size 2`,
+  pozice 50.382/12.827. Prefix `5361` je proti 887 známým uzlům nekolizní.
+
+**Čím uzel zatím NENÍ**: `neighbors` hlásí jediného souseda, `025C68B0` (tth-ltm)
+ve stáří 20 h — což je ještě z lavice v Litoměřicích. Z chaty přímého souseda na
+ostrém meshi zatím nemá. Ten −48 dBm původce je podle úrovně signálu blízko
+(22 dBm a volný prostor dá −48 dBm někde kolem 300 m; na 20 km by to bylo −89),
+takže je to nejspíš něčí lokální uzel, ne cesta do sítě. **Dokud nepůjde nahoru
+Plešivec, počítej s tím, že hrebecna může být ostrov** — repeat na ní pak nemá
+co přeposílat směrem k meshi.
+
 ## Co v tomhle plánu záměrně není
 
 - **Změna identity ani jména.** Envy je mají zadrátované; `SenseCap_Solar_repeater_ble`
   nese identitu stožáru, takže ho nepoužívej na nic jiného.
-- **Zapnutí vysílání na hrebecné/Plešivci.** To je aktivace na místě.
+- **Zapnutí vysílání na Plešivci.** To je aktivace na místě, viz sekci výš —
+  pro hrebecnou je hotová, Plešivec čeká na výlez.
 - **Flash x1.** Je zaseklá po flashi upstreamovým envem (přišla tím o BLE konzoli)
   a chce ruce: dvojklik na reset nebo replug, pak `pio run -e Xiao_x1_rpt -t upload`.

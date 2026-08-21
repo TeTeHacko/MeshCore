@@ -1,0 +1,49 @@
+# On-site activation of a CZ mesh repeater that was shipped SILENT.
+#
+#   tools/ble_cli.py <MAC> -f tools/provision/activate-cz-mast.txt
+#
+# The counterpart of `repeater-cz-silent.txt`. That file makes a node safe to
+# carry to a mast; this one turns it into a repeater once the antenna is on.
+#
+# RUN THIS ONLY WITH THE ANTENNA CONNECTED. Every line below ends with the node
+# transmitting, and transmitting into an open connector damages the PA. On a
+# bench node with the antenna off, `repeater-cz-silent.txt` is the file you want.
+#
+# What is NOT here: name, position, frequency, path hash mode, af, powersaving.
+# Those come from the build and from `repeater-cz-silent.txt`, and a node that
+# does not already have them right is not ready to be activated.
+
+# --- clock -------------------------------------------------------------
+# First, because adverts carry a timestamp and clients drop replies from a node
+# whose RTC still says May 2024. "clock cannot go backwards" means GPS already
+# set it -- that is success. `{epoch}` is expanded by ble_cli at send time.
+time {epoch}
+
+# --- forwarding --------------------------------------------------------
+# THE line that makes it a repeater. Until this, the node hears the mesh and
+# says nothing -- which is what every counter on it will have been measuring.
+set repeat on
+
+# --- adverts -----------------------------------------------------------
+# An unannounced repeater confuses routing: neighbours put its hash in paths
+# they cannot resolve back to a node. Both intervals are prefs and survive a
+# flash, so this runs once per node, not once per firmware.
+#
+# MINUTES (stored halved, `get` multiplies back). Zero-hop advert: it tells
+# direct neighbours "I am here", and costs one sub-second airtime slot.
+set advert.interval 120
+# HOURS -- different unit, same-looking command. The flood advert is what puts
+# the node on the community map and what the analyzer uses to keep it there.
+set flood.advert.interval 25
+
+# --- announce now ------------------------------------------------------
+# Sends immediately. Without it the first flood advert is up to 25 h away, and
+# you would leave the site not knowing whether the antenna works.
+advert
+
+# --- read back ---------------------------------------------------------
+# In one session on purpose: on a mast, a second BLE connection is not free.
+# Expected: on / 120 / 25.
+get repeat
+get advert.interval
+get flood.advert.interval
