@@ -34,9 +34,12 @@ async def main():
     prefix = args[0].lower() if args else None
     cmds = args[1:]
 
-    pwd = ""
+    # stdin: 1. řádek = heslo, kterým se přihlašuju; 2. řádek (nepovinný) = NOVÉ
+    # heslo pro `password!`. Obojí rourou, protože v argv to vidí `ps`.
+    pwd = new_pwd = ""
     if not sys.stdin.isatty():
         pwd = sys.stdin.readline().strip()
+        new_pwd = sys.stdin.readline().strip()
 
     mc = await MeshCore.create_tcp(host="127.0.0.1", port=PORT, auto_reconnect=False)
 
@@ -125,7 +128,7 @@ async def main():
         # uzlu příkaz echuje zpátky a `-> OK` by jinak stálo hned pod ním.
         shown = cmd
         if cmd == "password!":
-            cmd = f"password {pwd}"
+            cmd = f"password {new_pwd or pwd}"
             shown = "password ***"
         inbox.clear()
         await mc.commands.send_cmd(target, cmd)
@@ -139,8 +142,9 @@ async def main():
         # by skončilo v logu, v transkriptu a v historii shellu. Stalo se
         # 22. 8. 2026 a stálo to rotaci hesla celé flotily.
         line = f"$ {shown}\n  -> " + " | ".join(out)
-        if pwd:
-            line = line.replace(pwd, "***")
+        for secret in (pwd, new_pwd):
+            if secret:
+                line = line.replace(secret, "***")
         print(line)
         await asyncio.sleep(1)
 
