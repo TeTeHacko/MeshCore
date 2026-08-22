@@ -15,8 +15,22 @@
 set -uo pipefail
 FOUND=""
 
-P=$(pgrep -af 'mosquitto_sub|ble_pair\.py|ble_dfu\.py|ble_cli\.py|dtr_low|flight_[a-z]*\.py|power_ab\.py|fleet_test\.py' 2>/dev/null \
-    | grep -vE 'cleanup-check|pgrep' | head -5)
+# DVĚ PASTI, obě zjištěné na živém provozu, ne na syntetickém testu:
+#  1) `claude-xmpp-client` nese v argumentu TEXT MOJÍ ZPRÁVY — když jsem v ní
+#     psal o `ble_pair.py`, hook si našel svůj vlastní kontext. Proto se hledá
+#     jen v executable + prvních třech argumentech, ne v celém cmdline.
+#  2) Hook matchoval SÁM SEBE: `grep`/`awk` z vlastní pipeline nesou ten pattern
+#     v argumentech. Proto se vylučují vlastní potomci podle PPID, a to je
+#     spolehlivější než další grep -v (ten se dá obejít každým novým členem
+#     pipeline).
+P=$(ps -eo pid=,ppid=,args= 2>/dev/null | awk -v me="$$" '
+    $1 == me || $2 == me { next }
+    {
+      s = ""
+      for (i = 3; i <= 6 && i <= NF; i++) s = s $i " "
+      if (s ~ /mosquitto_sub|ble_pair\.py|ble_dfu\.py|ble_cli\.py|dtr_low|flight_[a-z]*\.py|power_ab\.py|fleet_test\.py/ \
+          && s !~ /claude-|cleanup-check/) print $1, s
+    }' | head -5)
 [ -n "$P" ] && FOUND="${FOUND}nástroje, které mi ještě běží:\n$P\n"
 
 # jen USB bloková zařízení: UF2 disk po flashi zmizí a mount po něm visí,
