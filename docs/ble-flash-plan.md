@@ -217,8 +217,17 @@ proběhnout musel). Po aktivaci `repeat on / 120 / 25`.
   původce (0 hopů, RSSI −48) a hned nato tutéž `hash` s cestou `5361` na začátku
   — to je hrebecna, jak je přeposílá. `stats-packets` to potvrdil z druhé
   strany: `flood_tx` +3;
-- CoreScope si ji do minuty založil jako `repeater 5361aa0892…`, `hash_size 2`,
-  pozice 50.382/12.827. Prefix `5361` je proti 887 známým uzlům nekolizní.
+- CoreScope si ji do minuty založil jako `repeater 5361aa0892…`, `hash_size 2`.
+  Prefix `5361` je proti 887 známým uzlům nekolizní.
+
+**Pozice: 22. 8. 2026 přenastavena na 50.3750/12.8290.** Do té doby uzel
+advertoval 50.382/12.827, vedené v poznámkách jako záměrně hrubá poloha ~1 km.
+Jenže je to pouhé zaokrouhlení skutečných souřadnic chaty na 4 desetinná místa,
+tedy **36 m od domu**, a na mapě to sedělo přímo na něj. **Anonymita musí
+vzniknout POSUNEM, ne zaokrouhlením.** Nová hodnota leží v Polesí mezi Hřebečnou
+a Abertamy, mimo silnice i budovy, 826 m od chaty. Mění se za běhu po meshi
+(`set lat` / `set lon` zapisují rovnou do prefs, bez rebootu), ale patří i do
+`ADVERT_LAT`/`ADVERT_LON` v envu — jinak to příští flash vrátí zpátky.
 
 **Čím uzel zatím NENÍ**: `neighbors` hlásí jediného souseda, `025C68B0` (tth-ltm)
 ve stáří 20 h — což je ještě z lavice v Litoměřicích. Z chaty přímého souseda na
