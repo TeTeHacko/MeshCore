@@ -173,7 +173,32 @@ podle běžící služby.
 | po flashi mlčí i s antenou | prefs (`repeat off`, intervaly 0) přežily flash | `set repeat on`, nastavit intervaly |
 | login z jiného uzlu tiše selhává | v prefs je STARÉ `ADMIN_PASSWORD` | z konzole `password <nové>` |
 | fáze 1 padá na `TimeoutError` (connect), ale `ble_cli.py ver` na tomtéž uzlu projde | BLE connect je flaky, jeden pokus nestačí | mít v `ble_dfu.py` retry (od 22. 8. 2026 tam je); NEdiagnostikovat z toho mrtvou desku |
-| uzel není ve skenu ani na `MAC` ani na `MAC+1` | fakt nejede (ne dock-quiet, když nevisí na USB) | power-cycle, tlačítkem nebo odpojením článku |
+| uzel není ve skenu ani na `MAC` ani na `MAC+1`, a NEODPOVÍDÁ ANI PO MESHI | **nejspíš visí v UF2 bootloaderu** — ten nemá LoRa ani BLE aplikaci, takže uzel není vidět ani jednou cestou | **připojit na USB a přečíst `idProduct`** (`0044` bootloader / `8044`+ aplikace; bootloader se hlásí BEZ „Studio" v názvu portu a nese UF2 disk). NEdiagnostikovat z toho mrtvou desku a nezkoušet `phase2` — v UF2 režimu BLE nezapne, takže ho `ble_dfu.py` nemá jak najít |
+
+### Uzel, který zmizel z BLE i z meshe, hledej na USB
+
+Původně tu stálo „fakt nejede → power-cycle". **To je špatně** a Plešivec to
+22. 8. 2026 vyvrátil o hodinu později: po pádu `ble_dfu.py` (jehož recovery
+posílá RESET) zůstal v **UF2 bootloaderu**. Ten nemá rádio ani BLE aplikaci,
+takže uzel současně nebyl ve skenu na `MAC` ani `MAC+1` A neodpovídal po meshi —
+což vypadá jako mrtvá deska a není to ona. Stačilo ho připojit na USB: `2886:0044`
+a disk `XIAO-BOOT`, tedy bootloader připravený vzít UF2.
+
+Ta kombinace „mlčí na BLE **i** na meshi" je diagnostický signál sama pro sebe.
+Selhání rádia by mlčelo jen na meshi, dock-quiet jen na BLE. Když zmizí obojí
+naráz, uzel neběží jako aplikace — a v bootloaderu se z něj po vzduchu nedostane
+nic, ani `phase2`.
+
+Pozn.: solární SenseCAP se v bootloaderu hlásí jako **XIAO nRF52840**
+(`Board-ID: nRF52840-SeeedXiao-v1`) a není to rozpor —
+`boards/seeed_sensecap_solar.json` má `"variant": "Seeed_XIAO_nRF52840"`, ten uzel
+XIAO uvnitř skutečně má. Nezvrhni to na „připojil jsem si špatnou desku".
+
+**Nemountuj UF2 disk na `/mnt` samotné.** Deska se po zapsání obrazu sama
+rebootne a zařízení zmizí — mount po ní zůstane viset a `/mnt` je pak mrtvé:
+i `sudo mkdir /mnt/cokoliv` skončí na `Input/output error`. Mountuj do
+podadresáře (`/mnt/l1`) a po `sync` udělej `umount -l`. Náprava viselého mountu
+je `sudo umount -R -l /mnt`, nic se tím nemaže.
 
 ### Wio Tracker L1 z e7470 (na chatě) — UF2, ne BLE
 
