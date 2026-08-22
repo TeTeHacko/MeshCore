@@ -15,6 +15,12 @@ deploy cíl.
 skill je postup — 22. 8. 2026 se ukázalo, že mít pravidla v kontextu nestačí,
 když se podle nich neuvažuje v momentě úkonu.
 
+**Ptáš se „prolezlo to?", „slyšel nás někdo?", „kudy to šlo?" — načti si skill
+`mesh-evidence`.** Klíčové pravidlo: **pozoruj na tom konci trasy, kde paket
+KONČÍ.** 22. 8. 2026 jsem prohlásil letový test za neúspěšný na základě správného
+měření na chatě — jenže trasa byla `L1 → Klínovec → mesh → tth-ltm → domů`
+a chata v ní nebyla. Důkaz ležel doma v RemoteTermu.
+
 **Aktivace uzlu (`set repeat on`, advert intervaly, `advert`) patří NA MÍSTO
 s antenou, nikdy na lavici.** `provision/activate-cz-mast.txt` to má dvakrát
 v hlavičce a i tak se to stalo: z desky ležící na stole se stal nepřihlášený

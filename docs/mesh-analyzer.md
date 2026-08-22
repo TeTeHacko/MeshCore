@@ -264,6 +264,40 @@ pages, which always fits at least one record.
 
 ---
 
+## 2.7 External data sources — where to prove a packet got through
+
+Tenhle dokument popisuje NÁŠ analyzer. Když se ale ptáš „prolezlo to?", jsou
+rychlejší cesty a mají historii. Postup je ve skillu `mesh-evidence`; tady jsou
+jen API detaily, které stály čas.
+
+**RemoteTerm (black-arch, `127.0.0.1:8011`, jen loopback)** — jediný zdroj, který
+u přijatých zpráv drží CESTU:
+
+```bash
+curl -s "http://127.0.0.1:8011/api/messages?limit=800"
+curl -s "http://127.0.0.1:8011/api/contacts"
+```
+
+Každá zpráva má `paths[]` = `{path: hex, path_len: <počet HOPŮ>, rssi, snr}`.
+Šířka hashe se počítá `(len(hex)/2) / path_len` — `path_len` **nejsou bajty**.
+
+**Komunitní analyzer `analyzer.meshcore.cz` (bez tokenu)** — co viděli cizí:
+
+```bash
+curl -s "https://analyzer.meshcore.cz/api/nodes?limit=2000"    # BEZ limitu jen 50 z 983!
+curl -s "https://analyzer.meshcore.cz/api/packets?limit=3000"  # okno ~5 h
+curl -s "https://analyzer.meshcore.cz/api/stats"
+```
+
+`_parsedPath` je **už rozsekaný podle šířky** (4znakové položky = 2 B, 2znakové =
+1 B) — nespojovat si to po bajtech, jak jsem zkoušel. `observation_count` říká,
+kolik pozorování na ten paket bylo; desítky znamenají, že se rozešel po republice.
+
+**MQTT `stor.grg:1883`, topic `meshcore/#`** — raw pakety z našich mostů
+i observerů, **anonymní odběr funguje** (`mosquitto_sub -h stor.grg -t 'meshcore/#' -v`).
+
+**Časové zóny:** RemoteTerm a `journalctl` v CEST, MQTT i analyzer v UTC.
+
 ## 3. Firmware data model (reference)
 
 `HeardNode` (registry row): `pub_prefix[6]`, `name[24]`, `lat`/`lon` (int32 ×1e6),
