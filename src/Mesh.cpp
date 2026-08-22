@@ -725,24 +725,28 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
   sendPacket(packet, pri, delay_millis);
 }
 
-void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis) {
+void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis, uint8_t path_hash_size) {
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_DIRECT;
 
-  packet->path_len = 0;  // path_len of zero means Zero Hop
+  // Zero Hop = nulový počet hopů. POZOR, dřív tu bylo `packet->path_len = 0`,
+  // což vynulovalo CELÝ bajt — a v jeho horních dvou bitech bydlí šířka hashe
+  // (Packet.h:85). Každý zerohop paket proto hlásil 1 B bez ohledu na
+  // nastavení uzlu a v analyzerech kreslil dvoubajtový uzel jako jednobajtový.
+  packet->setPathHashSizeAndCount(path_hash_size, 0);
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
   sendPacket(packet, 0, delay_millis);
 }
 
-void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis) {
+void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis, uint8_t path_hash_size) {
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
   packet->transport_codes[0] = transport_codes[0];
   packet->transport_codes[1] = transport_codes[1];
 
-  packet->path_len = 0;  // path_len of zero means Zero Hop
+  packet->setPathHashSizeAndCount(path_hash_size, 0);   // viz komentář výš
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 

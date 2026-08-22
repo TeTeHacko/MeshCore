@@ -29,6 +29,30 @@ musí proti `dev` znovu ověřit.
 | `fix/trace-path-bounds-check` | `434c54e` | dvě čtení za koncem bufferu v `Mesh::onRecvPacket()` — TRACE s `payload_len < 9` podteče `len` a `isHashMatch()` čte až ~500 B do 184B pole; u PATH `hash_size*hash_count` může přelézt dešifrovanou délku | `t1000e_repeater`, `t1000e_companion_radio_ble` |
 | `fix/tx-requeue-not-drop` | `92321a8` | neúspěšný TX se zahodí bez retry a bez counteru; naměřeno **~40 % ztracených DIRECT forwardů** při nečinném BLE spojení | `t1000e_repeater`, `t1000e_room_server`, `Heltec_ct62_sensor`, `t1000e_companion_radio_ble` |
 
+### Kandidát 22. 8. 2026: `sendZeroHop()` maže šířku path hashe
+
+`Mesh::sendZeroHop()` dělá `packet->path_len = 0`, čímž vynuluje **celý bajt**
+včetně horních dvou bitů, kde je šířka hashe (`Packet.h:85`). Každý zerohop
+paket proto hlásí 1 bajt bez ohledu na `path_hash_mode` uzlu, kdežto floodová
+větev šířku dostává (`sendFloodScoped(..., _prefs.path_hash_mode + 1)`).
+
+**Není to bug v routingu** — zerohop paket nemá cestu a nikdy se nepřeposílá
+(`Mesh.cpp:83` chce `getPathHashCount() > 0`). Je to bug v tom, co uzel o sobě
+hlásí: analyzery odvozují šířku z pozorovaných paketů a dvoubajtový uzel jim
+podle svých zerohop advertů vyjde jako jednobajtový. Na CZ meshi je to
+pravděpodobné vysvětlení velké části uzlů vedených jako „suspected 1 B".
+
+Oprava: `sendZeroHop()` dostane `path_hash_size=1` (stejně jako `sendFlood()`)
+a volající mu předají `_prefs.path_hash_mode + 1`. Default zachovává dnešní
+chování, takže ostatní příklady se nemusí měnit. **Pozor na přetížení
+s `transport_codes`** — holá `0` jako delay je zároveň null pointer, takže
+volání s literálem chce `(uint32_t)0`, jinak je ambiguous.
+
+Změřeno: `tth-hrebecna` posílala `flood: 2 B` a `route2 (zerohop): 1 B` od
+téhož původce, dvě hodiny od sebe. Build ověřen na `SenseCap_hreb_rpt`,
+`SenseCap_ples_rpt`, `SenseCap_Solar_repeater_ble`.
+
+
 Texty PR: `../../scratchpad/pr/*.md` v session, obsah je i v commit messages.
 
 Poznámky k jednotlivým:

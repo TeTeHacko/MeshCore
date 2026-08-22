@@ -215,13 +215,16 @@ public:
   /**
    * \brief  send a locally-generated Packet to just neighbor nodes (zero hops)
   */
-  void sendZeroHop(Packet* packet, uint32_t delay_millis=0);
+  // `path_hash_size` tu je ze stejného důvodu jako u sendFlood: zerohop paket
+  // sice cestu nenese, ale ta šířka je v hlavičce a analyzery z ní odvozují,
+  // na kolika bajtech uzel jede. Bez toho parametru hlásí každý zerohop 1 B.
+  void sendZeroHop(Packet* packet, uint32_t delay_millis=0, uint8_t path_hash_size=1);
 
   /**
    * \brief  send a locally-generated Packet to just neighbor nodes (zero hops), with specific transport codes
    * \param transport_codes   array of 2 codes to attach to packet
   */
-  void sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0);
+  void sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0, uint8_t path_hash_size=1);
 
 };
 
