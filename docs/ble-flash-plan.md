@@ -172,6 +172,18 @@ podle běžící služby.
 | `ver` hlásí literál bez `-tth` | flashnul jsi upstreamový env | přeflashovat správným lokálním envem |
 | po flashi mlčí i s antenou | prefs (`repeat off`, intervaly 0) přežily flash | `set repeat on`, nastavit intervaly |
 | login z jiného uzlu tiše selhává | v prefs je STARÉ `ADMIN_PASSWORD` | z konzole `password <nové>` |
+| fáze 1 padá na `TimeoutError` (connect), ale `ble_cli.py ver` na tomtéž uzlu projde | BLE connect je flaky, jeden pokus nestačí | mít v `ble_dfu.py` retry (od 22. 8. 2026 tam je); NEdiagnostikovat z toho mrtvou desku |
+| uzel není ve skenu ani na `MAC` ani na `MAC+1` | fakt nejede (ne dock-quiet, když nevisí na USB) | power-cycle, tlačítkem nebo odpojením článku |
+
+### Jednotky advert intervalů se LIŠÍ — a chyba je tichá
+
+`set advert.interval` bere **minuty**, `set flood.advert.interval` **hodiny**
+(rozsah 3–168; `CommonCLI.cpp:641` vs `:651`, kde se minuty navíc ukládají
+vydělené dvěma). Poslat do floodu minuty vypadá nevinně, ale uzel odpoví
+`Error: interval range is 3-168 hours` a **nechá tam starou hodnotu** — takže po
+ztišení (`0`) zůstane na nule a uzel přestane flood adverty posílat úplně.
+Stalo se 22. 8. 2026 na hrebecné při vracení provozu po flashi. Vždycky
+`get flood.advert.interval` ZKONTROLUJ, nespoléhej na `OK`.
 
 ## Aktivace na místě — provedeno na hrebecné 21. 8. 2026
 
