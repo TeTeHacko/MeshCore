@@ -87,6 +87,20 @@ s.open(); s.dtr = False          # node starts advertising within a second
 Merely closing the port is not always enough; observed on a T1000-E that stayed
 dark until something explicitly drove DTR low.
 
+**A repeater build on a T1000-E has no BLE at all** — `t1000e_repeater` answers
+`Unknown command` to `ble`, so there is no buttonless DFU service to write to and
+BLE OTA is not an option. Dock-quiet does not apply either (it lives in
+`SerialDualInterface`, which a repeater does not use). The way in is the USB
+console: `dfu uf2` puts it in the UF2 bootloader in about ten seconds, the port
+renames itself from `…T1000-E-BOOT…` to `…T1000-E…`, and a `T1000-E` disk shows
+up. The `OSError: [Errno 5]` from pyserial as the command lands is the board
+rebooting, not a failure.
+
+Do **not** reach for the magnetic-cable double-tap from `docs/faq.md` here: it
+was tried on 2026-08-22 and does nothing on this build. Note also that anything
+holding the port open (e.g. the DTR trick above) makes the console look dead —
+kill it first, or `ver` returns nothing at all and it looks like a wedged board.
+
 ## `ble_cli.py` — console over BLE
 
 ```sh
@@ -179,6 +193,7 @@ one changes which flashing path works:
 | SenseCap Solar | buttonless over BLE | `AdaDFU`, same MAC, MTU stays 23 | — |
 | SenseCap Solar (mast unit) | buttonless over BLE | `SCAP_DFU`, **MAC+1**, MTU 247 | — |
 | T1000-E | buttonless over BLE | `AdaDFU`, same MAC, MTU 23 | — |
+| T1000-E, repeater build | **`dfu uf2` on the USB console** | — | **yes**, `T1000-E`, in ~10 s |
 | Wio Tracker L1 | 1200-baud touch on USB | UF2 mass storage `TRACKER L1` | **yes**, in ~10 s |
 
 The first row is the one that wastes an afternoon: the 1200-baud touch *works*,
