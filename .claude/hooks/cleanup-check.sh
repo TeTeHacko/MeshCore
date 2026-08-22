@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Stop: na konci turnu zkontroluje, co jsem po sobě nechal běžet nebo
+# namountované, a jen v tom případě to vloží do kontextu. Když je čisto, MLČÍ.
+#
+# Proč: „nebezi ti tu furt neco na pozadi? stopni si vsecky ty watche a podobny
+# kraviny" (4. 8. 2026) a „jak dopey neuklidni?" (17. 8.).
+#
+# PŘESNOST PŘED POKRYTÍM. První verze hlásila uživatelův trvalý NFS mount
+# (/mnt/wd_crypt) a `Pairable: yes` na jeho vlastním adaptéru — tedy vyla na
+# každý běh, což podle jeho vlastní poznámky z 5. 8. naučí souhrn přehlížet.
+# Proto: mounty jen z blokových USB zařízení (/dev/sd*), a BT stav se
+# nekontroluje vůbec, protože svoje od uživatelova nerozliším — a ten skutečný
+# případ (registrovaný agent po zabitém ble_pair.py) byl na CIZÍM hostu, kam
+# tenhle hook nedosáhne. Tam to řeší úklidový trap v samotném ble_pair.py.
+set -uo pipefail
+FOUND=""
+
+P=$(pgrep -af 'mosquitto_sub|ble_pair\.py|ble_dfu\.py|ble_cli\.py|dtr_low|flight_[a-z]*\.py|power_ab\.py|fleet_test\.py' 2>/dev/null \
+    | grep -vE 'cleanup-check|pgrep' | head -5)
+[ -n "$P" ] && FOUND="${FOUND}nástroje, které mi ještě běží:\n$P\n"
+
+# jen USB bloková zařízení: UF2 disk po flashi zmizí a mount po něm visí,
+# načež i `sudo mkdir /mnt/cokoliv` skončí na Input/output error
+# POZOR na dva falešné pozitivy, které to hlásilo, než jsem to dotáhl:
+# uživatelův trvalý NFS `/mnt/wd_crypt` (proto jen /dev/sd*) a systémový
+# `/boot` na /dev/sda1 (proto jen cíle v /mnt, /media a /run/media).
+M=$(findmnt -rno TARGET,SOURCE,FSTYPE 2>/dev/null \
+    | awk '$2 ~ /^\/dev\/sd/ && $1 ~ /^\/(mnt|media|run\/media)/ {print "  "$1" <- "$2" ("$3")"}' | head -5)
+[ -n "$M" ] && FOUND="${FOUND}namountovaný USB disk (po flashi deska zmizí a mount visí, /mnt pak dá I/O error):\n$M\n"
+
+[ -z "$FOUND" ] && exit 0
+printf '%b' "$FOUND" | jq -Rs '{hookSpecificOutput:{hookEventName:"Stop",additionalContext:("ÚKLID — po mně zůstalo:\n" + . + "Ukliď to (umount -l, kill), nebo uživateli řekni, že to tam necháváš záměrně a proč.")}}'

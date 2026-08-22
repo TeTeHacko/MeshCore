@@ -34,6 +34,23 @@ A třetí (4×): **nevymýšlej kolo a neřeš, co nebylo zadáno.** Nářadí v
 většinou existuje. „Zbytečný" a „co furt vymýšlíš" znamená, že jsem si přidal
 práci, kterou nikdo nechtěl.
 
+### Tři z těch pravidel vynucuje harness, ne moje pozornost
+
+V `.claude/settings.json` jsou hooky — ty se na rozdíl od skillů a dokumentace
+nedají přehlédnout, protože je spouští Claude Code sám:
+
+| hook | co dělá |
+|---|---|
+| `hooks/hw-state.sh` | před flashem/měřením/DFU **vloží do kontextu skutečný stav USB** (`/dev/serial/by-id`, `idProduct`, UF2 disky). Řeší pravidlo #1 tím, že dodá fakt místo paměti. Nic neblokuje. |
+| `hooks/live-mesh-guard.sh` | u příkazu, kterým uzel začne vysílat do ostrého meshe (`activate-cz-mast`, `set repeat on`, `advert`, `set freq`), si vyžádá potvrzení člověkem. Vrací `ask`, takže na stožáru se odklikne. |
+| `hooks/cleanup-check.sh` | na konci turnu ohlásí běžící nástroje a namountované USB disky. **Když je čisto, mlčí.** |
+
+Podle dokumentace Claude Code je nejúčinnější vzor **vkládání kontextu, ne
+blokování** — proto první hook nic nezakazuje, jen dodá data. A přesnost je tady
+nadřazená pokrytí: úklidový hook původně hlásil trvalý NFS mount a systémový
+`/boot`, tedy vyl na každý běh — a kontrola, která vyje vždycky, naučí souhrn
+přehlížet.
+
 **Rozcestník domácí infry: `INFRA/INFRA.md`** (symlink na repo `home-scripts`).
 Je tam cesta dat od uzlu přes mosty na dopey do analyzeru CoreScope, přehled hostů
 a kde má co zdroj pravdy. Mosty na dopey **nejsou v tomhle repu** — jsou
