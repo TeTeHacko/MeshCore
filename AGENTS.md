@@ -10,6 +10,18 @@ deploy cíl.
 
 ## Železo a flashování — pravidla, která stála čas
 
+**Flashuješ, děláš DFU, nebo uzel po zásahu nereaguje? Načti si skill
+`flash-node`** (`.claude/skills/flash-node/SKILL.md`). Tenhle seznam je pozadí,
+skill je postup — 22. 8. 2026 se ukázalo, že mít pravidla v kontextu nestačí,
+když se podle nich neuvažuje v momentě úkonu.
+
+**Aktivace uzlu (`set repeat on`, advert intervaly, `advert`) patří NA MÍSTO
+s antenou, nikdy na lavici.** `provision/activate-cz-mast.txt` to má dvakrát
+v hlavičce a i tak se to stalo: z desky ležící na stole se stal nepřihlášený
+repeater vysílající do ostrého CZ meshe. Pro přenášenou desku je ten správný
+soubor `provision/repeater-cz-silent.txt`.
+
+
 - **Sériové porty VŽDY přes `/dev/serial/by-id/`**, matchuj na **sériové číslo**.
   `ttyACM*` se po každém replugu přečísluje a mířil bys na jinou desku.
 - **Nikdy nesahej na `T1000-E-BOOT`.**
