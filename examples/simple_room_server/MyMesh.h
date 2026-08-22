@@ -159,6 +159,11 @@ protected:
   mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
 
   bool allowPacketForward(const mesh::Packet* packet) override;
+
+  // Šířku path hashe volí ODESÍLATEL, takže musí přijít z prefs tohohle uzlu.
+  // Díky tomuhle overridu ji dostanou i volání send*(), která ji nepředávají
+  // explicitně (ACKy, PATH-return, zerohop odpovědi sousedovi).
+  uint8_t getSelfPathHashSize() const override { return _prefs.path_hash_mode + 1; }
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override ;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;

@@ -650,6 +650,7 @@ void Mesh::sendFlood(Packet* packet, uint32_t delay_millis, uint8_t path_hash_si
     MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): TRACE type not suspported", getLogDateTime());
     return;
   }
+  if (path_hash_size == 0) path_hash_size = getSelfPathHashSize();
   if (path_hash_size == 0 || path_hash_size > 3) {
     MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): invalid path_hash_size", getLogDateTime());
     return;
@@ -677,6 +678,7 @@ void Mesh::sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_m
     MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): TRACE type not suspported", getLogDateTime());
     return;
   }
+  if (path_hash_size == 0) path_hash_size = getSelfPathHashSize();
   if (path_hash_size == 0 || path_hash_size > 3) {
     MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): invalid path_hash_size", getLogDateTime());
     return;
@@ -701,9 +703,11 @@ void Mesh::sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_m
   sendPacket(packet, pri, delay_millis);
 }
 
-void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uint32_t delay_millis) {
+void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uint32_t delay_millis, uint8_t path_hash_size) {
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_DIRECT;
+
+  if (path_hash_size == 0) path_hash_size = getSelfPathHashSize();
 
   uint8_t pri;
   if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {   // TRACE packets are different
@@ -715,6 +719,12 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
     pri = 5;   // maybe make this configurable
   } else {
     packet->path_len = Packet::copyPath(packet->path, path, path_len);
+    // An empty path has no hash-size bits of its own to preserve, and a bare 0 decodes as
+    // 1 byte. Zero-hop DIRECT is the common case for a neighbour reply, so without this a
+    // 2-byte node declares 1 byte on every such reply.
+    if (packet->getPathHashCount() == 0) {
+      packet->setPathHashSizeAndCount(path_hash_size, 0);
+    }
     if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
       pri = 1;   // slightly less priority
     } else {
@@ -728,6 +738,8 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
 void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis, uint8_t path_hash_size) {
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_DIRECT;
+
+  if (path_hash_size == 0) path_hash_size = getSelfPathHashSize();
 
   // Zero Hop = nulový počet hopů. POZOR, dřív tu bylo `packet->path_len = 0`,
   // což vynulovalo CELÝ bajt — a v jeho horních dvou bitech bydlí šířka hashe
@@ -743,6 +755,8 @@ void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis, uint8_t path_hash_
 void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis, uint8_t path_hash_size) {
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
+
+  if (path_hash_size == 0) path_hash_size = getSelfPathHashSize();
   packet->transport_codes[0] = transport_codes[0];
   packet->transport_codes[1] = transport_codes[1];
 

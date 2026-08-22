@@ -116,6 +116,11 @@ protected:
   // Mesh overrides
   float getAirtimeBudgetFactor() const override;
   bool allowPacketForward(const mesh::Packet* packet) override;
+
+  // Šířku path hashe volí ODESÍLATEL, takže musí přijít z prefs tohohle uzlu.
+  // Díky tomuhle overridu ji dostanou i volání send*(), která ji nepředávají
+  // explicitně (ACKy, PATH-return, zerohop odpovědi sousedovi).
+  uint8_t getSelfPathHashSize() const override { return _prefs.path_hash_mode + 1; }
   int calcRxDelay(float score, uint32_t air_time) const override;
   uint32_t getRetransmitDelay(const mesh::Packet* packet) override;
   uint32_t getDirectRetransmitDelay(const mesh::Packet* packet) override;

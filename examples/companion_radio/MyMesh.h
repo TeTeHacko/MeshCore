@@ -113,6 +113,11 @@ protected:
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
   bool allowPacketForward(const mesh::Packet* packet) override;
 
+  // Šířku path hashe volí ODESÍLATEL, takže musí přijít z prefs tohohle uzlu.
+  // Díky tomuhle overridu ji dostanou i volání send*(), která ji nepředávají
+  // explicitně (ACKy, PATH-return, zerohop odpovědi sousedovi).
+  uint8_t getSelfPathHashSize() const override { return _prefs.path_hash_mode + 1; }
+
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis);
   void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
   void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;

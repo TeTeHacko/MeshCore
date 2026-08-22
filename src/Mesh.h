@@ -72,6 +72,17 @@ protected:
   virtual uint8_t getExtraAckTransmitCount() const;
 
   /**
+   * \brief  Width (in bytes) of the path hashes this node writes into packets it originates.
+   *
+   * Sender-chosen, so it must come from this node's own prefs. The base class has no prefs
+   * and returns the protocol minimum; firmwares with a NodePrefs override it. Used whenever
+   * a send*() caller does not pass an explicit width.
+   *
+   * \returns  1, 2 or 3
+   */
+  virtual uint8_t getSelfPathHashSize() const { return 1; }
+
+  /**
    * \brief  Perform search of local DB of peers/contacts.
    * \returns  Number of peers with matching hash
    */
@@ -199,18 +210,23 @@ public:
   /**
    * \brief  send a locally-generated Packet with flood routing
   */
-  void sendFlood(Packet* packet, uint32_t delay_millis=0, uint8_t path_hash_size=1);
+  void sendFlood(Packet* packet, uint32_t delay_millis=0, uint8_t path_hash_size=0);
 
   /**
    * \brief  send a locally-generated Packet with flood routing
    * \param transport_codes   array of 2 codes to attach to packet
   */
-  void sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0, uint8_t path_hash_size=1);
+  void sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0, uint8_t path_hash_size=0);
 
   /**
    * \brief  send a locally-generated Packet with Direct routing
+   *
+   * `path_len` is the ENCODED path byte (hash-size bits + hop count), so a non-empty path
+   * carries its own width across unchanged. An EMPTY path has no width to carry, and a bare
+   * 0 decodes as 1 byte -- which is why zero-hop replies used to declare 1 B on a 2 B node.
+   * `path_hash_size` (0 = this node's prefs) fills that gap.
   */
-  void sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uint32_t delay_millis=0);
+  void sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uint32_t delay_millis=0, uint8_t path_hash_size=0);
 
   /**
    * \brief  send a locally-generated Packet to just neighbor nodes (zero hops)
@@ -218,13 +234,13 @@ public:
   // `path_hash_size` tu je ze stejného důvodu jako u sendFlood: zerohop paket
   // sice cestu nenese, ale ta šířka je v hlavičce a analyzery z ní odvozují,
   // na kolika bajtech uzel jede. Bez toho parametru hlásí každý zerohop 1 B.
-  void sendZeroHop(Packet* packet, uint32_t delay_millis=0, uint8_t path_hash_size=1);
+  void sendZeroHop(Packet* packet, uint32_t delay_millis=0, uint8_t path_hash_size=0);
 
   /**
    * \brief  send a locally-generated Packet to just neighbor nodes (zero hops), with specific transport codes
    * \param transport_codes   array of 2 codes to attach to packet
   */
-  void sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0, uint8_t path_hash_size=1);
+  void sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0, uint8_t path_hash_size=0);
 
 };
 
