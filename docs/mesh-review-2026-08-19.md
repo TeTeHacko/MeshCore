@@ -33,6 +33,34 @@ Sémantika polí, jak vyšla z dat (643 živých uzlů):
 
 `hash_size_inconsistent` je `False` u všech 643 — nikde se šířka nerozchází.
 
+## DOPLNĚK 22. 8. 2026: proč „suspected 1 B" nejspíš nikoho neusvědčuje
+
+Měření na 3000 paketech ukázalo mechanismus, který tu chyběl. **Každý zerohop
+paket deklaruje šířku 1 bajt, ať má uzel nastaveno cokoliv** — `Mesh::sendZeroHop()`
+dělá `packet->path_len = 0`, což vynuluje celý bajt včetně horních dvou bitů,
+kde šířka bydlí (`Packet.h:85`). Floodová větev naproti tomu šířku dostává:
+`sendFloodScoped(..., _prefs.path_hash_mode + 1)` (`simple_repeater/MyMesh.cpp:1386`).
+
+**Na routing to nemá vliv**: zerohop paket nemá cestu a nikdy se nepřeposílá —
+forwardovací blok se spustí až při `getPathHashCount() > 0` (`Mesh.cpp:83`).
+Nikdo do něj tedy hop nepřipisuje a žádná dvojznačnost nevzniká.
+
+Co to ale dělá: **kazí to statistiku každému analyzeru**, který šířku odvozuje
+z pozorování. Uzel s `path.hash.mode 1` a zapnutým `advert.interval` vypadá
+podle svých zerohop advertů jako jednobajtový. Naše `tth-hrebecna` to dělala
+každé 2 h a v datech je to vidět jako `flood: {2 B}` vs `route2: {1 B}` od téhož
+původce. **Těch 115 komunitních „suspected 1 B" uzlů je proto potřeba číst ještě
+opatrněji, než říká pravidlo výš** — část z nich bude jen tohle.
+
+Změřený stav naší flotily (3000 paketů, 22. 8. 2026): `tth-ltm` se v cestách
+objevuje **224× jako 2bajtový hop**, floodové adverty `tth-hrebecna`,
+`tth-plesivec-abertamy` i L1 Pro jsou 2 B. Konfigurace ověřena na všech:
+`path.hash.mode 1` na třech SenseCapech, `mesh.path_hash_mode: 1` u obou openHop
+démonů (dědí ji i room server přes `dispatcher.set_default_path_hash_mode`,
+`config_manager.py:352`). **Výjimka jsou companion identity** — ty mají vlastní
+`CompanionPrefs.path_hash_mode` s defaultem 0 a přebijí démona, takže se musí
+nastavovat zvlášť (bot i exportér to dělají při každém připojení).
+
 ## Naše uzly
 
 CoreScope zná čtyři, všechny **confirmed ≥2 B**:
