@@ -29,28 +29,32 @@ musí proti `dev` znovu ověřit.
 | `fix/trace-path-bounds-check` | `434c54e` | dvě čtení za koncem bufferu v `Mesh::onRecvPacket()` — TRACE s `payload_len < 9` podteče `len` a `isHashMatch()` čte až ~500 B do 184B pole; u PATH `hash_size*hash_count` může přelézt dešifrovanou délku | `t1000e_repeater`, `t1000e_companion_radio_ble` |
 | `fix/tx-requeue-not-drop` | `92321a8` | neúspěšný TX se zahodí bez retry a bez counteru; naměřeno **~40 % ztracených DIRECT forwardů** při nečinném BLE spojení | `t1000e_repeater`, `t1000e_room_server`, `Heltec_ct62_sensor`, `t1000e_companion_radio_ble` |
 
-### Kandidát 22. 8. 2026: `sendZeroHop()` maže šířku path hashe
+### Kandidát 22. 8. 2026: šířka path hashe se ztrácí ve VÍCE TX cestách (u nás opraveno)
 
-`Mesh::sendZeroHop()` dělá `packet->path_len = 0`, čímž vynuluje **celý bajt**
-včetně horních dvou bitů, kde je šířka hashe (`Packet.h:85`). Každý zerohop
-paket proto hlásí 1 bajt bez ohledu na `path_hash_mode` uzlu, kdežto floodová
-větev šířku dostává (`sendFloodScoped(..., _prefs.path_hash_mode + 1)`).
+Původně nahlášeno jako „`sendZeroHop()` maže šířku": `path_len = 0` nuluje celý
+bajt včetně horních dvou bitů šířky (`Packet.h:85`). Večer 22. 8. se ukázalo, že
+je to širší — **`sendDirect()` s prázdnou cestou dělá totéž** (`copyPath` vrací
+`path_len` beze změny a holá 0 se dekóduje jako 1 B), a to je zrovna nejběžnější
+případ: odpověď sousedovi na dosah. A volání `send*()` bez explicitní šířky
+(companion posílá zerohop výchozím argumentem na třech místech, ACKy a
+PATH-return v BaseChatMesh) tu chybu měla taky.
 
-**Není to bug v routingu** — zerohop paket nemá cestu a nikdy se nepřeposílá
-(`Mesh.cpp:83` chce `getPathHashCount() > 0`). Je to bug v tom, co uzel o sobě
-hlásí: analyzery odvozují šířku z pozorovaných paketů a dvoubajtový uzel jim
-podle svých zerohop advertů vyjde jako jednobajtový. Na CZ meshi je to
+**Není to bug v routingu** — neprázdná cesta si šířku nese sama (`path_len` je
+zakódovaný bajt). Je to bug v tom, co uzel o sobě hlásí; na CZ meshi je to
 pravděpodobné vysvětlení velké části uzlů vedených jako „suspected 1 B".
 
-Oprava: `sendZeroHop()` dostane `path_hash_size=1` (stejně jako `sendFlood()`)
-a volající mu předají `_prefs.path_hash_mode + 1`. Default zachovává dnešní
-chování, takže ostatní příklady se nemusí měnit. **Pozor na přetížení
-s `transport_codes`** — holá `0` jako delay je zároveň null pointer, takže
-volání s literálem chce `(uint32_t)0`, jinak je ambiguous.
+**Naše oprava: `3cb16750`** (meshcore-tth; port do Solo `f1728168`). Nový
+protected virtual `mesh::Mesh::getSelfPathHashSize()` (default 1) + výchozí
+hodnota parametru `path_hash_size` změněná z 1 na 0 = „vem prefs uzlu";
+firmwary s `NodePrefs` overridují na `path_hash_mode + 1`. TRACE se nedotýká
+(tam `path_len` není zakódovaný bajt). **Změřeno na vzduchu**: RESPONSE DIRECT
+z `tth-hrebecna` šel z `path_len=0x00` (1 B) na `0x40` (2 B), 18/18 paketů.
+Kompatibilita: `0x40` = šířka 2, hopů 0, `getPathByteLen()==0` — starší uzly
+projdou přes `isValidPathLen()` a nic navíc nečtou.
 
-Změřeno: `tth-hrebecna` posílala `flood: 2 B` a `route2 (zerohop): 1 B` od
-téhož původce, dvě hodiny od sebe. Build ověřen na `SenseCap_hreb_rpt`,
-`SenseCap_ples_rpt`, `SenseCap_Solar_repeater_ble`.
+Pro upstream PR: **pozor na přetížení s `transport_codes`** — holá `0` jako
+delay je zároveň null pointer, volání s literálem chce `(uint32_t)0`. A proti
+`dev` znovu ověřit, jestli tam mezitím není jiné řešení.
 
 
 Texty PR: `../../scratchpad/pr/*.md` v session, obsah je i v commit messages.

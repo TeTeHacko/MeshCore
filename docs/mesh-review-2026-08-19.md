@@ -33,6 +33,14 @@ Sémantika polí, jak vyšla z dat (643 živých uzlů):
 
 `hash_size_inconsistent` je `False` u všech 643 — nikde se šířka nerozchází.
 
+## DOPLNĚK 22. 8. 2026 večer: u nás OPRAVENO
+
+Mechanismus popsaný níž je od `3cb16750` (a `f1728168` v Solo) v naší flotile
+opravený — a bylo to širší než zerohop: i **`sendDirect()` s prázdnou cestou**
+deklaroval 1 B, což je běžná odpověď sousedovi (přesně ty RESPONSE pakety, co
+byly vidět v appce). Změřeno na vzduchu: hrebecná `0x00` → `0x40`, 18/18 DIRECT
+paketů. Pro čtení CIZÍCH uzlů ale popis níž platí dál — oni tu chybu mají.
+
 ## DOPLNĚK 22. 8. 2026: proč „suspected 1 B" nejspíš nikoho neusvědčuje
 
 Měření na 3000 paketech ukázalo mechanismus, který tu chyběl. **Každý zerohop

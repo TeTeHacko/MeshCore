@@ -29,7 +29,7 @@ Mrtvé rádio mlčí jen na meshi, dock-quiet jen na BLE. Připoj USB a přečti
 | deska | cesta | pozn. |
 |---|---|---|
 | SenseCAP solární (hrebecná, Plešivec, tth-ltm) | **BLE OTA** `tools/ble_flash_node.sh` nebo `ble_dfu.py` | bootloader `AdaDFU`/`SCAP_DFU`, u mast unit na **MAC+1** |
-| T1000-E (karta) | `dfu uf2` na USB konzoli → **`adafruit-nrfutil dfu serial`** na CDC port | BLE OTA NENÍ (repeater build BLE nemá); UF2 disk nepotřebuješ |
+| T1000-E (karta) | `dfu uf2` na USB konzoli → **`adafruit-nrfutil dfu serial`** na CDC port | BLE OTA NENÍ (repeater build BLE nemá); UF2 disk nepotřebuješ. POZOR: „-BOOT" v názvu portu má APLIKACE, bootloader je bez něj |
 | XIAO nRF52840 | `tools/xiao_uf2_flash.sh`, nebo `pio run -t upload` (aplikace!) | na desku v bootloaderu ruční nrfutil, `-t upload` ji vytouchuje ven |
 | Wio Tracker L1 | 1× krátce RST → UF2 disk `TRACKER L1` | jediná deska, kde UF2 disk fakt naskočí |
 

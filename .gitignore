@@ -21,3 +21,7 @@ platformio.local.ini
 # Python bytecode from tools/
 __pycache__/
 *.pyc
+
+# Claude Code: lokální stav, nepatří do repa (settings.json a skills/ ANO)
+.claude/settings.local.json
+.claude/RESUME.md

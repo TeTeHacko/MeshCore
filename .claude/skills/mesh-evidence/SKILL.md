@@ -70,9 +70,10 @@ přes komunitní analyzer nebo MQTT — mají totožné API resp. tatáž data.
 - **Companion (L1) se v analyzeru neobjeví jako uzel**, protože neposílá adverty.
   Objeví se ale jako **hop v cestě**, když něco přeposlal — a to je zároveň důkaz,
   že mu jede `repeat`.
-- **Šířka hashe v naší flotile je 2 B.** 1 B v cestě u cizího uzlu je jeho volba,
-  ne chyba; naše pakety musí být 2 B (od opravy `3cb16750` včetně zerohopu a DIRECT
-  odpovědí).
+- **Šířka hashe v naší flotile je 2 B** — s JEDNOU záměrnou výjimkou: domácí
+  T1000-E companion („MeshCore-TTH", `308079…`) jede 3 B jako test. 1 B v cestě
+  u cizího uzlu je jeho volba, ne chyba; naše pakety musí být 2 B (od opravy
+  `3cb16750` včetně zerohopu a DIRECT odpovědí), u MeshCore-TTH 3 B.
 - **Časové zóny:** RemoteTerm a `journalctl` jedou v CEST, MQTT a analyzer v UTC.
   Dvě hodiny rozdílu udělaly z „to bylo včera" „to bylo právě v letovém okně".
 

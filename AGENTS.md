@@ -84,7 +84,13 @@ soubor `provision/repeater-cz-silent.txt`.
 
 - **Sériové porty VŽDY přes `/dev/serial/by-id/`**, matchuj na **sériové číslo**.
   `ttyACM*` se po každém replugu přečísluje a mířil bys na jinou desku.
-- **Nikdy nesahej na `T1000-E-BOOT`.**
+- **Na portu `T1000-E-BOOT` žádný 1200baudový touch a žádné `pio -t upload`.**
+  Jméno mate: „-BOOT" v názvu má APLIKACE, bootloader se hlásí bez něj (a s UF2
+  diskem `T1000-E`). Textová konzole na tom portu je v pořádku — ověřeno 22. 8.
+  2026 na probe kartě (`ver`, `dfu uf2`, aktivace). Rozlišuj desky sériákem:
+  domácí T1000-E `B612AE…` (drží identitu, historie wedge, u RemoteTermu) — na tu
+  bez výslovného zadání nesahat vůbec; probe karta `B3F160…` — konzole i `dfu
+  uf2` bez obav, jen ten touch ne.
 - **Do bootloaderu jde `dfu [uf2|serial|ota]`** z konzole (GPREGRET magic, lokální
   jen). 1200baudový touch žádá VÝHRADNĚ serial mode, takže UF2 disk nikdy nepřijde
   — a druhý touch v jedné power session desku vyřadí z USB i BLE bez self-recovery.

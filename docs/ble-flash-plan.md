@@ -1,5 +1,12 @@
 # Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna
 
+**PROVEDENO 22. 8. 2026, a šířeji než plán** — flashovala se celá flotila
+(kvůli opravě šířky path hashe `3cb16750`): hrebecná `tth3cb1675` (BLE OTA ze
+sneezy), tth-ltm `tthe5b4572` (BLE OTA z dopey), Plešivec `tthe5b4572` (UF2 —
+visel v bootloaderu), probe karta `tth18e50ad` (nrfutil na bootloader CDC),
+TTH-L1 (UF2 na e7470). Dokument zůstává jako postup; pasti nasbírané při tom
+flashi jsou v něm doplněné a ve skillu `flash-node`.
+
 Plán z 19. 8. 2026. Cílem je dostat na tři produkční SenseCapy aktuální build
 (`v1.17.1-tth<sha>`) — nese rozšířený RF status s `tx_start_fail`/`tx_timeout`
 a stamping verze, takže **poprvé půjde z uzlu poznat, který build na něm je**.
