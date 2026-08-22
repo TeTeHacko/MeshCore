@@ -37,9 +37,15 @@ soubor `provision/repeater-cz-silent.txt`.
   CDC — **36 s, bez tlačítek**. Companion `dfu` příkaz nemá (žádná konzole) a
   dvojklik na x2 opakovaně nezabral; ťukání kvůli tomu stálo čas zbytečně. Touch
   dává serial mode, což je přesně to, co nrfutil chce — potíž nikdy nebyla
-  v touchi, ale v čekání na UF2 disk, který v tom režimu nepřijde. Serial DFU
-  bylo hluché na **T1000-E**, ne obecně. Pořád platí jeden touch na power
-  session: když upload selže, chtěj replug, ne druhý pokus.
+  v touchi, ale v čekání na UF2 disk, který v tom režimu nepřijde. Pořád platí
+  jeden touch na power session: když upload selže, chtěj replug, ne druhý pokus.
+- **„Serial DFU je na T1000-E hluché" platí jen Z APLIKACE, ne z bootloaderu.**
+  Doteď tu stálo prosté „hluché na T1000-E" a odvádělo to od cesty, která funguje:
+  desce, která už v bootloaderu je (`dfu uf2` z konzole), vystaví UF2 bootloader
+  CDC port a `adafruit-nrfutil dfu serial --singlebank` na něj nalije obraz —
+  změřeno 22. 8. 2026 na probe kartě, 329 848 B za **20 s**. Je to navíc cesta,
+  kterou volit PŘEDNOSTNĚ před UF2 diskem: mount disku chce root a `sudo` přes SSH
+  bez terminálu se nemá koho zeptat na heslo, kdežto na CDC port píše běžný uživatel.
 - **`pio ... -t upload` patří na desku v APLIKACI, ne v bootloaderu.** Touch dělá
   vždycky, takže desku, která už v DFU je, jím vykopneš ven (`Couldn't find a
   board`) — a je to zároveň ten zakázaný druhý touch. Na desku v bootloaderu
