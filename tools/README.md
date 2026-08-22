@@ -96,6 +96,23 @@ renames itself from `…T1000-E-BOOT…` to `…T1000-E…`, and a `T1000-E` dis
 up. The `OSError: [Errno 5]` from pyserial as the command lands is the board
 rebooting, not a failure.
 
+**Serial DFU on a T1000-E works — from the bootloader.** Our notes say serial DFU
+is "deaf on the T1000-E", and that is true of the 1200-baud touch *from the
+application*. It is not true of a board that is already in the bootloader: the UF2
+bootloader exposes a CDC port, and `adafruit-nrfutil` writes the whole image over it
+in ~20 s. Measured 2026-08-22 on the probe card, 329 848 B application:
+
+```sh
+pip install adafruit-nrfutil
+adafruit-nrfutil --verbose dfu serial -pkg firmware.zip \
+    -p /dev/serial/by-id/usb-Seeed_Studio_T1000-E_<serial>-if00 -b 115200 --singlebank
+```
+
+**This is the route to prefer over the UF2 disk**, because mounting the disk needs
+root and `sudo` over SSH without a terminal cannot ask for a password — whereas the
+CDC port is writable as the ordinary user. Full sequence with no root at all:
+`dfu uf2` on the console, then nrfutil on the port that appears.
+
 Do **not** reach for the magnetic-cable double-tap from `docs/faq.md` here: it
 was tried on 2026-08-22 and does nothing on this build. Note also that anything
 holding the port open (e.g. the DTR trick above) makes the console look dead —
@@ -193,7 +210,7 @@ one changes which flashing path works:
 | SenseCap Solar | buttonless over BLE | `AdaDFU`, same MAC, MTU stays 23 | — |
 | SenseCap Solar (mast unit) | buttonless over BLE | `SCAP_DFU`, **MAC+1**, MTU 247 | — |
 | T1000-E | buttonless over BLE | `AdaDFU`, same MAC, MTU 23 | — |
-| T1000-E, repeater build | **`dfu uf2` on the USB console** | — | **yes**, `T1000-E`, in ~10 s |
+| T1000-E, repeater build | **`dfu uf2` on the USB console** | CDC port renamed `…T1000-E…`, PID `2886:0057` | yes, `T1000-E` — but you do not need it, see below |
 | Wio Tracker L1 | 1200-baud touch on USB | UF2 mass storage `TRACKER L1` | **yes**, in ~10 s |
 
 The first row is the one that wastes an afternoon: the 1200-baud touch *works*,
