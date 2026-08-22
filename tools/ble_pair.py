@@ -119,7 +119,16 @@ def main():
         print(f"===== {mac} =====", flush=True)
         send(f"remove {mac}", 3)          # a stale bond makes `pair` a no-op
         send("scan on", 1)
-        drain(6)                          # let the adapter see it again
+        # ČEKEJ, DOKUD HO SKEN NEUVIDÍ, ne pevných pár sekund. `remove` smaže
+        # i objevené zařízení, takže `pair` hned poté řekne "Device <mac> not
+        # available" — a to vypadá úplně stejně jako špatný PIN. Repeater navíc
+        # po 30 s přepne z rychlého advertisingu na pomalý, takže se do krátkého
+        # okna netrefí. Stálo to 22. 8. 2026 dvě hodiny hledání na dvou hostech.
+        if drain(45, want=r"Device", mac=mac):
+            print("  (uzel ve skenu, páruju)", flush=True)
+        else:
+            print(f"  POZOR: {mac} se za 45 s ve skenu neobjevil — `pair` nejspíš "
+                  f"skončí na 'not available'. Uzel neadvertuje?", flush=True)
         ok = send(f"pair {mac}", 45, want=r"Bonded: yes|Pairing successful", mac=mac)
         print(f"  paired: {ok}", flush=True)
         if not ok:
