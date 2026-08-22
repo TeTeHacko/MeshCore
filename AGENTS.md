@@ -2,6 +2,38 @@
 
 Komunikuj česky.
 
+## Fyzický stav železa říká uživatel, ne moje paměť
+
+**Když uživatel řekne, kde deska je nebo do čeho je zapojená, tak to tak JE.**
+Nerozporuj to, nedovozuj z memory a netvrď mu, že si to musí přenést jinam.
+Podívej se (`ls /dev/serial/by-id/`, `lsusb`, sken), nebo se zeptej — ale
+neodporuj.
+
+Je to nejčastější chyba tohohle projektu; z projetí všech sezení vyšla **8×
+napříč šesti sezeními**, vždycky stejně: „X1 a X2 sou pripojeny na tom meraku,
+tak jsou" · „uklidni se!!! oba RPT mam porad pod stolem!!!" · „s2 je pripojeny,
+to se nemzues podivat omfg" · „rikam ti ze tam neni antena na VDL" · „lzes!!!!
+l1 uz je na usb jako disk!!!" · „hovno plesivec mam 1m od notasu, sneezy je na
+pude". Pokaždé to stálo kolo navíc a pokaždé měl pravdu on.
+
+Praktické důsledky: **než něco pošleš „přenést k jinému hostu", zkontroluj dosah
+odtud, kde to je.** Stav z minulé session je zastaralý — desky se stěhují mezi
+lavicí, balkonem, chatou a stožárem. A **žádný softwarový úkon nenahradí ruce**:
+když je potřeba replug, tlačítko nebo mount pod rootem, řekni to jednou a jasně,
+místo hledání cesty okolo.
+
+## Než začneš: přečti si dokumentaci k tomu úkonu
+
+Druhá nejčastější výtka (5×) je „přečti si manuál / dokumentaci poradně". Není to
+o tom mít ji v kontextu — ta tam byla. Je to o tom **použít ji v momentě úkonu**,
+proto jsou tu skilly. Když se rozhodneš proti tomu, co dokumentace říká, řekni
+proč; když v ní najdeš tvrzení, které realita vyvrátila, **oprav ji** (stalo se
+u „serial DFU je hluché" a u „power-cycle" — obojí aktivně škodilo).
+
+A třetí (4×): **nevymýšlej kolo a neřeš, co nebylo zadáno.** Nářadí v `tools/`
+většinou existuje. „Zbytečný" a „co furt vymýšlíš" znamená, že jsem si přidal
+práci, kterou nikdo nechtěl.
+
 **Rozcestník domácí infry: `INFRA/INFRA.md`** (symlink na repo `home-scripts`).
 Je tam cesta dat od uzlu přes mosty na dopey do analyzeru CoreScope, přehled hostů
 a kde má co zdroj pravdy. Mosty na dopey **nejsou v tomhle repu** — jsou
@@ -20,6 +52,11 @@ když se podle nich neuvažuje v momentě úkonu.
 KONČÍ.** 22. 8. 2026 jsem prohlásil letový test za neúspěšný na základě správného
 měření na chatě — jenže trasa byla `L1 → Klínovec → mesh → tth-ltm → domů`
 a chata v ní nebyla. Důkaz ležel doma v RemoteTermu.
+
+**Měříš na lavici (spotřeba, A/B, regrese desek)? — skill `bench-measure`.**
+**Deska nereaguje/nevysílá/zmizela? — skill `node-diagnose`.**
+**Sáháš na uzel, který je (nebo má být) na ostrém CZ meshi? — skill
+`live-mesh-safety`.**
 
 **Aktivace uzlu (`set repeat on`, advert intervaly, `advert`) patří NA MÍSTO
 s antenou, nikdy na lavici.** `provision/activate-cz-mast.txt` to má dvakrát
