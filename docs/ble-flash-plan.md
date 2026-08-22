@@ -175,6 +175,35 @@ podle běžící služby.
 | fáze 1 padá na `TimeoutError` (connect), ale `ble_cli.py ver` na tomtéž uzlu projde | BLE connect je flaky, jeden pokus nestačí | mít v `ble_dfu.py` retry (od 22. 8. 2026 tam je); NEdiagnostikovat z toho mrtvou desku |
 | uzel není ve skenu ani na `MAC` ani na `MAC+1` | fakt nejede (ne dock-quiet, když nevisí na USB) | power-cycle, tlačítkem nebo odpojením článku |
 
+### Wio Tracker L1 z e7470 (na chatě) — UF2, ne BLE
+
+L1 má vlastní bootloader, ne Adafruitův, takže se flashuje jako disk. Na chatě
+je v dosahu `xhercet@e7470.chata` (POZOR: `xhercet@`, ne root — bez toho si SSH
+řekne o Yubikey a spadne na `Too many authentication failures`).
+
+```bash
+scp .pio/build/WioTrackerL1_companion_solo_dual/firmware.uf2 xhercet@e7470.chata:~/mc/l1.uf2
+# na e7470: 1x krátce RST -> disk 'TRACKER L1' jako /dev/sda za ~10 s
+```
+
+**Mount potřebuje root a přes SSH bez terminálu se sudo nezeptá** — `udisksctl`
+taky ne (polkit chce controlling terminal). Uživatel není ve skupině `disk` a
+`mtools` tam nejsou, takže tenhle krok musí spustit člověk v terminálu:
+
+```bash
+sudo mkdir -p /mnt/l1 && sudo mount /dev/sda /mnt/l1
+sudo cp ~/mc/l1.uf2 /mnt/l1/ && sync
+```
+
+Nepiš to jako `D=$(mount | grep -o ...)` — `grep --color` (běžný alias) nasype
+do proměnné ANSI escape sekvence a `cp` pak hlásí nesmyslnou cestu.
+
+Ověření: port se vrátí jako `usb-Seeed_Studio_Seeed_Wio_Tracker_L1_*`, tedy už
+ne UF2 disk. **Companion přitom může mlčet** — `create_serial()` vrátí `None` a
+knihovna se ptá „Are you sure your node is a serial companion?". Dvě příčiny a
+ani jedna není porucha: firmware po flashi chvíli nenaběhne (AGENTS.md), a
+hlavně **připojený BLE klient (telefon) USB companion utiší z konstrukce**.
+
 ### Jednotky advert intervalů se LIŠÍ — a chyba je tichá
 
 `set advert.interval` bere **minuty**, `set flood.advert.interval` **hodiny**
