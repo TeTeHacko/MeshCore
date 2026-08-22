@@ -104,16 +104,29 @@ async def main():
 
     await mc.start_auto_message_fetching()
 
-    ev = await mc.commands.send_login(target, pwd)
-    print("login:", getattr(ev, "type", ev))
-    ok = await mc.wait_for_event(EventType.LOGIN_SUCCESS, timeout=20)
-    if ok is None:
-        fail = await mc.wait_for_event(EventType.LOGIN_FAILED, timeout=1)
-        print("LOGIN SELHAL", "(LOGIN_FAILED)" if fail else "(timeout)")
-        return
-    print("login OK")
+    # `send_login_sync`, ne `send_login` + wait_for_event: to druhé na uzlu, ke
+    # kterému companion ještě nezná cestu (dotaz jde floodem), spolehlivě
+    # vypršelo — odpověď dorazí, ale mimo okno toho čekání. Sync varianta si
+    # korelaci hlídá sama a je to i to, co běží v exportéru.
+    ev = await mc.commands.send_login_sync(target, pwd, timeout=45)
+    if ev is None or getattr(ev, "type", None) == EventType.ERROR:
+        # Nekončit: repeater si admin klienty pamatuje v ACL, takže session
+        # z minula muze platit dal a prikazy projdou i bez cerstveho loginu.
+        # Presne to dela i exporter -- login mu na tth-ltm vyprsi a `req_status`
+        # hned nato uspeje. Kdyz session neplati, uzel na prikazy nic nevrati
+        # a pozna se to nize podle "(bez odpovedi)".
+        print(f"login neprošel ({ev}) — zkouším příkazy na staré session")
+    else:
+        print("login OK")
 
     for cmd in cmds:
+        # `password!` = pošli `password <heslo ze stdin>`. Existuje proto, aby
+        # se heslo nedostalo ani do argv (vidí ho `ps`), ani do výpisu — konzole
+        # uzlu příkaz echuje zpátky a `-> OK` by jinak stálo hned pod ním.
+        shown = cmd
+        if cmd == "password!":
+            cmd = f"password {pwd}"
+            shown = "password ***"
         inbox.clear()
         await mc.commands.send_cmd(target, cmd)
         for _ in range(40):            # ~20 s
@@ -121,7 +134,14 @@ async def main():
                 break
             await asyncio.sleep(0.5)
         out = [m.get("text", "") for m in inbox] or ["(bez odpovědi)"]
-        print(f"$ {cmd}\n  -> " + " | ".join(out))
+        # ODPOVĚĎ SE REDIGUJE TAKY, ne jen příkaz: `password` vrací
+        # "password now: <heslo>" — tedy uzel to heslo vypíše sám a bez tohohle
+        # by skončilo v logu, v transkriptu a v historii shellu. Stalo se
+        # 22. 8. 2026 a stálo to rotaci hesla celé flotily.
+        line = f"$ {shown}\n  -> " + " | ".join(out)
+        if pwd:
+            line = line.replace(pwd, "***")
+        print(line)
         await asyncio.sleep(1)
 
     await mc.disconnect()
