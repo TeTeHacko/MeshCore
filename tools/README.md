@@ -153,6 +153,15 @@ larger MTU. On `ChunkTooBig` the tool falls back to 20-byte writes — via a
 `RESET` and a fresh connection, because a second `START_DFU` inside the same
 connection returns status 2 (`INVALID_STATE`).
 
+**Connect once is not enough — retry it.** Phase 1 used to scan, connect, and
+give up on the first failure. On 2026-08-22 that cost an hour on hrebecna: three
+DFU runs in a row died on `TimeoutError` out of
+`local_disconnect_monitor_event.wait()`, while `ble_cli.py ver` against the *same
+node from the same host* answered immediately. The node, the bond and the
+distance (−64 dBm) were all fine — `ble_cli.py` simply wraps its connect in a
+retry loop and `ble_dfu.py` did not. A dead-looking board is the symptom.
+`connect_app()` now retries five times, 4 s apart, like the console does.
+
 **End of transfer is not an error.** The bootloader answers the final block
 with `RESP(RECEIVE_FW, SUCCESS)` instead of another packet receipt. Read as a
 receipt that looks like a failure at ~95 %; it is the normal end.

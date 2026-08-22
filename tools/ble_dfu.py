@@ -83,11 +83,36 @@ async def find(mac, want_dfu=False, timeout=30):
         log(f"   (v bootloaderu i CIZÍ desky, ignoruji: {', '.join(rejected)})")
     return cand[0][0] if cand else None
 
+async def connect_app(mac, tries=5):
+    """Scan + connect s opakováním, jako to dělá ble_cli.py.
+
+    Jediný pokus NESTAČÍ a stálo to 22. 8. 2026 hodinu na hrebecné: BLE konzole
+    (`ble_cli.py ver`) na tomtéž uzlu a z téhož hostu prošla bez zaváhání, kdežto
+    DFU umřelo na `TimeoutError` z `local_disconnect_monitor_event.wait()`. Rozdíl
+    NEBYL v uzlu, v bondu ani ve vzdálenosti (−64 dBm) — jen v tom, že ble_cli
+    connect opakuje a tady se zkoušel jednou. Vypadá to jako mrtvá deska, a není.
+    """
+    last = None
+    for attempt in range(tries):
+        try:
+            dev = await BleakScanner.find_device_by_address(mac, timeout=25)
+            if dev is None:
+                # připojený peripheral přestane advertovat -- obvyklý důvod je
+                # viset spojení na adaptéru (tools/README.md)
+                raise RuntimeError("APP nenalezen ve scanu (už připojený?)")
+            c = BleakClient(dev, timeout=30)
+            await c.connect()
+            return c
+        except Exception as e:                       # noqa: BLE001
+            last = e
+            log(f"   [connect {attempt + 1}/{tries}] {type(e).__name__}: {str(e)[:60]}")
+            await asyncio.sleep(4)
+    raise RuntimeError(f"APP nenalezen ve scanu / connect selhal: {last}")
+
 async def phase1_buttonless(mac):
     log("== FÁZE 1: buttonless reboot do bootloaderu ==")
-    dev = await BleakScanner.find_device_by_address(mac, timeout=25)
-    if not dev: raise RuntimeError("APP nenalezen ve scanu")
-    async with BleakClient(dev, timeout=30) as c:
+    c = await connect_app(mac)
+    try:
         log("   připojen k APP, is_connected:", c.is_connected)
         svcs = [s.uuid.lower() for s in c.services]
         if DFU_SVC not in svcs:
@@ -98,6 +123,12 @@ async def phase1_buttonless(mac):
             await c.write_gatt_char(CP_UUID, bytes([START_DFU]), response=True)
         except Exception as e:
             log("   (write 0x01 → disconnect, očekávané):", type(e).__name__)
+    finally:
+        # write 0x01 uzel odpojí sám, takže disconnect() tu obvykle jen uklízí
+        try:
+            await c.disconnect()
+        except Exception:                            # noqa: BLE001
+            pass
     log("   APP odpojen, čekám na reboot bootloaderu...")
     await asyncio.sleep(4)
 
