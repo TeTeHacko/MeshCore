@@ -37,10 +37,12 @@ builds (T1000-E, Wio L1), BLE advertising is suppressed while a USB host holds
 DTR high. Unplug USB, or hold the port open with DTR deasserted, or nothing on
 this page will find the node.
 """
+import atexit
 import os
 import pty
 import re
 import select
+import signal
 import sys
 import time
 
@@ -112,6 +114,24 @@ def main():
         print(f"$ {cmd}", flush=True)
         return drain(wait, want, mac)
 
+    # ÚKLID MUSÍ PROBĚHNOUT I PŘI ZABITÍ. Registrovaný `default-agent` odpovídá
+    # na CIZÍ párovací požadavky a `scan on` drží discovery -- když se skript
+    # zabije uprostřed (stalo se 22. 8. 2026 vlastním `timeout 60`), zůstane
+    # hostitel v tomhle stavu a začne se chovat jako párovatelné zařízení pro
+    # okolí. Na notebooku na chatě z toho vyskočil párovací požadavek na televizi.
+    def cleanup(*_a):
+        try:
+            for c in ("scan off", "pairable off", "discoverable off",
+                      "agent off", "quit"):
+                os.write(fd, (c + "\n").encode())
+                time.sleep(0.4)
+        except OSError:
+            pass
+
+    atexit.register(cleanup)
+    for _sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(_sig, lambda *_a: sys.exit(130))
+
     send("agent KeyboardOnly", 2)
     send("default-agent", 2)
     failed = []
@@ -135,6 +155,9 @@ def main():
             failed.append(mac)
         send("scan off", 1)
         send(f"trust {mac}", 3)
+    # `agent off` odregistruje KeyboardOnly agenta -- bez toho by host dál
+    # odpovídal na cizí párovací požadavky, dokud bluetoothctl neskončí
+    send("agent off", 1)
     send("quit", 1)
     os.close(fd)
 
