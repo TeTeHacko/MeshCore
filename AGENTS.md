@@ -43,7 +43,7 @@ nedají přehlédnout, protože je spouští Claude Code sám:
 |---|---|
 | `hooks/hw-state.sh` | před flashem/měřením/DFU **vloží do kontextu skutečný stav USB** (`/dev/serial/by-id`, `idProduct`, UF2 disky). Řeší pravidlo #1 tím, že dodá fakt místo paměti. Nic neblokuje. |
 | `hooks/live-mesh-guard.sh` | u příkazu, kterým uzel začne vysílat do ostrého meshe (`activate-cz-mast`, `set repeat on`, `advert`, `set freq`), si vyžádá potvrzení člověkem. Vrací `ask`, takže na stožáru se odklikne. |
-| `hooks/cleanup-check.sh` | na konci turnu ohlásí běžící nástroje a namountované USB disky. **Když je čisto, mlčí.** |
+| `hooks/cleanup-check.sh` | na konci turnu ohlásí běžící nástroje a namountované USB disky. **Když je čisto, mlčí** — a hlásí jen ZMĚNY: týž nález ohlásí jednou a pak mlčí, dokud se sada nezmění (45min DFU 23. 8. jinak znamenal vytí na každý turn). |
 
 Podle dokumentace Claude Code je nejúčinnější vzor **vkládání kontextu, ne
 blokování** — proto první hook nic nezakazuje, jen dodá data. A přesnost je tady

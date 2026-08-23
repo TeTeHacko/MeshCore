@@ -13,6 +13,16 @@
 # případ (registrovaný agent po zabitém ble_pair.py) byl na CIZÍM hostu, kam
 # tenhle hook nedosáhne. Tam to řeší úklidový trap v samotném ble_pair.py.
 set -uo pipefail
+
+# HLÁSÍ SE JEN ZMĚNY. 23. 8. 2026: 45min BLE DFU (MTU 23) = hook vyl na KAŽDÝ
+# konec turnu a odpověď byla pokaždé „nechávám záměrně" — tedy zase kontrola,
+# která vyje pořád. Fingerprint nálezu se uloží per session (session_id ze
+# stdin JSONu) a dokud se sada nezmění, hook mlčí; nový proces/mount, nebo
+# čisto a pak zase něco, zavyje znovu. Čisto = stav se smaže.
+IN=$(cat 2>/dev/null || true)
+SID=$(printf '%s' "$IN" | jq -r '.session_id // empty' 2>/dev/null)
+STATE="${TMPDIR:-/tmp}/claude-cleanup-$(id -u)-${SID:-nosession}.state"
+
 FOUND=""
 
 # DVĚ PASTI, obě zjištěné na živém provozu, ne na syntetickém testu:
@@ -55,5 +65,8 @@ M=$(findmnt -rno TARGET,SOURCE,FSTYPE 2>/dev/null \
     | awk '$2 ~ /^\/dev\/sd/ && $1 ~ /^\/(mnt|media|run\/media)/ {print "  "$1" <- "$2" ("$3")"}' | head -5)
 [ -n "$M" ] && FOUND="${FOUND}namountovaný USB disk (po flashi deska zmizí a mount visí, /mnt pak dá I/O error):\n$M\n"
 
-[ -z "$FOUND" ] && exit 0
-printf '%b' "$FOUND" | jq -Rs '{hookSpecificOutput:{hookEventName:"Stop",additionalContext:("ÚKLID — po mně zůstalo:\n" + . + "Ukliď to (umount -l, kill), nebo uživateli řekni, že to tam necháváš záměrně a proč.")}}'
+[ -z "$FOUND" ] && { rm -f "$STATE"; exit 0; }
+FP=$(printf '%b' "$FOUND" | md5sum | cut -d' ' -f1)
+[ "$(cat "$STATE" 2>/dev/null)" = "$FP" ] && exit 0
+printf '%s' "$FP" > "$STATE"
+printf '%b' "$FOUND" | jq -Rs '{hookSpecificOutput:{hookEventName:"Stop",additionalContext:("ÚKLID — po mně zůstalo:\n" + . + "Ukliď to (umount -l, kill), nebo uživateli řekni, že to tam necháváš záměrně a proč. (Hlásím jen změny — dokud se tenhle seznam nezmění, příště mlčím.)")}}'
