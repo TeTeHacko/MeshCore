@@ -23,13 +23,26 @@ FOUND=""
 #     v argumentech. Proto se vylučují vlastní potomci podle PPID, a to je
 #     spolehlivější než další grep -v (ten se dá obejít každým novým členem
 #     pipeline).
+#  3) Procesy pod `timeout` se NEhlásí: jsou ohraničené a ukončí se samy —
+#     to je záměrný vzorek, ne únik. Bez téhle výjimky hook zavyl TŘIKRÁT za
+#     sebou na tentýž 7min mosquitto_sub vzorek (23. 8. 2026) — přesně ta
+#     „kontrola, která vyje na každý běh a naučí souhrn přehlížet".
 P=$(ps -eo pid=,ppid=,args= 2>/dev/null | awk -v me="$$" '
-    $1 == me || $2 == me { next }
     {
+      npid[NR] = $1; nppid[NR] = $2
       s = ""
       for (i = 3; i <= 6 && i <= NF; i++) s = s $i " "
-      if (s ~ /mosquitto_sub|ble_pair\.py|ble_dfu\.py|ble_cli\.py|dtr_low|flight_[a-z]*\.py|power_ab\.py|fleet_test\.py/ \
-          && s !~ /claude-|cleanup-check/) print $1, s
+      argv[NR] = s
+      if ($3 == "timeout") istimeout[$1] = 1
+    }
+    END {
+      for (n = 1; n <= NR; n++) {
+        if (npid[n] == me || nppid[n] == me) continue
+        if (istimeout[npid[n]] || istimeout[nppid[n]]) continue
+        s = argv[n]
+        if (s ~ /mosquitto_sub|ble_pair\.py|ble_dfu\.py|ble_cli\.py|dtr_low|flight_[a-z]*\.py|power_ab\.py|fleet_test\.py/ \
+            && s !~ /claude-|cleanup-check/) print npid[n], s
+      }
     }' | head -5)
 [ -n "$P" ] && FOUND="${FOUND}nástroje, které mi ještě běží:\n$P\n"
 
