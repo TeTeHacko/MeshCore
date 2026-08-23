@@ -64,9 +64,27 @@ def load_known(src):
     if src.startswith("http"):
         with urllib.request.urlopen(src, timeout=20) as r:
             d = json.load(r)
-        nodes = d["multiByteCapability"]
-        return ([n["pubkey"].lower() for n in nodes],
-                [n["pubkey"].lower() for n in nodes if n.get("role") == "repeater"])
+        # Zdroje se lisi tvarem a API se meni pod rukama (23. 8. 2026 zmizel
+        # "multiByteCapability" z CoreScope): zkus zname obalky, pak fallback
+        # na prvni list dictu v odpovedi. Klic pubkeye taky pluje.
+        nodes = None
+        for k in ("multiByteCapability", "nodes", "data"):
+            if isinstance(d, dict) and isinstance(d.get(k), list):
+                nodes = d[k]; break
+        if nodes is None:
+            if isinstance(d, list):
+                nodes = d
+            else:
+                nodes = next((v for v in d.values() if isinstance(v, list)), None)
+        if not nodes:
+            sys.exit(f"zdroj {src} nevratil zadny seznam uzlu")
+        def pk(n):
+            return (n.get("pubkey") or n.get("public_key") or n.get("publicKey") or "").lower()
+        rep_types = {"repeater", 2, "2"}
+        return ([pk(n) for n in nodes if pk(n)],
+                [pk(n) for n in nodes if pk(n) and (
+                    n.get("role") in rep_types or n.get("type") in rep_types
+                    or n.get("node_type") in rep_types)])
     keys = [l.strip().lower() for l in open(src) if l.strip()]
     return keys, keys
 

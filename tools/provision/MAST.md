@@ -34,3 +34,18 @@ advertovaná poloha záměrně hrubá. Identita zálohovaná v keys.yml.
 - BLE nikde → dlouhý stisk = vypnout a zapnout
 - ostatní jde z domova přes RF (skill remote-admin) — KROMĚ vypnutého uzlu;
   radši 2 min kontroly navíc než sundavat stožár
+
+## Po aktivaci: ostrov je na meshi → most a room (23. 8. 2026)
+
+Jakmile Plešivec slyší Klínovec (ověř: `!link` v #tth-test od tth-bot-hrebecna
+ukáže cestu bez ob1/ob2 hashů, nebo CoreScope RX na chatě s cizím originem):
+
+1. **Vypnout internetový most** — na dopey `sudo systemctl disable --now
+   openhop-ether` a v `home-scripts/openhop-observer/host_vars/*` vrátit
+   `oh_mode` (dopey→monitor, sneezy→monitor) + odebrat `oh_bridge_link_host`;
+   `ansible-playbook deploy.yml`. Most s RF překryvem = dvojité floody
+   a fantomové trasy, byl vždycky dočasný.
+2. **Room `abertamy-hrebecna` udělat public** — na sneezy (v kontejneru):
+   `POST /api/send_room_server_advert {"name":"RoomServer",
+   "node_name":"abertamy-hrebecna"}` (login admin + heslo z configu).
+   Do té doby room NEADVERTUJE a zná ho jen ten, kdo má pubkey `6284ded4…`.
