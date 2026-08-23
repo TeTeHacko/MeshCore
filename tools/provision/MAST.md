@@ -4,18 +4,6 @@ Stav uzlu ověřen 22. 8. 2026 (verify-cz-silent 100 %): v1.17.1-tthe5b4572,
 tichý, path 2B, af 9, rxgain on, powersaving on, gps duty, BLE ON, hodiny OK,
 advertovaná poloha záměrně hrubá. Identita zálohovaná v keys.yml.
 
-## 0. NEJDŘÍV: vrátit chatu na CZ preset (EU experiment!)
-
-Od 23. 8. 2026 poslouchá **ob2 saský mesh na 869.618** (EU experiment) —
-dokud běží, exportér ani mesh admin NEDOVOLAJÍ na CZ uzly a Plešivec by po
-aktivaci mluvil do prázdna směrem k chatě. Rollback:
-
-    # v home-scripts: smazat blok `oh_radio:` z openhop-observer/host_vars/sneezy.chata.yml
-    cd ~/projects/home-scripts/openhop-observer
-    ansible-playbook -i inventory.yml deploy.yml --limit sneezy.chata
-
-Hrebecná je na CZ pořád (EU měla jen dočasně přes tempradio).
-
 ## 1. Nahoře (POŘADÍ JE DŮLEŽITÉ)
 
 1. **NEJDŘÍV našroubovat anténu** — každý krok aktivace vysílá a vysílání do
