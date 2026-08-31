@@ -128,6 +128,42 @@ void T1000SensorManager::stop_gps() {
 }
 
 
+// Powers the receiver only around a clock sync. Same cadence and the same
+// reasoning as EnvironmentSensorManager::gpsDutyLoop() -- the GPS is by far the
+// biggest consumer on the node (46 mA measured), and a node that runs it only
+// to keep its RTC set does not need a continuous fix.
+//
+// One deliberate difference from the environment manager: the off-state here is
+// sleep_gps(), not stop_gps(). Sleep keeps GPS_VRTC_EN asserted, so the receiver
+// retains its almanac and the next window gets a warm fix; stop cuts VRTC too and
+// would buy a cold start every 30 minutes -- which is exactly what duty cycling
+// is trying not to pay for.
+void T1000SensorManager::gpsDutyLoop() {
+  if (!gps_duty) return;
+
+  // int32_t deltas, so the 49-day millis() wrap does not park GPS on (or off)
+  // forever.
+  if (!gps_active) {
+    if ((int32_t)(millis() - gps_wake_at) >= 0) {
+      start_gps();
+      _nmea->syncTime();  // clears the parser + arms the sync request
+      gps_awake_until = millis() + (uint32_t)GPS_DUTY_MAX_AWAKE_SECS * 1000;
+      MESH_DEBUG_PRINTLN("gps duty: awake, waiting for fix");
+    }
+    return;
+  }
+
+  if (!_nmea->waitingTimeSync()) {   // RTC got set -> nothing left to stay on for
+    sleep_gps();
+    gps_wake_at = millis() + (uint32_t)GPS_DUTY_SYNC_INTERVAL_SECS * 1000;
+    MESH_DEBUG_PRINTLN("gps duty: synced, off for %d s", (int)GPS_DUTY_SYNC_INTERVAL_SECS);
+  } else if ((int32_t)(millis() - gps_awake_until) >= 0) {
+    sleep_gps();
+    gps_wake_at = millis() + (uint32_t)GPS_DUTY_RETRY_SECS * 1000;
+    MESH_DEBUG_PRINTLN("gps duty: no fix in window, retry in %d s", (int)GPS_DUTY_RETRY_SECS);
+  }
+}
+
 bool T1000SensorManager::begin() {
   // init GPS
   Serial1.begin(115200);
@@ -150,6 +186,7 @@ void T1000SensorManager::loop() {
   static long next_gps_update = 0;
 
   _nmea->loop();
+  gpsDutyLoop();
 
   if (millis() > next_gps_update) {
     if (gps_active && _nmea->isValid()) {
@@ -169,6 +206,10 @@ const char* T1000SensorManager::getSettingName(int i) const {
 }
 const char* T1000SensorManager::getSettingValue(int i) const {
   if (i == 0) {
+    // In duty mode report the mode, not the momentary power state: asleep
+    // between syncs is not the same thing as `gps off`, and something that
+    // round-trips this value must not silently downgrade the mode.
+    if (gps_duty) return "2";
     return gps_active ? "1" : "0";
   }
   return NULL;
@@ -176,8 +217,20 @@ const char* T1000SensorManager::getSettingValue(int i) const {
 bool T1000SensorManager::setSettingValue(const char* name, const char* value) {
   if (strcmp(name, "gps") == 0) {
     if (strcmp(value, "0") == 0) {
+      gps_duty = false;
       sleep_gps(); // sleep for faster fix !
+    } else if (strcmp(value, "2") == 0) {
+      // Duty cycle: power up now (the clock is volatile, so the first sync is
+      // wanted immediately at boot) and let gpsDutyLoop() cut power once the
+      // RTC is set. The awake deadline MUST be armed here as well as in the
+      // loop -- left at 0 it is already in the past, and the first loop pass
+      // would cut GPS before it ever saw a satellite and back off for an hour.
+      gps_duty = true;
+      gps_wake_at = millis();
+      gps_awake_until = millis() + (uint32_t)GPS_DUTY_MAX_AWAKE_SECS * 1000;
+      start_gps();
     } else {
+      gps_duty = false;
       start_gps();
     }
     return true;

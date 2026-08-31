@@ -4,26 +4,6 @@
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 
-// GPS duty cycle (`gps duty`, gps_enabled == 2). A repeater that runs GPS only
-// for the clock does not need a continuous fix: the receiver is powered just
-// long enough to sync the RTC, then cut. On a solar node this is the single
-// biggest lever there is -- an L76K draws 25-35 mA, an order of magnitude more
-// than the whole radio + MCU budget it is being spent next to.
-#ifndef GPS_DUTY_SYNC_INTERVAL_SECS
-  // Same cadence as MicroNMEALocationProvider::TIME_SYNC_INTERVAL, so clock
-  // accuracy is unchanged from `gps on` -- only the power in between differs.
-  #define GPS_DUTY_SYNC_INTERVAL_SECS   1800
-#endif
-#ifndef GPS_DUTY_MAX_AWAKE_SECS
-  // Cap on one sync attempt: a blocked sky must not turn duty cycle back into
-  // "always on". A cold fix is tens of seconds, so this is deliberately loose.
-  #define GPS_DUTY_MAX_AWAKE_SECS       300
-#endif
-#ifndef GPS_DUTY_RETRY_SECS
-  // Backoff after a window that produced no fix (antenna, snow, indoors).
-  #define GPS_DUTY_RETRY_SECS           3600
-#endif
-
 class EnvironmentSensorManager : public SensorManager {
 protected:
   static const int MAX_ACTIVE_SENSORS = 16;

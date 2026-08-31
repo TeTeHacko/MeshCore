@@ -16,9 +16,18 @@ class T1000SensorManager: public SensorManager {
   bool gps_active = false;
   LocationProvider * _nmea;
 
+  // Duty-cycle state, mirroring EnvironmentSensorManager: `gps_duty` is the
+  // MODE, `gps_active` stays the truth about the receiver's power right now.
+  // This board has its own manager, so the state machine cannot simply be
+  // inherited -- see gpsDutyLoop() for the one T1000-specific difference.
+  bool     gps_duty = false;
+  uint32_t gps_wake_at = 0;      // millis of the next sync attempt
+  uint32_t gps_awake_until = 0;  // millis the current attempt gives up at
+
   void start_gps();
   void sleep_gps();
   void stop_gps();
+  void gpsDutyLoop();
 public:
   T1000SensorManager(LocationProvider &nmea): _nmea(&nmea) { }
   bool begin() override;
