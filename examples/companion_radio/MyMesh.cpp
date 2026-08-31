@@ -954,7 +954,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
-  _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
+  _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 2);  // 0 off, 1 on, 2 duty cycle
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
 
 #ifdef BLE_PIN_CODE // 123456 by default
@@ -1861,7 +1861,7 @@ void MyMesh::handleCmdFrame(size_t len) {
         #if ENV_INCLUDE_GPS == 1
         // Update node preferences for GPS settings
         if (strcmp(sp, "gps") == 0) {
-          _prefs.gps_enabled = (np[0] == '1') ? 1 : 0;
+          _prefs.gps_enabled = (np[0] == '2') ? 2 : ((np[0] == '1') ? 1 : 0);
           savePrefs();
         } else if (strcmp(sp, "gps_interval") == 0) {
           uint32_t interval_seconds = atoi(np);
