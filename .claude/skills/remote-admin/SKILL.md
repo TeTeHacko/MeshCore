@@ -5,15 +5,38 @@ description: Spravovat uzel, který není fyzicky na dosah (chata, stožár, bal
 
 # Vzdálená správa uzlů
 
-## Cesty k uzlům (stav 22. 8. 2026, po odjezdu z chaty)
+## Cesty k uzlům (stav 31. 8. 2026)
 
 | uzel | primární cesta | záložní | pozn. |
 |---|---|---|---|
 | tth-hrebecna (chata, aktivní RPT) | RF: `mesh_admin.py 5361aa08` přes sneezy:5012 | BLE ze sneezy (`ble_cli.py CE:72:14:CD:FD:02`, bond ✔, BLE on) | BLE = lokální konzole ⇒ jdou i `stats-*` |
 | tth-plesivec (stožár) | RF: `mesh_admin.py 5f14d8c9` přes sneezy:5012 | BLE jen fyzicky na místě | BLE pref on |
 | tth-ltm (balkon doma) | BLE z dopey (STOP most + `bluetoothctl disconnect`!) | RF přes dopey:5011/5012 | krmí Grafanu — po zásahu vrátit most a ověřit data |
-| tth-probe (karta, mobilní) | RF: `mesh_admin.py d9f0ef62` | USB konzole tam, kde zrovna je | **BLE NEMÁ** (repeater build) |
+| tth-probe (karta, mobilní) | BLE companion `C0:AE:B9:97:A1:34` (bond ✔ na e5570) | RF: `mesh_admin.py d9f0ef62` | **companion build ⇒ textovou konzoli NEMÁ**, jen binární rámce |
+| tth-card (karta, doma) | BLE companion `F5:C2:0C:74:A0:67` (bond ✔ na e5570) | USB konzole tam, kde zrovna je | dtto — po odchodu RemoteTermu z karty (25. 8.) je volná |
 | TTH-L1 (companion) | USB / bot na #tth-test | — | admin CLI nemá |
+
+## BLE odsud nejede — black-arch má hluchý scanner
+
+**Na BLE operace používej `e5570.doma`, ne black-arch.** Zjištěno 31. 8. 2026:
+scan na black-archu (MediaTek `0e8d:0616`) vrací nula až jedno zařízení, i když
+`Discovering: yes` a firmware se při power-cyclu reloaduje. Restart
+`bluetooth.service` ani power-cycle přes DBus to nespraví. Notebook (Intel) ve
+stejné chvíli vidí desítky zařízení včetně `tth-x1` a obou karet.
+
+Past, na kterou jsem naletěl: „scan nic nevidí" jsem chtěl vyložit jako „uzly
+nejsou v dosahu". Kontrolní skupina je povinná — a XIAO s DTR-low jako kontrola
+NESTAČÍ, dokud nevíš, že ten build vůbec má BLE.
+
+Na e5570 chybí bleak. Instalovat ho tam netřeba: je tam `python-dbus`, takže
+BlueZ se dá obsloužit přímo (`nus_dbus.py` pro textovou konzoli, `companion_dbus.py`
+pro binární rámce — obojí ve scratchpadu session, ~90 řádků).
+
+```bash
+rfkill unblock bluetooth        # BT tam bývá soft-blocked
+bluetoothctl --timeout 30 scan le >/dev/null
+bluetoothctl info <MAC> | grep RSSI    # RSSI = v dosahu a advertuje
+```
 
 ## RF admin: `tools/mesh_admin.py`
 
