@@ -25,3 +25,6 @@ __pycache__/
 # Claude Code: lokální stav, nepatří do repa (settings.json a skills/ ANO)
 .claude/settings.local.json
 .claude/RESUME.md
+
+# PID soubor lokálního helperu (běhový balast, ne konfigurace)
+ether.pid
