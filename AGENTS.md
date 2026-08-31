@@ -192,6 +192,24 @@ soubor `provision/repeater-cz-silent.txt`.
 Skutečný BLE PIN a admin heslo žijí **výhradně v gitignorovaném
 `platformio.local.ini`**. Do committed souborů se nepíšou.
 
+## O internetovém mostu se ven nemluví. NIKDY.
+
+**Do žádného cizího repa, issue, PR, commit message ani diskuze pod cizím
+tiketem nepatří jediná zmínka o našem internetovém mostu.** Ani jako vysvětlení,
+ani jako poznámka pod čarou, ani jako „známé omezení". Platí to i pro opisy,
+ze kterých se to dá složit: „re-originované adverty", „RF-to-IP", „náš relay",
+`origin_tx`, mostěná trasa mezi ostrovem a CZ meshem.
+
+Důvod: v MeshCore komunitě je to **šedá zóna** a je to **dočasné řešení**.
+Uživatel se o něm nehodlá s nikým dohadovat ani nikomu vysvětlovat, že ví, co
+dělá. Tohle není věc k uvážení podle kontextu — je to tvrdé pravidlo.
+
+Když se argument, který chceš poslat ven, opírá o most: **najdi jiný argument,
+nebo to tvrzení vynech celé.** Raději slabší PR než zmínka.
+
+(Uvnitř tohohle repa a v našich vlastních poznámkách je most normální téma.
+Hranice vede na hranici našich repozitářů.)
+
 ## Cizí uzly a záměrné odchylky
 
 Runtime prefs na cizím uzlu **neměň bez potvrzení**. Některé konfigurace jsou
