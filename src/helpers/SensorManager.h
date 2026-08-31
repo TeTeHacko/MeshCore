@@ -44,6 +44,17 @@ public:
   virtual bool setSettingValue(const char* name, const char* value) { return false; }
   virtual LocationProvider* getLocationProvider() { return NULL; }
 
+  // Asked for when someone with LOCATION permission requests telemetry, so a
+  // duty-cycled receiver does not answer with a position that is up to
+  // GPS_DUTY_SYNC_INTERVAL_SECS old for the rest of that window.
+  //
+  // It deliberately does NOT wait for the fix -- the reply is assembled and
+  // sent synchronously (BaseChatMesh.cpp), while a warm fix measured on a
+  // T1000-E took ~65 s. So this request answers with what is known and pulls
+  // the next window forward; the FOLLOWING request gets the fresh position.
+  // With a periodic collector that costs one cycle and needs no scheduling.
+  virtual void requestLocationRefresh() { }
+
   // Live I2C scan, written into dest as text. Returns the number of devices
   // that answered, or -1 when the platform has no bus to scan.
   //

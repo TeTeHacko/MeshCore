@@ -652,6 +652,12 @@ uint8_t MyMesh::onContactRequest(const ContactInfo &contact, uint32_t sender_tim
     permissions &= perm_mask;
 
     if (permissions & TELEM_PERM_BASE) { // only respond if base permission bit is set
+      if (permissions & TELEM_PERM_LOCATION) {
+        // Nudge a duty-cycled GPS awake. This reply still carries the position
+        // we already have -- the fix is ~65 s away and the reply goes out now --
+        // but the next request lands after the window and gets a fresh one.
+        sensors.requestLocationRefresh();
+      }
       telemetry.reset();
       telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
       // query other sensors -- target specific

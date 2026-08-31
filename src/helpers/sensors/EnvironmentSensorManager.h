@@ -46,6 +46,7 @@ public:
   #if ENV_INCLUDE_GPS
   EnvironmentSensorManager(LocationProvider &location): _location(&location){};
   LocationProvider* getLocationProvider() { return _location; }
+  void requestLocationRefresh() override;
   #else
   EnvironmentSensorManager(){};
   #endif

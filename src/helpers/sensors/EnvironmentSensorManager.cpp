@@ -963,6 +963,15 @@ void EnvironmentSensorManager::start_gps() {
 // fix as valid. A provider-driven re-arm would therefore sync the RTC to a
 // half-hour-old timestamp. Hence syncTime() (which clears the parser) on every
 // wake, and our own timer for when the next wake is due.
+// Pull the next duty window forward to now -- see SensorManager::requestLocationRefresh.
+void EnvironmentSensorManager::requestLocationRefresh() {
+  #if ENV_INCLUDE_GPS
+  if (gps_duty && !gps_active) {
+    gps_wake_at = millis();
+  }
+  #endif
+}
+
 void EnvironmentSensorManager::gpsDutyLoop() {
   if (!gps_duty) return;
 

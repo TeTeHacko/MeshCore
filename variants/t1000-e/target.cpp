@@ -199,6 +199,15 @@ void T1000SensorManager::loop() {
   }
 }
 
+// Pull the next duty window forward to now. Only meaningful while duty-cycling:
+// with `gps on` the receiver is already up, and with `gps off` the user asked for
+// silence and a telemetry request must not override that.
+void T1000SensorManager::requestLocationRefresh() {
+  if (gps_duty && !gps_active) {
+    gps_wake_at = millis();
+  }
+}
+
 int T1000SensorManager::getNumSettings() const { return 1; }  // just one supported: "gps" (power switch)
 
 const char* T1000SensorManager::getSettingName(int i) const {
