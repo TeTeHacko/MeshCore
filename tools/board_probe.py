@@ -137,7 +137,7 @@ def fingerprint():
 
 
 def fmt(rows):
-    return "\n".join(f"{sn} {kind} {ver}" for sn, kind, ver in rows)
+    return "\n".join(f"{sn} {kind} {str(ver).strip()}" for sn, kind, ver in rows)
 
 
 def main():
@@ -156,9 +156,12 @@ def main():
 
     prev = {}
     for line in open(a.compare):
-        p = line.split()
+        # Verze muze obsahovat mezery (starsi KISS build vraci "Seeed Xiao-nrf52"),
+        # takze split() na tri pole utne zbytek a porovnani pak hlasi ZMENU tam,
+        # kde se nic nezmenilo. Falesny poplach je horsi nez zadna kontrola.
+        p = line.split(None, 2)
         if len(p) >= 3:
-            prev[p[0]] = (p[1], p[2])
+            prev[p[0]] = (p[1], p[2].strip())
 
     bad = False
     for sn in sorted(set(prev) | set(now)):

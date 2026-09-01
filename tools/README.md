@@ -13,7 +13,7 @@ cannot be repeated by hand.
 | `provision/` | command files: what to send, and what the answers must look like |
 | `build_version.py` | PlatformIO pre-script that stamps a real version into the binary |
 | `xiao_uf2_flash.sh` | flash a named XIAO through its UF2 drive, and prove it took |
-| `xiao_serial_flash.sh` | the same guarantees for the serial-DFU route (`pio run -t upload`) |
+| `xiao_flash.sh` | flash a XIAO by name: picks the route from the board's state, proves where it landed |
 | `board_probe.py` | fingerprint every XIAO on the bus: what is actually RUNNING on each |
 | `power_ab.py` | A/B current measurement of a bench node through the UC96 meter's exporter |
 | `mesh_sniffer.py` | passive capture of every frame on the air, decoded on the host to JSONL/pcap |
@@ -65,12 +65,25 @@ skips them.
 Over BLE the equivalent identity is the **address**, and it is equally
 mandatory — see `ble_dfu.py` below.
 
-## `xiao_serial_flash.sh` — serial DFU, and proof it went where you said
+## `xiao_flash.sh` — one entry point, right route, proof it landed there
 
 ```sh
-tools/xiao_serial_flash.sh Xiao_x4_rpt 4          # fleet number
-tools/xiao_serial_flash.sh Xiao_x2_cmp B69F8651   # or a serial suffix
+tools/xiao_flash.sh Xiao_x4_rpt 4          # fleet number
+tools/xiao_flash.sh Xiao_x2_cmp B69F8651   # or a serial suffix
 ```
+
+Which route works depends on what the board is doing right now, and AGENTS.md
+spells the rules out in prose — the kind of thing that gets skipped mid-task. On
+2026-09-01 all three were skipped in one session. So the script picks:
+
+| target state | route |
+|---|---|
+| application (`text`/`companion`/`kiss`/`modem`) | `pio run -t upload` — the env has `upload_protocol = nrfutil`, so PlatformIO does the 1200-baud touch itself. ~35 s, no buttons. |
+| bootloader **with** a UF2 drive | hands off to `xiao_uf2_flash.sh` |
+| bootloader, CDC but **no** drive (serial-only, after a touch) | hand-rolled nrfutil — it does not touch, and the board is already where it needs to be |
+
+`adafruit-nrfutil` can end in a traceback and still exit 0, so its output is read
+as well as its return code.
 
 `xiao_uf2_flash.sh` refuses to guess which board to write to. The serial-DFU
 route had no such guard, and on 2026-09-01 that cost a board: `pio run -e
