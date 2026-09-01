@@ -128,8 +128,10 @@ soubor `provision/repeater-cz-silent.txt`.
   companion protokol nic, KISS nic, sama od sebe nic. UF2 disk nemá (správně,
   žádný bootloader tam neběží) a `adafruit-nrfutil dfu serial` na ni skončí na
   „Target is not in DFU mode". **Je to normální provozní stav, ne zaseklá deska —
-  replug s tím nic neudělá a dělat nemá.** K 1. 9. 2026 to mají x2 (`B69F8651…`)
-  a x4 (`208DBAF4…`), takže na lavici zbývá jako MeshCore uzel jen x1.
+  replug s tím nic neudělá a dělat nemá.** Zpátky na MeshCore ji dostaneš
+  `pio run -e <env> -t upload --upload-port <port>`: modem firmware je APLIKACE,
+  takže si PlatformIO udělá touch samo a nalije po CDC (35 s, bez tlačítek).
+  Ruční nrfutil tady selže — ten netouchuje a deska v DFU není.
   Rozlišuj podle **jména portu**, ne podle PID: MeshCore build se hlásí jako
   `usb-Seeed_Studio_XIAO_nRF52840_<sn>`. Zdroj: hlavička
   `tools/openhop_observer_config.py` u `radio_type: pymc_usb`. Stálo to jeden
