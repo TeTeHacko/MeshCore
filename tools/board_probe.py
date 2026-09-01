@@ -32,20 +32,37 @@ except ImportError:
 
 
 def usb_boards():
-    """[(serial, port, kind_hint)] pro každou XIAO na sběrnici."""
+    """[(serial, port, board, state_hint)] pro kazdou desku flotily na USB.
+
+    Typ desky i rezim se poznaji z JMENA portu, protoze idProduct lze -- 0044
+    drzi jak UF2 bootloader XIAO, tak openhop_modem, coz je aplikace. A na
+    T1000-E je to jmeno primo obracene, nez by clovek cekal:
+
+      Seeed_Studio_XIAO_nRF52840_<sn>   XIAO, aplikace (MeshCore build)
+      Seeed_XIAO_nRF52840_Sense_<sn>    XIAO, bootloader
+      Seeed_XIAO-Wio-SX1262_<sn>        XIAO, openhop_modem (APLIKACE, ne boot)
+      Seeed_Studio_T1000-E-BOOT_<sn>    T1000-E, APLIKACE  <- "-BOOT" ma aplikace!
+      Seeed_Studio_T1000-E_<sn>         T1000-E, bootloader (+ UF2 disk T1000-E)
+    """
+    pats = [
+        # (regex na jmeno portu, deska, stav)
+        (r"Seeed_Studio_T1000-E-BOOT_", "t1000e", "app"),
+        (r"Seeed_Studio_T1000-E_",      "t1000e", "boot"),
+        (r"Seeed_XIAO-Wio-SX1262_",     "xiao",   "modem"),
+        (r"Seeed_Studio_XIAO_nRF52840_", "xiao",  "app"),
+        (r"Seeed_XIAO_nRF52840",        "xiao",   "boot"),
+        (r"Wio|TRACKER",                "wio-l1", "app"),
+    ]
     out = []
-    for port in sorted(glob.glob("/dev/serial/by-id/*XIAO*")):
-        m = re.search(r"_([0-9A-F]{16})-if00", port)
-        if not m:
-            continue
+    for port in sorted(glob.glob("/dev/serial/by-id/*")):
         name = os.path.basename(port)
-        if "XIAO-Wio-SX1262" in name:
-            hint = "modem"           # openhop_modem, NE bootloader
-        elif "Seeed_Studio_" not in name:
-            hint = "bootloader"      # UF2 bootloader se hlásí bez "Studio"
-        else:
-            hint = None
-        out.append((m.group(1), port, hint))
+        m = re.search(r"_([0-9A-F]{16})-if00", name)
+        if not m:
+            continue                      # ESP32 a spol. -- neni to nase nRF52 flotila
+        for rx, board, state in pats:
+            if re.search(rx, name):
+                out.append((m.group(1), port, board, state))
+                break
     return out
 
 
@@ -127,12 +144,15 @@ def probe(port):
 
 def fingerprint():
     rows = []
-    for sn, port, hint in usb_boards():
-        if hint:                       # modem a bootloader nemluví, neotravuj je
-            rows.append((sn, hint, "-"))
+    for sn, port, board, state in usb_boards():
+        if state in ("boot", "modem"):
+            # Bootloader nemluvi nasim protokolem a openhop_modem nemluvi vubec;
+            # ptat se jich je jen ztrata casu (a u boot i riziko, ze to vypada
+            # jako zaseknuta deska).
+            rows.append((sn, f"{board}/{state}", "-"))
             continue
         kind, ver = probe(port)
-        rows.append((sn, kind, ver))
+        rows.append((sn, f"{board}/{kind}", ver))
     return rows
 
 
@@ -168,13 +188,17 @@ def main():
         was, is_ = prev.get(sn), now.get(sn)
         tag = ""
         if was != is_:
-            if a.expect_changed and sn.endswith(a.expect_changed.upper()):
-                tag = "  <- zmeneno (cil)"
+            # Poradi je zamerne: deska, ktera ZMIZELA, neni uspech ani kdyz je to
+            # cil. Po flashi se to na tehle lavici stava bezne a hlaska "zmeneno
+            # (cil)" by to zakryla -- pritom se z desky nedá precist, co na ni je,
+            # takze flash NENI overeny. Chce to replug a spustit znovu.
+            if is_ is None:
+                tag = "  <- ZMIZELA z USB (po flashi bezne) -- replug a spust znovu"
+                bad = True
             elif was is None:
                 tag = "  <- NOVA deska na sbernici"
-            elif is_ is None:
-                tag = "  <- ZMIZELA ze sbernice"
-                bad = True
+            elif a.expect_changed and sn.endswith(a.expect_changed.upper()):
+                tag = "  <- zmeneno (cil)"
             else:
                 tag = "  <- !!! ZMENENO, PRESTOZE TO NEBYL CIL !!!"
                 bad = True

@@ -13,7 +13,7 @@ cannot be repeated by hand.
 | `provision/` | command files: what to send, and what the answers must look like |
 | `build_version.py` | PlatformIO pre-script that stamps a real version into the binary |
 | `xiao_uf2_flash.sh` | flash a named XIAO through its UF2 drive, and prove it took |
-| `xiao_flash.sh` | flash a XIAO by name: picks the route from the board's state, proves where it landed |
+| `flash_node.sh` | flash any fleet board by name: picks the route from board + state, proves where it landed |
 | `board_probe.py` | fingerprint every XIAO on the bus: what is actually RUNNING on each |
 | `power_ab.py` | A/B current measurement of a bench node through the UC96 meter's exporter |
 | `mesh_sniffer.py` | passive capture of every frame on the air, decoded on the host to JSONL/pcap |
@@ -65,12 +65,39 @@ skips them.
 Over BLE the equivalent identity is the **address**, and it is equally
 mandatory — see `ble_dfu.py` below.
 
-## `xiao_flash.sh` — one entry point, right route, proof it landed there
+## `flash_node.sh` — one entry point, right route, proof it landed there
 
 ```sh
-tools/xiao_flash.sh Xiao_x4_rpt 4          # fleet number
-tools/xiao_flash.sh Xiao_x2_cmp B69F8651   # or a serial suffix
+tools/flash_node.sh Xiao_x4_rpt 4               # XIAO fleet number
+tools/flash_node.sh Xiao_x2_cmp B69F8651        # or a serial suffix
+tools/flash_node.sh t1000e_repeater B3F160      # T1000-E, console -> bootloader -> nrfutil
 ```
+
+Which route works depends on the board **and** on what it is doing right now.
+Those rules are written out in `.claude/skills/flash-node` and AGENTS.md — prose,
+i.e. the kind of thing that gets skipped mid-task. On 2026-09-01 three of them
+were skipped in one session, and an image landed on a board nobody named. So the
+rules live in the script, where the state is actually known:
+
+| board | state | route |
+|---|---|---|
+| xiao | application | `pio run -t upload` (env has `upload_protocol = nrfutil`, so PlatformIO touches; ~35 s, no buttons) |
+| xiao | bootloader **with** UF2 drive | hands off to `xiao_uf2_flash.sh` |
+| xiao | bootloader, **no** drive | hand-rolled nrfutil (does not touch; the board is already there) |
+| t1000e | application with a text console | `dfu uf2` on the console → wait for the port to rename → nrfutil on the CDC port |
+| t1000e | bootloader | nrfutil straight away |
+| wio-l1 | application | hands off to `MeshCore-solo/flash-l1.sh` (touch → drive `TRACKER L1`) |
+| sensecap | anywhere | not over USB — BLE OTA, `tools/ble_dfu.py` |
+
+CDC beats the UF2 drive wherever both work: mounting the drive needs root, and
+`sudo` over SSH without a terminal has nobody to ask. Writing a CDC port does not.
+
+It also refuses to touch **protected boards** — the ones AGENTS.md says not to
+flash without being told to (the home T1000-E holds an identity and its wedge
+history). `--force-protected` overrides.
+
+`adafruit-nrfutil` can end in a traceback and still exit 0, so its output is read
+as well as its return code.
 
 Which route works depends on what the board is doing right now, and AGENTS.md
 spells the rules out in prose — the kind of thing that gets skipped mid-task. On
