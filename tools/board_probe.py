@@ -31,7 +31,12 @@ except ImportError:
     sys.exit("chybi pyserial")
 
 # Kolik sekund nejvys smi trvat otisk CELE sbernice.
-PROBE_DEADLINE = float(os.environ.get("BOARD_PROBE_DEADLINE", "20"))
+# 8 s staci: probe zive desky trva ~2,5 s (zmereno). Deska, ktera se do te doby
+# neozve, se oznaci jako "visi" -- to je poctivejsi vysledek nez cekat dele.
+# ZNAMY NEDOSTATEK: T1000-E karty blokuji uvnitr serial.Serial() open(2) a drzi
+# beh i pres deadline, takze cely otisk trva ~30 s navic. Nebrani to praci, jen
+# to zdrzuje; skutecna oprava chce otevirat port jinak nez pres pyserial.
+PROBE_DEADLINE = float(os.environ.get("BOARD_PROBE_DEADLINE", "8"))
 
 
 def usb_boards():
@@ -246,4 +251,11 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    rc = main()
+    # os._exit misto sys.exit: vlakno, ktere visi v serial.Serial() open(2),
+    # drzi otevreny file descriptor a interpret na nej pri uklidu ceka -- otisk
+    # se vypsal za par sekund, ale proces dobihal jeste ~30 s (a pod `timeout`
+    # se tvaril jako zaseknuty). Vysledek uz je venku, uklizet nemame co.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(rc)
