@@ -36,7 +36,11 @@ except ImportError:
 # ZNAMY NEDOSTATEK: T1000-E karty blokuji uvnitr serial.Serial() open(2) a drzi
 # beh i pres deadline, takze cely otisk trva ~30 s navic. Nebrani to praci, jen
 # to zdrzuje; skutecna oprava chce otevirat port jinak nez pres pyserial.
-PROBE_DEADLINE = float(os.environ.get("BOARD_PROBE_DEADLINE", "8"))
+# Musi pokryt PLNY cyklus: settle 0,9 + text 1,2 + companion 1,5 + KISS 1,2 +
+# GetDeviceName 1,2 = ~6 s. S kratsim deadlinem se posledni protokol nestihne a
+# deska se oznaci jako "visi", i kdyz normalne odpovida -- presne to se 2. 9.
+# 2026 stalo KISS modemu na x4 pri BOARD_PROBE_DEADLINE=6.
+PROBE_DEADLINE = float(os.environ.get("BOARD_PROBE_DEADLINE", "12"))
 
 
 def usb_boards():
@@ -86,7 +90,13 @@ def _open(port):
 def _drain(s, w):
     buf, t = b"", time.time()
     while time.time() - t < w:
-        d = s.read(8192)
+        try:
+            d = s.read(8192)
+        except Exception:
+            # "device reports readiness to read but returned no data" -- deska
+            # se odpojila uprostred cteni. Vracime, co uz mame; neni to duvod
+            # shodit cely otisk.
+            break
         if d:
             buf += d
         else:
