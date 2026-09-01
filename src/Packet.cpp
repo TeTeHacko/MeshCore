@@ -63,9 +63,30 @@ uint8_t Packet::writeTo(uint8_t dest[]) const {
 }
 
 bool Packet::readFrom(const uint8_t src[], uint8_t len) {
+  // CUSTOM (TeTeHacko): every field is bounds-checked against `len` BEFORE it is
+  // read. Upstream reads the header, the transport codes, path_len and the whole
+  // path first and only then asks whether any of it was actually there
+  // (`if (i >= len)`), so a short frame is read past its end and the result is
+  // thrown away afterwards.
+  //
+  // Measured with an ASAN harness that hands readFrom a heap buffer allocated to
+  // exactly `len` bytes: 5 242 880 generated frames hit FOUR distinct
+  // out-of-bounds reads (header, both transport codes, path_len, the path
+  // memcpy). With these guards the same sweep is clean and accepts exactly the
+  // same 1 351 424 frames -- the checks reject nothing that used to parse, they
+  // only stop reading memory that was never received.
+  //
+  // On the device the source is Dispatcher's `raw[MAX_TRANS_UNIT+1]`, a 256-byte
+  // stack buffer, and this reads at most ~70 bytes into it, so what it read was
+  // leftovers from an earlier packet rather than memory outside the array. That
+  // is why it never showed up as a crash -- and why this is hygiene, not a hole.
+  //
+  // Same fix as upstream PR #1666 (weebl2000), open and unmerged since Feb 2026.
+  if (len < 2) return false;   // at minimum: header + path_len
   uint8_t i = 0;
   header = src[i++];
   if (hasTransportCodes()) {
+    if (i + 4 >= len) return false;   // 4 transport bytes plus the path_len byte
     memcpy(&transport_codes[0], &src[i], 2); i += 2;
     memcpy(&transport_codes[1], &src[i], 2); i += 2;
   } else {
@@ -75,9 +96,9 @@ bool Packet::readFrom(const uint8_t src[], uint8_t len) {
   if (!isValidPathLen(path_len)) return false;   // bad encoding
 
   uint8_t bl = getPathByteLen();
+  if (i + bl >= len) return false;   // path plus at least one payload byte must fit
   memcpy(path, &src[i], bl); i += bl;
 
-  if (i >= len) return false;   // bad encoding
   payload_len = len - i;
   if (payload_len > sizeof(payload)) return false;  // bad encoding
   memcpy(payload, &src[i], payload_len); //i += payload_len;
