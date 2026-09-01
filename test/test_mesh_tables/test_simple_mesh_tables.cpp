@@ -97,6 +97,38 @@ TEST(SimpleMeshTables, Clear_RemovesSeenPacket) {
     EXPECT_FALSE(t.wasSeen(&p));
 }
 
+// ── markSeen is idempotent ───────────────────────────────────────────
+//
+// The send paths (Mesh::sendFlood, sendDirect, sendZeroHop) call markSeen()
+// without a wasSeen() gate, so a packet sent more than once must not occupy more
+// than one slot of the fixed ring -- that would shorten the dedup window for
+// every other packet and let a late echo of our own flood read as new traffic.
+
+TEST(SimpleMeshTables, MarkSeen_Repeated_DoesNotEvictOlderEntries) {
+    SimpleMeshTables t;
+    Packet older = makeFloodPacket(0x01);
+    Packet resent = makeFloodPacket(0x02);
+
+    t.markSeen(&older);
+    for (int i = 0; i < MAX_PACKET_HASHES * 2; i++) {
+        t.markSeen(&resent);   // one packet, sent over and over
+    }
+
+    EXPECT_TRUE(t.wasSeen(&older));   // must not have been pushed out of the ring
+    EXPECT_TRUE(t.wasSeen(&resent));
+}
+
+TEST(SimpleMeshTables, MarkSeen_Repeated_StillClearsInOneCall) {
+    SimpleMeshTables t;
+    Packet p = makeFloodPacket(0x01);
+
+    t.markSeen(&p);
+    t.markSeen(&p);
+    t.clear(&p);   // clear() removes the first match only
+
+    EXPECT_FALSE(t.wasSeen(&p));
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
