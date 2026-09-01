@@ -56,8 +56,37 @@ ble_mac_for() {
   case "$1" in
     B3F1601DCECE9D11) echo "C0:AE:B9:97:A1:34" ;;   # T1000-E probe
     B612AE3898A81CCA) echo "F5:C2:0C:74:A0:67" ;;   # T1000-E domaci (CHRANENA)
+    30911219DA28411D) echo "CB:35:76:3A:FB:03" ;;   # x0
+    5ECC11205C68623B) echo "D9:E7:5E:E5:72:28" ;;   # x1
+    B69F86518175CBA3) echo "E2:74:BE:B3:EC:30" ;;   # x2
+    67901109B61E604A) echo "C4:51:68:23:05:7B" ;;   # x3
+    208DBAF462432133) echo "FE:11:D8:C2:AB:C4" ;;   # x4
     *) echo "" ;;
   esac
+}
+
+# Deska, ktera po flashi "spadla z USB", NENI mrtva -- 2. 9. 2026 x1 i x4 v tom
+# stavu normalne advertovaly na BLE. Softwarovy replug pritom neni z ceho udelat:
+# vsechny desky visi primo na root hubu (xhci), a ten neumi prepinat napajeni
+# portu, takze ani uhubctl by nepomohl. BLE OTA je proto jedina cesta, jak takovou
+# desku doflashovat BEZ RUKOU -- a nepotrebuje USB touch, takze ji ani nema jak
+# shodit znovu.
+#
+# Pozor na dock-quiet: deska, ktera JE na USB, drzi DTR a proto neadvertuje
+# (potvrzeno tyz den na x2). BLE zachrana tedy funguje prave pro ty desky, ktere
+# z USB vypadly -- coz je presne kdyz je potreba.
+ble_reachable() {
+  local mac="$1"
+  timeout 20 bash -c "bluetoothctl --timeout 12 scan on 2>/dev/null | grep -q '$mac'"
+}
+
+flash_over_ble() {
+  local mac="$1"
+  echo "== cesta: BLE OTA na $mac (bez USB, tedy bez rizika replugu)"
+  "$PIO" run -e "$ENV_NAME" >/dev/null 2>&1 || die "build selhal"
+  bluetoothctl disconnect "$mac" >/dev/null 2>&1 || true
+  sleep 2
+  python3 "$HERE/ble_dfu.py" ".pio/build/$ENV_NAME/firmware.zip" "$mac"
 }
 
 ENV_NAME=""; TARGET=""; FORCE=0
@@ -103,6 +132,20 @@ echo "$BEFORE" | sed 's/^/   /'
 
 if [ -n "$TARGET" ]; then
   hits="$(echo "$BEFORE" | grep -c -- "$TARGET" || true)"
+  if [ "$hits" = "0" ]; then
+    # Neni na USB. Drive to znamenalo "rekni si o replug"; kdyz ale deska
+    # advertuje, da se doflashovat pres BLE a ruce nejsou potreba.
+    MAC="$(ble_mac_for "$TARGET")"
+    if [ -n "$MAC" ]; then
+      echo "== $TARGET neni na USB; zkousim, jestli je na BLE ($MAC)"
+      if ble_reachable "$MAC"; then
+        flash_over_ble "$MAC"
+        exit $?
+      fi
+      die "$TARGET neni na USB ani neadvertuje na BLE. Ted uz opravdu chce replug."
+    fi
+    die "cil $TARGET neni na sbernici a neznam k nemu BLE adresu."
+  fi
   [ "$hits" = "1" ] || die "cil $TARGET je na sbernici ${hits}x -- upresni seriove cislo"
 else
   n="$(echo "$BEFORE" | grep -c . || true)"
