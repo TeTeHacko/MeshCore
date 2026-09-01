@@ -86,7 +86,13 @@ def discover(wanted):
     """
     tbl = fleet_table()
     found = []
-    for port in sorted(glob.glob("/dev/serial/by-id/*XIAO_nRF52840*")):
+    # Dva vzory: USB product string se lisi podle buildu -- holy XIAO se hlasi jako
+    # "XIAO_nRF52840", build s Wio-SX1262 variantou jako "XIAO-Wio-SX1262". Jen na
+    # prvni z nich se 1. 9. 2026 matice smrskla na jednu desku, protoze x2 a x4
+    # nesly videt. Rozhoduje stejne az seriove cislo proti tabulce ve flash skriptu.
+    ports = sorted(glob.glob("/dev/serial/by-id/*XIAO_nRF52840*")
+                   + glob.glob("/dev/serial/by-id/*XIAO-Wio-SX1262*"))
+    for port in ports:
         m = re.search(r"_([0-9A-F]{16})-if00", port)
         if not m:
             continue
