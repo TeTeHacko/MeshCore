@@ -48,6 +48,18 @@ die() { echo "CHYBA: $*" >&2; exit 1; }
 # historii nebo produkcni roli, a prepsat je omylem je draha chyba.
 PROTECTED="B612AE3898A81CCA"   # domaci T1000-E: identita, historie wedge, RemoteTerm
 
+# BLE adresy desek, ktere nemaji textovou konzoli. Companion build se do
+# bootloaderu neda poslat prikazem `dfu` (zadna konzole neni), takze jediny zpusob
+# je buttonless DFU pres BLE. Kdyz je pak deska ZAROVEN na USB, samotny prenos jde
+# po USB: ~20 s misto 3-15 min po BLE (podle vyjednaneho MTU).
+ble_mac_for() {
+  case "$1" in
+    B3F1601DCECE9D11) echo "C0:AE:B9:97:A1:34" ;;   # T1000-E probe
+    B612AE3898A81CCA) echo "F5:C2:0C:74:A0:67" ;;   # T1000-E domaci (CHRANENA)
+    *) echo "" ;;
+  esac
+}
+
 ENV_NAME=""; TARGET=""; FORCE=0
 for arg in "$@"; do
   case "$arg" in
@@ -56,6 +68,16 @@ for arg in "$@"; do
   esac
 done
 [ -n "$ENV_NAME" ] || { echo "usage: $(basename "$0") <env> [serial|0..4] [--force-protected]" >&2; exit 1; }
+
+# Cil zadany jako BLE MAC = deska na USB vubec neni (stozar, chata). Cely prenos
+# pak jde po BLE a otisk sbernice nema co porovnavat.
+case "$TARGET" in
+  *:*:*:*:*:*)
+    echo "== cil je BLE MAC $TARGET -- deska neni na USB, jedu cely BLE OTA"
+    "$PIO" run -e "$ENV_NAME" >/dev/null 2>&1 || die "build selhal"
+    exec python3 "$HERE/ble_dfu.py" ".pio/build/$ENV_NAME/firmware.zip" "$TARGET"
+    ;;
+esac
 
 case "$TARGET" in
   [0-4]) TARGET="$(sed -n "s/^\s*${TARGET})\s*TARGET=\([0-9A-F]\{16\}\)\s*;;/\1/p" \
@@ -157,7 +179,10 @@ case "$BOARD/$STATE" in
     if has_uf2_drive; then
       echo "== cesta: UF2 disk -> predavam xiao_uf2_flash.sh"
       "$PIO" run -e "$ENV_NAME" -t create_uf2 >/dev/null 2>&1 || die "create_uf2 selhal"
-      exec "$HERE/xiao_uf2_flash.sh" ".pio/build/$ENV_NAME/firmware.uf2" "$TARGET"
+      # NE `exec`: tim by se predalo rizeni a preskocila zaverecna kontrola, ze
+      # se nezmenila zadna JINA deska -- tedy presne ta pojistka, kvuli ktere
+      # tenhle skript vznikl. xiao_uf2_flash.sh si overi svuj cil, my overime zbytek.
+      "$HERE/xiao_uf2_flash.sh" ".pio/build/$ENV_NAME/firmware.uf2" "$TARGET" || RC=$?
     fi
     echo "== cesta: rucni nrfutil (bootloader bez UF2 disku = serial-only rezim)"
     if ! run_nrfutil "$PORT"; then
@@ -187,9 +212,36 @@ case "$BOARD/$STATE" in
     run_nrfutil "$PORT" || RC=1
     ;;
   t1000e/*)
-    die "T1000-E ve stavu '$STATE' nema textovou konzoli, kterou by sla poslat do
-       bootloaderu. Companion build se flashuje pres BLE OTA (tools/ble_dfu.py),
-       nebo desku dostan do bootloaderu rucne (dlouhy stisk do 8 s od startu)."
+    # Companion build nema textovou konzoli, takze `dfu uf2` nema kam poslat.
+    # Buttonless DFU pres BLE ho tam dostane -- a protoze deska JE na USB,
+    # samotny prenos pak jde po kabelu (~20 s misto minut po BLE).
+    MAC="$(ble_mac_for "$TARGET")"
+    [ -n "$MAC" ] || die "T1000-E ve stavu '$STATE' nema textovou konzoli a k seriaku
+       $TARGET neznam BLE adresu. Doplň ji do ble_mac_for(), nebo desku dostan
+       do bootloaderu rucne (dlouhy stisk do 8 s od startu)."
+    echo "== cesta: BLE buttonless -> bootloader, pak flash po USB"
+    echo "   BLE $MAC (jen prepnuti; prenos pojede po kabelu)"
+    "$PIO" run -e "$ENV_NAME" >/dev/null 2>&1 || die "build selhal"
+    # Pripojeny BLE klient by uzel drzel a buttonless zapis by nemel kam --
+    # zastavit sluzbu NESTACI, spojeni drzi BlueZ (skill flash-node).
+    bluetoothctl disconnect "$MAC" >/dev/null 2>&1 || true
+    sleep 2
+    if ! python3 "$HERE/ble_dfu.py" ".pio/build/$ENV_NAME/firmware.zip" "$MAC" phase1; then
+      die "buttonless pres BLE se nepovedl. BLE DFU je flaky a jeden pokus o connect
+       nestaci -- ale NESPOUSTEJ to opakovane, RESET po kazdem padu umi desku
+       uštvat doopravdy (skill flash-node)."
+    fi
+    # Bootloader se na USB hlasi BEZ "-BOOT" v nazvu portu -- ano, obracene.
+    echo "== cekam na bootloader port"
+    BOOTPORT=""
+    for _ in $(seq 30); do
+      p="$(ls /dev/serial/by-id/ 2>/dev/null | grep -- "$TARGET" | grep -v -- "-BOOT" | head -1)"
+      [ -n "$p" ] && { BOOTPORT="/dev/serial/by-id/$p"; break; }
+      sleep 1
+    done
+    [ -n "$BOOTPORT" ] || die "deska se do 30 s neobjevila v bootloaderu na USB"
+    echo "   bootloader port: $BOOTPORT"
+    run_nrfutil "$BOOTPORT" || RC=1
     ;;
   wio-l1/*)
     echo "== cesta: Wio L1 -> predavam MeshCore-solo/flash-l1.sh (touch + disk TRACKER L1)"

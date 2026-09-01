@@ -23,12 +23,15 @@ ten, který zrovna čekáme:
 `modem` a `bootloader` se poznají podle JMÉNA portu, ne podle idProduct: obojí
 drží 0044 a AGENTS.md čte 0044 jako bootloader, což pro openhop_modem neplatí.
 """
-import argparse, glob, os, re, struct, subprocess, sys, time
+import argparse, glob, os, re, struct, subprocess, sys, threading, time
 
 try:
     import serial
 except ImportError:
     sys.exit("chybi pyserial")
+
+# Kolik sekund nejvys smi trvat otisk CELE sbernice.
+PROBE_DEADLINE = float(os.environ.get("BOARD_PROBE_DEADLINE", "20"))
 
 
 def usb_boards():
@@ -70,7 +73,7 @@ def _open(port):
     s = serial.Serial(port, 115200, timeout=0)
     s.dtr = True
     s.rts = True
-    time.sleep(1.5)
+    time.sleep(0.9)
     s.reset_input_buffer()
     return s
 
@@ -97,7 +100,7 @@ def probe(port):
         s.write(b"\r\n"); time.sleep(0.4); s.reset_input_buffer()
 
         s.write(b"ver\r\n")
-        txt = _drain(s, 2.0).decode(errors="replace")
+        txt = _drain(s, 1.2).decode(errors="replace")
         m = re.search(r"(v\d+\.\d+\.\d+-tth[0-9a-f]+\+?)", txt)
         if m:
             return ("text", m.group(1))
@@ -105,7 +108,7 @@ def probe(port):
         s.reset_input_buffer()
         s.write(b"<" + struct.pack("<H", 2) + bytes([22, 10]))   # CMD_DEVICE_QUERY
         s.flush()
-        raw = _drain(s, 2.5)
+        raw = _drain(s, 1.5)
         i = raw.find(b">")
         if i >= 0 and len(raw) > i + 3:
             ln = struct.unpack("<H", raw[i + 1:i + 3])[0]
@@ -117,14 +120,14 @@ def probe(port):
 
         s.reset_input_buffer()
         s.write(bytes([0xC0, 0x06, 0x11, 0xC0]))                 # KISS GetVersion
-        raw = _drain(s, 2.0)
+        raw = _drain(s, 1.2)
         if len(raw) > 4 and raw[1] == 0x06 and raw[2] == 0x91:
             # GetVersion (0x11) vrací verzi KISS PROTOKOLU, ne našeho buildu --
             # ta je k nerozeznání mezi dvěma různými firmwary. Stampovaná verze
             # jede v GetDeviceName (0x16), viz KissModem::handleGetDeviceName.
             s.reset_input_buffer()
             s.write(bytes([0xC0, 0x06, 0x16, 0xC0]))             # KISS GetDeviceName
-            nm = _drain(s, 2.0)
+            nm = _drain(s, 1.2)
             if len(nm) > 4 and nm[1] == 0x06 and nm[2] == 0x96:
                 txt = nm[3:-1].decode(errors="replace")
                 m = re.search(r"(v\d+\.\d+\.\d+-tth[0-9a-f]+\+?)", txt)
@@ -143,17 +146,43 @@ def probe(port):
 
 
 def fingerprint():
-    rows = []
-    for sn, port, board, state in usb_boards():
+    """Otisk cele sbernice. Paralelne -- porty jsou nezavisle a serazovat je za
+    sebe se necetlo: pet desek po ~9 s (settle + tri protokoly, u mlcicich desek
+    plny timeout) delalo pres dve minuty, coz je na kontrolu spoustenou PRED a PO
+    kazdym flashem moc. Poradi vysledku je dane vstupem, ne dobehem."""
+    boards = usb_boards()
+    rows = [None] * len(boards)
+
+    def one(i, sn, port, board, state):
         if state in ("boot", "modem"):
             # Bootloader nemluvi nasim protokolem a openhop_modem nemluvi vubec;
             # ptat se jich je jen ztrata casu (a u boot i riziko, ze to vypada
             # jako zaseknuta deska).
-            rows.append((sn, f"{board}/{state}", "-"))
-            continue
+            rows[i] = (sn, f"{board}/{state}", "-")
+            return
         kind, ver = probe(port)
-        rows.append((sn, f"{board}/{kind}", ver))
-    return rows
+        rows[i] = (sn, f"{board}/{kind}", ver)
+
+    # TVRDY DEADLINE NA DESKU, a DAEMON vlakna. `serial.Serial()` umi na desce,
+    # ktera neodpovida, viset v open() a nevratit se -- 1. 9. 2026 kvuli tomu cely
+    # otisk nevypsal NIC ani za dve minuty. Nastroj spousteny pred a po kazdem
+    # flashi se nesmi dat zablokovat jednou deskou.
+    #
+    # ThreadPoolExecutor tu nestaci: jeho vlakna nejsou daemon, takze i kdyz se
+    # na vysledek necekalo, Python na ne pri exitu pockal a proces nedobehl
+    # (`timeout` ho pak zabil, exit 124). Vlastni daemon vlakna proces nedrzi.
+    threads = []
+    for i, (sn, port, b, st) in enumerate(boards):
+        t = threading.Thread(target=one, args=(i, sn, port, b, st), daemon=True)
+        t.start()
+        threads.append(t)
+    deadline = time.time() + PROBE_DEADLINE
+    for t in threads:
+        t.join(timeout=max(0.2, deadline - time.time()))
+    for i, (sn, _, board, _) in enumerate(boards):
+        if rows[i] is None:
+            rows[i] = (sn, f"{board}/visi", "neodpovida v case")
+    return [r for r in rows if r]
 
 
 def fmt(rows):

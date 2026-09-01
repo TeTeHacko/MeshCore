@@ -7,7 +7,9 @@ Fáze 2: reconnect na bootloader (advertuje 1530 DFU svc), proveď START/INIT/IM
         BLE DFU je flaky (dropnutá receipt notif → přenos spadne). Fáze 2 se proto
         auto-retryuje: po pádu pošle RESET (bootloader → čistý IDLE) a zkusí znovu.
 
-Použití: ble_dfu.py <zip> <ble-mac> [phase2]
+Použití: ble_dfu.py <zip> <ble-mac> [phase1|phase2]
+  phase1  JEN buttonless reboot do bootloaderu, pak skončí (flash si dodělá
+          volající — po USB je to ~20 s místo minut po BLE)
   phase2  přeskočí fázi 1 (buttonless) — použij když uzel UŽ visí v bootloaderu
           (advertuje SCAP_DFU), např. po přerušeném DFU. Zotavení bez power-cycle.
 """
@@ -282,7 +284,18 @@ async def recover_to_bootloader(mac):
 
 async def main():
     zippath, mac = sys.argv[1], sys.argv[2]
-    skip_phase1 = len(sys.argv) > 3 and sys.argv[3] == "phase2"
+    mode = sys.argv[3] if len(sys.argv) > 3 else ""
+    skip_phase1 = mode == "phase2"
+
+    # `phase1` = jen prepni uzel do bootloaderu a skonci. Ma to smysl u desky,
+    # ktera je zaroven na USB: BLE OTA trva jednotky az patnact minut podle MTU,
+    # kdezto po USB je to ~20 s. BLE se tedy pouzije jen na to, na co USB nestaci
+    # -- companion build nema textovou konzoli, takze `dfu` prikazem ho tam
+    # neposles. Tuhle kombinaci pouziva tools/flash_node.sh.
+    if mode == "phase1":
+        await phase1_buttonless(mac)
+        log("== uzel je v bootloaderu; flash dokonci volajici (napr. po USB) ==")
+        return
     z = zipfile.ZipFile(zippath)
     fw_bin = z.read("firmware.bin"); fw_dat = z.read("firmware.dat")
     log(f"firmware.bin {len(fw_bin)} B, firmware.dat {len(fw_dat)} B, cíl {mac}")
