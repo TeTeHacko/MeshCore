@@ -85,14 +85,31 @@ def discover(wanted):
     renumbers on every replug, so a positional guess talks to another board.
     """
     tbl = fleet_table()
-    found = []
-    # Dva vzory: USB product string se lisi podle buildu -- holy XIAO se hlasi jako
-    # "XIAO_nRF52840", build s Wio-SX1262 variantou jako "XIAO-Wio-SX1262". Jen na
-    # prvni z nich se 1. 9. 2026 matice smrskla na jednu desku, protoze x2 a x4
-    # nesly videt. Rozhoduje stejne az seriove cislo proti tabulce ve flash skriptu.
-    ports = sorted(glob.glob("/dev/serial/by-id/*XIAO_nRF52840*")
-                   + glob.glob("/dev/serial/by-id/*XIAO-Wio-SX1262*"))
-    for port in ports:
+    found, modems = [], []
+    # Hledaji se OBA product stringy, ale znamenaji ruzne desky:
+    #
+    #   usb-Seeed_Studio_XIAO_nRF52840_<sn>   MeshCore build (PID 8044)
+    #   usb-Seeed_XIAO-Wio-SX1262_<sn>        openhop_modem firmware (PID 0044)
+    #
+    # Prejmenovani dela openhop_modem, ne bootloader -- je to hloupe SX1262 PHY
+    # pro openHop demona, takze na MeshCore konzoli ani companion protokol
+    # neodpovi a zadnou UF2 mechaniku nevystavi. Viz hlavicku
+    # tools/openhop_observer_config.py (radio_type: pymc_usb).
+    #
+    # Hlasi se zvlast, protoze obe chybne odpovedi na tohle stoji cas: pri globu
+    # jen na "XIAO_nRF52840" se 1. 9. 2026 matice smrskla na jednu desku bez
+    # vysvetleni, a pri globu na oboji to vypadalo jako dve zaseknute desky
+    # (nasledoval replug a pokus o nrfutil, oboje zbytecne -- deska byla v poradku).
+    for port in sorted(glob.glob("/dev/serial/by-id/*XIAO-Wio-SX1262*")):
+        m = re.search(r"_([0-9A-F]{16})-if00", port)
+        if m:
+            sn = m.group(1)
+            modems.append((next((n for n, s in tbl.items() if s == sn), "?"), sn))
+    if modems:
+        for no, sn in modems:
+            print(f"  x{no} ({sn}): openhop_modem firmware, ne MeshCore uzel -- vynechavam")
+
+    for port in sorted(glob.glob("/dev/serial/by-id/*XIAO_nRF52840*")):
         m = re.search(r"_([0-9A-F]{16})-if00", port)
         if not m:
             continue
