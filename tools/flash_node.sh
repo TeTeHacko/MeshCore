@@ -44,6 +44,18 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 die() { echo "CHYBA: $*" >&2; exit 1; }
 
+# JEN JEDEN FLASH NAJEDNOU. Dva soubezne behy si lezou do cesty na sdilenych
+# zdrojich -- jeden BLE adapter, jedna USB sbernice, jeden .pio/build adresar.
+# 2. 9. 2026 se kvuli tomu spustily TRI instance zaraz (spousteny na pozadi, bez
+# kontroly, jestli predchozi dobehla): kazda si zvlast retryovala BLE connect,
+# takze se karta porad dokola pripojovala a odpojovala a zaplavila plochu
+# notifikacemi. Nebyla to chyba retry logiky, ale toho, ze bezely tri.
+exec 9>"${TMPDIR:-/tmp}/.meshcore-flash-node.lock"
+if ! flock -n 9; then
+  die "uz bezi jiny flash (zamek ${TMPDIR:-/tmp}/.meshcore-flash-node.lock).
+       Pockej, az dobehne -- soubezne flashovani si leze do cesty na BLE i na USB."
+fi
+
 # Desky, na ktere se podle AGENTS.md nesaha bez vyslovneho zadani. Drzi identitu,
 # historii nebo produkcni roli, a prepsat je omylem je draha chyba.
 PROTECTED="B612AE3898A81CCA"   # domaci T1000-E: identita, historie wedge, RemoteTerm
