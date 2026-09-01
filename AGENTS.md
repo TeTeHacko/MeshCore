@@ -122,6 +122,19 @@ soubor `provision/repeater-cz-silent.txt`.
   -pkg .pio/build/<env>/firmware.zip -p <port> -b 115200 --singlebank`.
   Režim poznáš z `idProduct` (`8044` aplikace, `0044` bootloader) a podle toho,
   že bootloader se na USB hlásí bez „Studio" v názvu portu.
+- **`XIAO-Wio-SX1262` v názvu portu NENÍ bootloader, ale openhop_modem firmware.**
+  Drží si `idProduct 0044`, takže podle PID to jako bootloader vypadá — a není.
+  Taková deska **mlčí na úplně všechno, co umí MeshCore**: textová konzole nic,
+  companion protokol nic, KISS nic, sama od sebe nic. UF2 disk nemá (správně,
+  žádný bootloader tam neběží) a `adafruit-nrfutil dfu serial` na ni skončí na
+  „Target is not in DFU mode". **Je to normální provozní stav, ne zaseklá deska —
+  replug s tím nic neudělá a dělat nemá.** K 1. 9. 2026 to mají x2 (`B69F8651…`)
+  a x4 (`208DBAF4…`), takže na lavici zbývá jako MeshCore uzel jen x1.
+  Rozlišuj podle **jména portu**, ne podle PID: MeshCore build se hlásí jako
+  `usb-Seeed_Studio_XIAO_nRF52840_<sn>`. Zdroj: hlavička
+  `tools/openhop_observer_config.py` u `radio_type: pymc_usb`. Stálo to jeden
+  zbytečný replug a jeden pokus nalít nrfutilem do desky, která v DFU nebyla —
+  obojí proto, že se ta hlavička nepřečetla dřív než `lsusb`.
 - **Wio Tracker L1 má jiný bootloader** — tam touch UF2 disk (`TRACKER L1`)
   naopak DÁ, do ~10 s. Kanonicky `MeshCore-solo/flash-l1.sh`. Ten ale ověřuje jen
   návrat portu, ne verzi, a **port se vrací dřív, než firmware odpovídá**: první

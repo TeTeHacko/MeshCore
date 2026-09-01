@@ -48,6 +48,18 @@ Match on the **serial number** substring and glob the rest:
 ls /dev/serial/by-id/ | grep B69F86518175CBA3
 ```
 
+**A rename does not always mean the bootloader.** `usb-Seeed_XIAO-Wio-SX1262_<sn>`
+is a XIAO running the **openhop_modem** firmware — a dumb SX1262 PHY for the
+openHop daemon (see the header of `openhop_observer_config.py`, `radio_type:
+pymc_usb`). It keeps `idProduct 0044`, which is the bootloader's PID, so the PID
+lies here: there is no bootloader on that board at all. It answers **nothing** a
+MeshCore tool speaks — no text console, no companion protocol, no KISS, nothing
+unprompted — exposes no UF2 drive, and `adafruit-nrfutil dfu serial` fails on
+"Target is not in DFU mode". That is the normal running state, not a wedged
+board, and a replug will not and should not change it. Tell the two apart by the
+**port name**, never by the PID. `fleet_test.py` reports these boards by name and
+skips them.
+
 Over BLE the equivalent identity is the **address**, and it is equally
 mandatory — see `ble_dfu.py` below.
 

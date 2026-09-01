@@ -54,7 +54,12 @@ CTX="${WARN}STAV ŽELEZA na tomhle hostu (hook, ne moje paměť):
   USB nRF52/ESP:  ${USB:-ŽÁDNÉ}
   USB disky:      ${DSK:-ŽÁDNÉ}
 Pozn.: 0044/0045 = bootloader, 8044/8029/0057/0059 = aplikace. UF2 disk = deska
-v bootloaderu. Pokud tu deska, o které mluvíš, NENÍ, je na jiném hostu — zjisti
-to, netvrď, kde leží. Fyzický stav říká uživatel."
+v bootloaderu. VÝJIMKA: port \`usb-Seeed_XIAO-Wio-SX1262_<sn>\` je XIAO
+s openhop_modem firmwarem (drží si PID 0044, ale bootloader to NENÍ) — mlčí na
+konzoli, companion i KISS, nemá UF2 disk a do DFU ho nedostaneš; je to normální
+stav, ne zaseknutá deska. Rozliš podle JMÉNA portu, ne podle PID: MeshCore build
+se hlásí jako \`usb-Seeed_Studio_XIAO_nRF52840_<sn>\`. Pokud tu deska, o které
+mluvíš, NENÍ, je na jiném hostu — zjisti to, netvrď, kde leží. Fyzický stav říká
+uživatel."
 
 jq -n --arg c "$CTX" '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$c}}'
