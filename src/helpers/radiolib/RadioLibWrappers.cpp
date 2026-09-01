@@ -347,8 +347,24 @@ PacketMillis RadioLibWrapper::calcMaxPacketMillis(uint8_t sf, float bw, uint8_t 
 
   // airtime for max packet at current radio settings
   uint32_t total_us   = _radio->getTimeOnAir(MAX_TRANS_UNIT);
-  // airtime for payload only (no preamble, header or SOF)
-  uint32_t payload_us = total_us > preamble_us ? total_us - preamble_us : 4000 - preamble_us; // fallback to 4 secs at worst case
+  // airtime for payload only (no preamble, header or SOF).
+  //
+  // CUSTOM (TeTeHacko): the fallback taken when getTimeOnAir() is not usable yet
+  // must not underflow. Upstream writes the intended "4 secs at worst case" as
+  // 4000 -- these are MICROseconds, so 4 ms -- and then subtracts an unsigned
+  // preamble from it. Our CZ preset (SF8 / BW62.5) has a ~4.1 ms symbol time and
+  // a ~116 ms preamble, so the subtraction wraps to ~4.29e9 us and
+  // _maxPayloadMillis becomes ~4.29 million seconds. isReceiving() can then never
+  // time out a header it has latched: the radio reports "busy receiving" forever,
+  // RX is never re-armed, and the node goes deaf while still transmitting
+  // normally -- no acks, no channel messages, no adverts.
+  //
+  // Every SX126x/LR11x0 wrapper feeds this into its stateful isReceiving(), so it
+  // reaches the T1000-E and the Wio L1 as much as the SenseCap boards.
+  // Fix taken from ALLFATHER-BV/meshcomod d6a72f8 (MIT).
+  const uint32_t fallback_total_us = 4000000;   // 4 SECONDS, in microseconds
+  const uint32_t base_us = (total_us > preamble_us) ? total_us : fallback_total_us;
+  uint32_t payload_us = (base_us > preamble_us) ? (base_us - preamble_us) : (base_us / 2);
   // rescale payload_us for max possible CR
   if (cr >= 5 && cr < 8) { payload_us = (payload_us * 8) / cr; }
 
