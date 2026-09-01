@@ -714,8 +714,23 @@ void KissModem::handleReboot() {
 }
 
 void KissModem::handleGetDeviceName() {
-  const char* name = _board.getManufacturerName();
-  writeHardwareFrame(HW_RESP(HW_CMD_GET_DEVICE_NAME), (const uint8_t*)name, strlen(name));
+  // CUSTOM (TeTeHacko): k výrobci se připojuje STAMPOVANÁ verze firmwaru.
+  //
+  // Bez ní je deska s tímhle buildem z hlediska verzí neidentifikovatelná:
+  // GetVersion (0x11) vrací verzi KISS PROTOKOLU (konstanta KISS_FIRMWARE_VERSION),
+  // textovou konzoli ani companion protokol tenhle build nemá, a protože se
+  // FIRMWARE_VERSION nikde jinde nepoužívá, linker ten řetězec z obrazu vyhodí --
+  // takže ho nenajde ani `tools/xiao_uf2_flash.sh`, který kvůli tomu flash rovnou
+  // odmítne ("obraz nema verzi od tools/build_version.py").
+  //
+  // 1. 9. 2026 to stálo hodinu: KISS modem skončil omylem na x2, deska pak
+  // neodpovídala konzoli ani companionu a vypadala jako zaseklá, a nešlo z ní
+  // zjistit, co na ní vlastně je. `tools/board_probe.py` se ptá právě sem.
+  char buf[96];
+  int n = snprintf(buf, sizeof(buf), "%s %s", _board.getManufacturerName(), FIRMWARE_VERSION);
+  if (n < 0) n = 0;
+  if (n > (int)sizeof(buf)) n = sizeof(buf);
+  writeHardwareFrame(HW_RESP(HW_CMD_GET_DEVICE_NAME), (const uint8_t*)buf, n);
 }
 
 void KissModem::handleSetSignalReport(const uint8_t* data, uint16_t len) {

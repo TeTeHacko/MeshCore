@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+"""Otisk XIAO desek na USB: co na které z nich BĚŽÍ, a jestli se to změnilo.
+
+  tools/board_probe.py --all
+  tools/board_probe.py --all --compare <soubor s predchozim otiskem>
+  tools/board_probe.py --all --compare <soubor> --expect-changed <serial>
+
+Vzniklo 1. 9. 2026 poté, co `pio run -t upload --upload-port <x4>` ohlásil
+FAILED a obraz přistál na **x2**, desce, která na té příkazové řádce nebyla.
+Poznat to šlo až po hodině: x2 přestal odpovídat konzoli i companion protokolu
+a vypadal jako zaseklý, přitom na něm normálně běžel KISS modem, který ani
+jedno z toho nemá. Tři replugy nepomohly a pomoct nemohly.
+
+Otisk je proto přes VŠECHNY protokoly, které na těch deskách jezdí, ne jen přes
+ten, který zrovna čekáme:
+
+  text        MeshCore repeater/analyzer   `ver` -> v1.17.1-tth...
+  companion   MeshCore companion_radio     CMD_DEVICE_QUERY (bez textové konzole)
+  kiss        examples/kiss_modem          SetHardware GetVersion (0x11 -> 0x91)
+  modem       openhop_modem                port `XIAO-Wio-SX1262`, mlčí na vše
+  bootloader  UF2                          port bez "Studio" / se "Sense"
+
+`modem` a `bootloader` se poznají podle JMÉNA portu, ne podle idProduct: obojí
+drží 0044 a AGENTS.md čte 0044 jako bootloader, což pro openhop_modem neplatí.
+"""
+import argparse, glob, os, re, struct, subprocess, sys, time
+
+try:
+    import serial
+except ImportError:
+    sys.exit("chybi pyserial")
+
+
+def usb_boards():
+    """[(serial, port, kind_hint)] pro každou XIAO na sběrnici."""
+    out = []
+    for port in sorted(glob.glob("/dev/serial/by-id/*XIAO*")):
+        m = re.search(r"_([0-9A-F]{16})-if00", port)
+        if not m:
+            continue
+        name = os.path.basename(port)
+        if "XIAO-Wio-SX1262" in name:
+            hint = "modem"           # openhop_modem, NE bootloader
+        elif "Seeed_Studio_" not in name:
+            hint = "bootloader"      # UF2 bootloader se hlásí bez "Studio"
+        else:
+            hint = None
+        out.append((m.group(1), port, hint))
+    return out
+
+
+def _open(port):
+    s = serial.Serial(port, 115200, timeout=0)
+    s.dtr = True
+    s.rts = True
+    time.sleep(1.5)
+    s.reset_input_buffer()
+    return s
+
+
+def _drain(s, w):
+    buf, t = b"", time.time()
+    while time.time() - t < w:
+        d = s.read(8192)
+        if d:
+            buf += d
+        else:
+            time.sleep(0.02)
+    return buf
+
+
+def probe(port):
+    """('text'|'companion'|'kiss'|'nic', verze) -- zkusí protokoly po řadě."""
+    try:
+        s = _open(port)
+    except Exception as e:
+        return ("nedostupny", type(e).__name__)
+    try:
+        # Prvni prikaz po otevreni portu se casto ztrati, proto to prazdne CRLF.
+        s.write(b"\r\n"); time.sleep(0.4); s.reset_input_buffer()
+
+        s.write(b"ver\r\n")
+        txt = _drain(s, 2.0).decode(errors="replace")
+        m = re.search(r"(v\d+\.\d+\.\d+-tth[0-9a-f]+\+?)", txt)
+        if m:
+            return ("text", m.group(1))
+
+        s.reset_input_buffer()
+        s.write(b"<" + struct.pack("<H", 2) + bytes([22, 10]))   # CMD_DEVICE_QUERY
+        s.flush()
+        raw = _drain(s, 2.5)
+        i = raw.find(b">")
+        if i >= 0 and len(raw) > i + 3:
+            ln = struct.unpack("<H", raw[i + 1:i + 3])[0]
+            fr = raw[i + 3:i + 3 + ln]
+            if fr and fr[0] == 13 and len(fr) >= 80:             # RESP_DEVICE_INFO
+                return ("companion", fr[60:80].split(b"\0")[0].decode(errors="replace"))
+            if fr:
+                return ("companion", "?")
+
+        s.reset_input_buffer()
+        s.write(bytes([0xC0, 0x06, 0x11, 0xC0]))                 # KISS GetVersion
+        raw = _drain(s, 2.0)
+        if len(raw) > 4 and raw[1] == 0x06 and raw[2] == 0x91:
+            # GetVersion (0x11) vrací verzi KISS PROTOKOLU, ne našeho buildu --
+            # ta je k nerozeznání mezi dvěma různými firmwary. Stampovaná verze
+            # jede v GetDeviceName (0x16), viz KissModem::handleGetDeviceName.
+            s.reset_input_buffer()
+            s.write(bytes([0xC0, 0x06, 0x16, 0xC0]))             # KISS GetDeviceName
+            nm = _drain(s, 2.0)
+            if len(nm) > 4 and nm[1] == 0x06 and nm[2] == 0x96:
+                txt = nm[3:-1].decode(errors="replace")
+                m = re.search(r"(v\d+\.\d+\.\d+-tth[0-9a-f]+\+?)", txt)
+                if m:
+                    return ("kiss", m.group(1))
+                return ("kiss", txt.strip() or "?")
+            # Starší KISS build bez stampované verze v GetDeviceName.
+            return ("kiss", "proto" + ".".join(str(b) for b in raw[3:-1]))
+
+        return ("nic", "-")
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+
+def fingerprint():
+    rows = []
+    for sn, port, hint in usb_boards():
+        if hint:                       # modem a bootloader nemluví, neotravuj je
+            rows.append((sn, hint, "-"))
+            continue
+        kind, ver = probe(port)
+        rows.append((sn, kind, ver))
+    return rows
+
+
+def fmt(rows):
+    return "\n".join(f"{sn} {kind} {ver}" for sn, kind, ver in rows)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--all", action="store_true")
+    ap.add_argument("--compare", help="soubor s predchozim otiskem")
+    ap.add_argument("--expect-changed", help="seriak, ktery se zmenit MA")
+    a = ap.parse_args()
+
+    rows = fingerprint()
+    now = {sn: (k, v) for sn, k, v in rows}
+
+    if not a.compare:
+        print(fmt(rows))
+        return 0
+
+    prev = {}
+    for line in open(a.compare):
+        p = line.split()
+        if len(p) >= 3:
+            prev[p[0]] = (p[1], p[2])
+
+    bad = False
+    for sn in sorted(set(prev) | set(now)):
+        was, is_ = prev.get(sn), now.get(sn)
+        tag = ""
+        if was != is_:
+            if a.expect_changed and sn.endswith(a.expect_changed.upper()):
+                tag = "  <- zmeneno (cil)"
+            elif was is None:
+                tag = "  <- NOVA deska na sbernici"
+            elif is_ is None:
+                tag = "  <- ZMIZELA ze sbernice"
+                bad = True
+            else:
+                tag = "  <- !!! ZMENENO, PRESTOZE TO NEBYL CIL !!!"
+                bad = True
+        print(f"  {sn}  {was[0] if was else '-':10s} {was[1] if was else '-':22s}"
+              f" -> {is_[0] if is_ else '-':10s} {is_[1] if is_ else '-':22s}{tag}")
+
+    if a.expect_changed:
+        sn = next((s for s in now if s.endswith(a.expect_changed.upper())), None)
+        if sn and prev.get(sn) == now.get(sn):
+            print(f"\nCIL {a.expect_changed} SE NEZMENIL -- flash se neaplikoval,"
+                  f" i kdyby nastroj hlasil uspech.")
+            bad = True
+
+    print("\nVERDIKT:", "PROBLEM (viz vys)" if bad else "ok, zmenil se jen cil")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

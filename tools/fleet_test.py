@@ -45,6 +45,7 @@ import json
 import os
 import re
 import struct
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -476,7 +477,23 @@ def main():
     for no, sn, port in found:
         n = open_node(no, sn, port)
         if n is None:
-            print(f"  x{no} ({sn}): neodpovida ani konzoli, ani companion protokolu", flush=True)
+            # "Neodpovida" je spatna diagnoza, kdyz na desce bezi neco, co ani
+            # odpovidat nema. 1. 9. 2026 to stalo hodinu a tri zbytecne replugy:
+            # na x2 skoncil omylem KISS modem (nema textovou konzoli ANI companion
+            # protokol) a hlaska vypadala jako zaseknuta deska. Doptame se tedy
+            # jeste KISS ramcem, at je videt, CO tam bezi.
+            what = "neodpovida ani konzoli, ani companion protokolu"
+            try:
+                out = subprocess.run(
+                    [os.path.join(HERE, "board_probe.py"), "--all"],
+                    capture_output=True, text=True, timeout=90).stdout
+                for line in out.splitlines():
+                    f = line.split()
+                    if len(f) >= 3 and f[0] == sn and f[1] not in ("nic", "nedostupny"):
+                        what = f"{f[1]} {f[2]} -- neni to MeshCore uzel, vynechavam"
+            except Exception:
+                pass
+            print(f"  x{no} ({sn}): {what}", flush=True)
             continue
         n.identify()
         nodes.append(n)

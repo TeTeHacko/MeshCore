@@ -13,6 +13,8 @@ cannot be repeated by hand.
 | `provision/` | command files: what to send, and what the answers must look like |
 | `build_version.py` | PlatformIO pre-script that stamps a real version into the binary |
 | `xiao_uf2_flash.sh` | flash a named XIAO through its UF2 drive, and prove it took |
+| `xiao_serial_flash.sh` | the same guarantees for the serial-DFU route (`pio run -t upload`) |
+| `board_probe.py` | fingerprint every XIAO on the bus: what is actually RUNNING on each |
 | `power_ab.py` | A/B current measurement of a bench node through the UC96 meter's exporter |
 | `mesh_sniffer.py` | passive capture of every frame on the air, decoded on the host to JSONL/pcap |
 | `openhop_observer_config.py` | config for an openHop observer (`mode: no_tx`) over a modem board |
@@ -62,6 +64,60 @@ skips them.
 
 Over BLE the equivalent identity is the **address**, and it is equally
 mandatory — see `ble_dfu.py` below.
+
+## `xiao_serial_flash.sh` — serial DFU, and proof it went where you said
+
+```sh
+tools/xiao_serial_flash.sh Xiao_x4_rpt 4          # fleet number
+tools/xiao_serial_flash.sh Xiao_x2_cmp B69F8651   # or a serial suffix
+```
+
+`xiao_uf2_flash.sh` refuses to guess which board to write to. The serial-DFU
+route had no such guard, and on 2026-09-01 that cost a board: `pio run -e
+Xiao_nrf52_kiss_modem -t upload --upload-port <x4>` reported **FAILED**, and the
+image landed on **x2** — a board named nowhere on that command line. Both dropped
+off USB together; x2 then answered neither the text console nor the companion
+protocol (a KISS modem has neither), so it looked wedged, and three replugs could
+not help because nothing was wrong with it. It took an hour to notice.
+
+The upload still goes through PlatformIO. What this adds around it:
+
+* the target comes from the **serial number**, never from "the only port";
+* **every** XIAO on the bus is fingerprinted before the flash;
+* afterwards the target must report the expected new version, read off the board;
+* and every **other** board must still have the fingerprint it had before — that
+  is the check that was missing, and the one that turns "upload failed" into
+  "upload failed AND wrote somewhere else".
+
+A failed upload is **not** retried: one 1200-baud touch per power session
+(AGENTS.md). The script says so and stops, after re-checking the other boards.
+
+## `board_probe.py` — what is actually running on each board
+
+```sh
+tools/board_probe.py --all
+tools/board_probe.py --all --compare before.txt --expect-changed 208DBAF4
+```
+
+Probes every protocol the bench boards speak, not just the one you expect:
+
+| reported | build | how it is recognised |
+|---|---|---|
+| `text` | repeater / analyzer | `ver` on the console |
+| `companion` | `companion_radio` | `CMD_DEVICE_QUERY` (no text console) |
+| `kiss` | `examples/kiss_modem` | SetHardware `GetVersion` (0x11 → 0x91) |
+| `modem` | openhop_modem | port named `XIAO-Wio-SX1262`; answers nothing |
+| `bootloader` | UF2 | port without `Studio` / with `Sense` |
+
+`modem` and `bootloader` are told apart by the **port name**, not by idProduct:
+both keep `0044`, and AGENTS.md reads `0044` as the bootloader — which is wrong
+for openhop_modem.
+
+For a `kiss` board the version comes from `GetDeviceName` (0x16), because
+`GetVersion` reports the KISS *protocol* version and is identical across builds.
+That is why `KissModem::handleGetDeviceName` appends `FIRMWARE_VERSION`: without
+it the string is not referenced anywhere, the linker drops it, and even
+`xiao_uf2_flash.sh` refuses the image for having no stamped version.
 
 ## `ble_pair.py` — bond by PIN
 
