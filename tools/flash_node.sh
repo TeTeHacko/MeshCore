@@ -181,6 +181,19 @@ BOARD="${FULL%%/*}"; STATE="${FULL##*/}"
 PORT="/dev/serial/by-id/$(ls /dev/serial/by-id/ | grep -- "$TARGET" | head -1)"
 echo "== cil: $BOARD, stav: $STATE"
 
+# OCEKAVANA VERZE. Bez ni umi otisk rict jen "neco se zmenilo", coz je slabe:
+# 2. 9. 2026 pio dvakrat ohlasilo SUCCESS a na desce zustal STARY firmware
+# (bootloader nestihl novy obraz aktivovat, protoze deska spadla z USB), a
+# jindy naopak flash "selhal" a firmware se pritom nalil. Jedine, cemu se da
+# verit, je verze PRECTENA Z DESKY -- a porovnat se musi proti tomu, co je
+# v obrazu, ne proti predchozimu stavu.
+"$PIO" run -e "$ENV_NAME" >/dev/null 2>&1 || die "build selhal"
+WANT_VER="$(strings ".pio/build/$ENV_NAME/firmware.elf" 2>/dev/null \
+            | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+-tth[0-9a-f]+\+?" | head -1)"
+[ -n "$WANT_VER" ] || die "obraz nema stampovanou verzi -- po flashi by neslo
+       overit, co na desce doopravdy je. Zapoj do envu: extra_scripts = \${stamped.extra_scripts}"
+echo "== ocekavana verze: $WANT_VER"
+
 has_uf2_drive() {
   local d s blk
   for d in /sys/bus/usb/devices/*/; do
@@ -328,4 +341,21 @@ fi
 
 echo "== otisk desek PO flashi (necham CDC nabehnout)"
 sleep 8
-"$HERE/board_probe.py" --all --compare <(echo "$BEFORE") --expect-changed "$TARGET"
+AFTER="$("$HERE/board_probe.py" --all)"
+"$HERE/board_probe.py" --all --compare <(echo "$BEFORE") --expect-changed "$TARGET" || true
+
+GOT_VER="$(echo "$AFTER" | awk -v t="$TARGET" '$1 ~ t {print $3}')"
+if [ -z "$GOT_VER" ] || [ "$GOT_VER" = "-" ]; then
+  echo >&2
+  die "cil $TARGET po flashi neodpovida (verzi z nej neprectu), takze flash NENI
+       overeny. Deska nejspis spadla z USB -- replug a spust znovu."
+fi
+if [ "$GOT_VER" != "$WANT_VER" ]; then
+  echo >&2
+  die "FLASH SE NEAPLIKOVAL. Deska hlasi '$GOT_VER', obraz ma '$WANT_VER'.
+       Nastroj pred tim mohl hlasit uspech -- 'Device programmed' i 'SUCCESS'
+       umi vypsat i beh, po kterem na desce zustal stary firmware (bootloader
+       nestihl novy obraz aktivovat). Spust znovu; pokud to vytrva, chce to
+       replug."
+fi
+echo "== OVERENO NA DESCE: $TARGET bezi $GOT_VER"
