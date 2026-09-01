@@ -142,7 +142,12 @@ if [ -n "$TARGET" ]; then
         flash_over_ble "$MAC"
         exit $?
       fi
-      die "$TARGET neni na USB ani neadvertuje na BLE. Ted uz opravdu chce replug."
+      die "$TARGET neni na USB ani neadvertuje na BLE -- replug.
+       POZOR, nez z toho udelas diagnozu: BLE zachrana funguje jen tehdy, kdyz
+       ten build BLE vubec MA. USB-only companion (env *_companion_radio_usb,
+       tedy i Xiao_x2_cmp) ho nema, takze tam neadvertuje ani zdrava deska --
+       overeno 2. 9. 2026 na x2. BLE MAC v tabulce vyse muze byt z doby, kdy na
+       desce jel jiny build."
     fi
     die "cil $TARGET neni na sbernici a neznam k nemu BLE adresu."
   fi

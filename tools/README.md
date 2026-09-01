@@ -89,6 +89,27 @@ rules live in the script, where the state is actually known:
 | wio-l1 | application | hands off to `MeshCore-solo/flash-l1.sh` (touch → drive `TRACKER L1`) |
 | sensecap | anywhere | not over USB — BLE OTA, `tools/ble_dfu.py` |
 
+### A board that dropped off USB is not gone — flash it over BLE
+
+The 1200-baud touch reboots the board, and roughly half the time the CDC port
+does not come back (AGENTS.md: "~5 z 10"). That used to mean a physical replug
+for every other flash.
+
+It does not have to. Such a board is **alive** — on 2026-09-02 both x1 and x4 sat
+in that state advertising happily over BLE. So when the target is not on USB,
+`flash_node.sh` looks up its BLE MAC, confirms by scan that it advertises, and
+flashes over BLE OTA. That path never touches USB, so it cannot drop the board
+again. Only if it does not answer on BLE either does the script ask for hands.
+
+A software replug is not an option here, before anyone tries: every board hangs
+directly off the **root hub** (xhci), which has no per-port power switching —
+`uhubctl` would not help.
+
+Dock-quiet lines up with this rather neatly. A board that **is** on USB holds DTR
+and therefore does not advertise (confirmed on x2 the same day), so the BLE rescue
+is available exactly for the boards that fell off USB — which is exactly when it
+is needed.
+
 CDC beats the UF2 drive wherever both work: mounting the drive needs root, and
 `sudo` over SSH without a terminal has nobody to ask. Writing a CDC port does not.
 
