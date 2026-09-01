@@ -78,6 +78,41 @@ def usb_boards():
     return out
 
 
+def port_busy(dev):
+    """Drzi ten port jiny proces? Vrati jeho pid, nebo None.
+
+    Sahat na port, ktery uz nekdo ma otevreny, neni jen zbytecne -- je to
+    SKODLIVE. 2. 9. 2026 tenhle probe otevrel port, na kterem openHop drzel KISS
+    spojeni; demon zahlasil "multiple access on port", oznacil link za degradovany
+    a nakonec si RADIO VYPNUL (`Radio is disabled`) a nesl si to v repeater.db,
+    takze to neresil ani restart kontejneru. Kontrola stavu nesmi rozbit to, co
+    kontroluje.
+
+    Ctou se /proc/*/fd, takze to nepotrebuje root ani lsof; cizi procesy pod jinym
+    UID neuvidime, ale docker tady bezi pod nasim (--user $(id -u)), takze ten ano.
+    """
+    try:
+        real = os.path.realpath(dev)
+    except OSError:
+        return None
+    me = os.getpid()
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit() or int(pid) == me:
+            continue
+        d = f"/proc/{pid}/fd"
+        try:
+            entries = os.listdir(d)
+        except OSError:
+            continue
+        for fd in entries:
+            try:
+                if os.path.realpath(f"{d}/{fd}") == real:
+                    return pid
+            except OSError:
+                continue
+    return None
+
+
 def _open(port):
     s = serial.Serial(port, 115200, timeout=0)
     s.dtr = True
@@ -174,6 +209,10 @@ def fingerprint():
             # ptat se jich je jen ztrata casu (a u boot i riziko, ze to vypada
             # jako zaseknuta deska).
             rows[i] = (sn, f"{board}/{state}", "-")
+            return
+        busy = port_busy(port)
+        if busy:
+            rows[i] = (sn, f"{board}/obsazeny", f"drzi pid {busy} -- nesaham")
             return
         kind, ver = probe(port)
         rows[i] = (sn, f"{board}/{kind}", ver)
