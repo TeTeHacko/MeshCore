@@ -712,6 +712,27 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
   uint8_t pri;
   if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {   // TRACE packets are different
     // for TRACE packets, path is appended to end of PAYLOAD. (path is used for SNR's)
+    //
+    // CUSTOM (TeTeHacko): a TRACE path is NOT capped at MAX_PATH_SIZE (see the note
+    // below), so this append has to be checked against the payload buffer itself.
+    // The companion guard on CMD_SEND_TRACE_PATH lets path_len reach 178, and a
+    // TRACE header is 9 bytes: 9+176 lands one byte past payload[184]. Measured on
+    // the host over all 194 path_len/path_sz combinations the guard admits -- two
+    // of them write past the end and demonstrably clobber `_snr`, the member that
+    // happens to sit right after the array. Those packets are then dropped by
+    // sendPacket() for exceeding the MTU, which is why nothing ever looked wrong
+    // from the outside. It is still a write out of bounds.
+    //
+    // Same fix as upstream PR #1662 (weebl2000), open and unmerged since Feb 2026.
+    // Its second half -- guarding the non-TRACE branch on path_len > MAX_PATH_SIZE
+    // -- is redundant here: that path goes through Packet::copyPath/writePath,
+    // which already refuses to write more than MAX_PATH_SIZE.
+    if ((size_t)packet->payload_len + path_len > sizeof(packet->payload)) {
+      MESH_DEBUG_PRINTLN("%s Mesh::sendDirect(): TRACE path too long, payload_len=%d path_len=%d",
+                         getLogDateTime(), (int)packet->payload_len, (int)path_len);
+      _mgr->free(packet);
+      return;
+    }
     memcpy(&packet->payload[packet->payload_len], path, path_len);  // NOTE: path_len here can be > 64, and NOT in the new scheme
     packet->payload_len += path_len;
 
