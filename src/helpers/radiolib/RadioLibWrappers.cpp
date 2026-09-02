@@ -48,6 +48,13 @@ uint32_t RadioLibWrapper::getRngSeed() {
 }
 
 void RadioLibWrapper::setTxPower(int8_t dbm) {
+#if defined(USE_LR2021)
+  // Upstream 114093ee: on LR2021, setOutputPower() writes the PA config and
+  // TxParams, which are standby-only commands, and recvRaw() keeps state ==
+  // STATE_RX there, so nothing re-arms the receiver by itself. Drop to standby
+  // first and let checkRecv() re-arm Rx.
+  idle();
+#endif
   // CUSTOM (TeTeHacko): keep the status. The signature is an upstream callback
   // and has to stay void, but the return value must not be thrown away: SX1262
   // accepts only -9..+22 dBm and rejects the rest WITHOUT touching the PA, while

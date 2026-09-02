@@ -79,9 +79,8 @@ struct RepeaterStats {
 static_assert(sizeof(RepeaterStats) == 64,
               "RepeaterStats is a wire format: append only, keep it padding-free");
 
-#ifndef MAX_CLIENTS
-  #define MAX_CLIENTS           32
-#endif
+// MAX_CLIENTS zrusen tady mergem origin/dev (e0031870, "centralise max clients"):
+// od te doby ho definuje src/helpers/ClientACL.h, ktery se sem stejne dostane.
 
 struct NeighbourInfo {
   mesh::Identity id;
