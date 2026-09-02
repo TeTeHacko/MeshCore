@@ -730,7 +730,10 @@ void KissModem::handleGetDeviceName() {
   char buf[96];
   int n = snprintf(buf, sizeof(buf), "%s %s", _board.getManufacturerName(), FIRMWARE_VERSION);
   if (n < 0) n = 0;
-  if (n > (int)sizeof(buf)) n = sizeof(buf);
+  // snprintf vraci delku BEZ koncove nuly, takze n == sizeof(buf) znamena
+  // "presne se to nevleslo". `n > sizeof(buf)` to propustilo a clampovalo na
+  // sizeof(buf), cimz na drat sla i ta koncova nula na buf[95].
+  if (n >= (int)sizeof(buf)) n = (int)sizeof(buf) - 1;
   writeHardwareFrame(HW_RESP(HW_CMD_GET_DEVICE_NAME), (const uint8_t*)buf, n);
 }
 
