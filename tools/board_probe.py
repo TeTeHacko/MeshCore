@@ -135,6 +135,22 @@ def _drain(s, w):
     return buf
 
 
+def _kiss_frame(raw, resp_code):
+    """Vrat KISS ramec zacinajici 0xC0, jehoz treti bajt je `resp_code`.
+
+    Bez tohohle se raw[1]/raw[2] cetly z offsetu 0, tedy z toho, co v bufferu
+    zbylo po predchozim protokolu -- a odpoved se dala minout i kdyz prisla.
+    """
+    i = -1
+    while True:
+        i = raw.find(bytes([0xC0]), i + 1)
+        if i < 0:
+            return raw
+        fr = raw[i:]
+        if len(fr) > 4 and fr[1] == 0x06 and fr[2] == resp_code:
+            return fr
+
+
 def probe(port):
     """('text'|'companion'|'kiss'|'nic', verze) -- zkusí protokoly po řadě."""
     try:
@@ -155,25 +171,41 @@ def probe(port):
         s.write(b"<" + struct.pack("<H", 2) + bytes([22, 10]))   # CMD_DEVICE_QUERY
         s.flush()
         raw = _drain(s, 1.5)
-        i = raw.find(b">")
-        if i >= 0 and len(raw) > i + 3:
+        # Rámec se hleda podle CELE hlavicky, ne podle prvniho '>' v bufferu.
+        # Driv stacilo, aby za '>' byly dva bajty a neprazdny zbytek, a vratilo se
+        # ("companion", "?") -- takze opozdena radka textove konzole nebo
+        # MESH_DEBUG_PRINTLN se ctla jako companion ramec. flash_node.sh pak
+        # porovnal "?" s ocekavanou verzi a oznamil "FLASH SE NEAPLIKOVAL" na
+        # desce, na ktere bezel spravny firmware -- presne ta trida falesne
+        # diagnozy, kvuli ktere tenhle nastroj vznikl.
+        #
+        # Prohledavaji se VSECHNY vyskyty '>' a uzna se jen plnohodnotny
+        # RESP_DEVICE_INFO (kod 13, aspon 80 B, delka souhlasi s tim, co dorazilo).
+        i = -1
+        while True:
+            i = raw.find(b">", i + 1)
+            if i < 0:
+                break
+            if len(raw) < i + 3:
+                continue
             ln = struct.unpack("<H", raw[i + 1:i + 3])[0]
             fr = raw[i + 3:i + 3 + ln]
-            if fr and fr[0] == 13 and len(fr) >= 80:             # RESP_DEVICE_INFO
+            if len(fr) == ln and ln >= 80 and fr[0] == 13:       # RESP_DEVICE_INFO
                 return ("companion", fr[60:80].split(b"\0")[0].decode(errors="replace"))
-            if fr:
-                return ("companion", "?")
 
         s.reset_input_buffer()
         s.write(bytes([0xC0, 0x06, 0x11, 0xC0]))                 # KISS GetVersion
         raw = _drain(s, 1.2)
+        # Kotvit na ZACATEK KISS ramce (0xC0), ne na offset 0: pred odpovedi muze
+        # lezet zbytek predchoziho vystupu a raw[1]/raw[2] by pak cetly cizi bajty.
+        raw = _kiss_frame(raw, 0x91)
         if len(raw) > 4 and raw[1] == 0x06 and raw[2] == 0x91:
             # GetVersion (0x11) vrací verzi KISS PROTOKOLU, ne našeho buildu --
             # ta je k nerozeznání mezi dvěma různými firmwary. Stampovaná verze
             # jede v GetDeviceName (0x16), viz KissModem::handleGetDeviceName.
             s.reset_input_buffer()
             s.write(bytes([0xC0, 0x06, 0x16, 0xC0]))             # KISS GetDeviceName
-            nm = _drain(s, 1.2)
+            nm = _kiss_frame(_drain(s, 1.2), 0x96)
             if len(nm) > 4 and nm[1] == 0x06 and nm[2] == 0x96:
                 txt = nm[3:-1].decode(errors="replace")
                 m = re.search(r"(v\d+\.\d+\.\d+-tth[0-9a-f]+\+?)", txt)
@@ -262,11 +294,46 @@ def fingerprint():
             p.terminate()                       # utne i blokujici open(2)
     for p in procs:
         p.join(timeout=1.0)
+    # SIGKILL na to, co terminate() neslozilo. main() konci `os._exit`, ktery
+    # obchazi atexit handler multiprocessingu -- prezivsi potomek by tedy zustal
+    # bezet A DRZET SERIOVY PORT, takze dalsi beh (flash_node.sh pousti probe
+    # tretkrat za flash) by tu desku ohlasil jako `obsazeny  drzi pid <n>`:
+    # nastroj obvinujici vlastni pozustatky.
+    for p in procs:
+        if p.is_alive():
+            p.kill()
+    for p in procs:
+        p.join(timeout=0.5)
 
     for i, (sn, _, board, _) in enumerate(boards):
         if rows[i] is None:
             rows[i] = (sn, f"{board}/visi", "neodpovida v case")
     return [r for r in rows if r]
+
+
+def _parse_pairs(path):
+    """[(serial, (kind, verze))] z otisku. Verze muze obsahovat mezery (starsi
+    KISS build vraci "Seeed Xiao-nrf52"), takze split(None, 2) -- split() na tri
+    pole by zbytek utnul a porovnani by hlasilo ZMENU tam, kde se nic nezmenilo.
+
+    Radek s PRAZDNOU verzi se NEZAHAZUJE. Driv to filtroval `len(p) >= 3`, takze
+    deska, u ktere probe verzi nevyplnil, z predchoziho otisku zmizela a pak se
+    ohlasila jako "ZMIZELA z USB" -- falesny poplach o desce, ktera tam celou dobu
+    byla.
+    """
+    out = []
+    for line in open(path):
+        if not line.strip():
+            continue
+        p = line.split(None, 2)
+        if len(p) < 2:
+            continue
+        out.append((p[0], (p[1], p[2].strip() if len(p) > 2 else "")))
+    return out
+
+
+def _parse(path):
+    return [(sn, k, v) for sn, (k, v) in _parse_pairs(path)]
 
 
 def fmt(rows):
@@ -277,24 +344,22 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--compare", help="soubor s predchozim otiskem")
+    ap.add_argument("--now", help="soubor s AKTUALNIM otiskem (jinak se sbernice"
+                                  " otiskne znovu)")
     ap.add_argument("--expect-changed", help="seriak, ktery se zmenit MA")
     a = ap.parse_args()
 
-    rows = fingerprint()
+    # --now existuje proto, aby volajici, ktery uz otisk ma, nemusel platit dalsi
+    # probe (az PROBE_DEADLINE) -- a hlavne aby verdikt o zmenach a jeho vlastni
+    # kontrola verze vychazely z TEHOZ vzorku sbernice, ne ze dvou ruznych.
+    rows = _parse(a.now) if a.now else fingerprint()
     now = {sn: (k, v) for sn, k, v in rows}
 
     if not a.compare:
         print(fmt(rows))
         return 0
 
-    prev = {}
-    for line in open(a.compare):
-        # Verze muze obsahovat mezery (starsi KISS build vraci "Seeed Xiao-nrf52"),
-        # takze split() na tri pole utne zbytek a porovnani pak hlasi ZMENU tam,
-        # kde se nic nezmenilo. Falesny poplach je horsi nez zadna kontrola.
-        p = line.split(None, 2)
-        if len(p) >= 3:
-            prev[p[0]] = (p[1], p[2].strip())
+    prev = dict(_parse_pairs(a.compare))
 
     bad = False
     for sn in sorted(set(prev) | set(now)):
@@ -310,7 +375,10 @@ def main():
                 bad = True
             elif was is None:
                 tag = "  <- NOVA deska na sbernici"
-            elif a.expect_changed and sn.endswith(a.expect_changed.upper()):
+            elif (a.expect_changed
+                  and sn.endswith(a.expect_changed.upper())
+                  and len([x for x in set(prev) | set(now)
+                           if x.endswith(a.expect_changed.upper())]) == 1):
                 tag = "  <- zmeneno (cil)"
             else:
                 tag = "  <- !!! ZMENENO, PRESTOZE TO NEBYL CIL !!!"
@@ -319,8 +387,23 @@ def main():
               f" -> {is_[0] if is_ else '-':10s} {is_[1] if is_ else '-':22s}{tag}")
 
     if a.expect_changed:
-        sn = next((s for s in now if s.endswith(a.expect_changed.upper())), None)
-        if sn and prev.get(sn) == now.get(sn):
+        want = a.expect_changed.upper()
+        hits = [x for x in sorted(set(prev) | set(now)) if x.endswith(want)]
+        if len(hits) > 1:
+            # Kratky suffix umi sednout na vic seriaku; driv se vzal jeden podle
+            # poradi ve slovniku, takze "zmeneno (cil)" mohlo omluvit ZMENU NA JINE
+            # DESCE.
+            print(f"\n{a.expect_changed} sedi na {len(hits)} desky ({', '.join(hits)})"
+                  f" -- upresni seriove cislo, jinak nejde rict, ktera se zmenit mela.")
+            bad = True
+        elif not hits:
+            # Driv: cil chybel v obou otiscich -> smycka ho nikdy nenavstivila,
+            # `bad` zustalo False a beh skoncil "ok, zmenil se jen cil". Otisk,
+            # ve kterem cil nikdy nikdo nevidel, neni uspech.
+            print(f"\nCIL {a.expect_changed} NENI V ZADNEM z otisku -- neni z ceho"
+                  f" rict, ze se zmenil. Sedi to seriove cislo?")
+            bad = True
+        elif prev.get(hits[0]) == now.get(hits[0]):
             print(f"\nCIL {a.expect_changed} SE NEZMENIL -- flash se neaplikoval,"
                   f" i kdyby nastroj hlasil uspech.")
             bad = True
