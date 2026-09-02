@@ -487,10 +487,25 @@ def main():
                 out = subprocess.run(
                     [os.path.join(HERE, "board_probe.py"), "--all"],
                     capture_output=True, text=True, timeout=90).stdout
+                # Stav, ktery probe NEZJISTIL, se nesmi vydavat za zjistenou
+                # identitu firmwaru. `visi` znamena, ze deska visela v open(2),
+                # `obsazeny` ze port drzi nekdo jiny (casto tenhle beh sam),
+                # `chyba` ze probe spadl -- z zadneho z nich neplyne "neni to
+                # MeshCore uzel". Takhle to hlasilo presne tu diagnozu, kterou
+                # nastroj nemel cim podepřít.
                 for line in out.splitlines():
-                    f = line.split()
-                    if len(f) >= 3 and f[0] == sn and f[1] not in ("nic", "nedostupny"):
-                        what = f"{f[1]} {f[2]} -- neni to MeshCore uzel, vynechavam"
+                    f = line.split(None, 2)
+                    if len(f) < 2 or f[0] != sn:
+                        continue
+                    kind = f[1].split("/")[-1]
+                    ver = f[2].strip() if len(f) > 2 else ""
+                    if kind in ("nic", "nedostupny", "modem", "boot"):
+                        what = f"{f[1]} {ver} -- neni to MeshCore uzel, vynechavam"
+                    elif kind in ("visi", "obsazeny", "chyba"):
+                        what = (f"{f[1]} {ver} -- stav se NEPODARILO zjistit,"
+                                f" vynechavam (o firmwaru to nic nerika)")
+                    else:
+                        what = f"{f[1]} {ver} -- jiny protokol, vynechavam"
             except Exception:
                 pass
             print(f"  x{no} ({sn}): {what}", flush=True)
