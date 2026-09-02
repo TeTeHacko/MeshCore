@@ -180,6 +180,23 @@ That is why `KissModem::handleGetDeviceName` appends `FIRMWARE_VERSION`: without
 it the string is not referenced anywhere, the linker drops it, and even
 `xiao_uf2_flash.sh` refuses the image for having no stamped version.
 
+### `visi neodpovida v case` — and why the probe forks
+
+Every board is probed in **its own process**, not a thread. `serial.Serial()`
+can block inside `open(2)` on a board that does not answer, and it does so in C
+code that **does not release the GIL** — so under the old threaded version one
+wedged board froze every other probe thread and they all missed the deadline.
+On 2 Sep 2026 that reported x4 — a healthy KISS modem that fingerprints in 6.4 s
+on its own — as `visi neodpovida v case`, while the whole run took 42 s against
+a 12 s deadline. A process can be `terminate()`d mid-`open(2)`, so the deadline
+now actually holds and the run costs the deadline, not 42 s.
+
+**`visi` on a T1000-E is not a diagnosis of the board.** Both cards
+(`B3F160…`, `B612AE…`) block in `open(2)` for over 60 s each, measured alone in
+a dedicated process — pyserial simply will not get a fingerprint out of them and
+raising the deadline changes nothing. Ask a T1000-E over its text console
+directly instead.
+
 ## `ble_pair.py` — bond by PIN
 
 ```sh

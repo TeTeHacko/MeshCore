@@ -23,7 +23,7 @@ ten, který zrovna čekáme:
 `modem` a `bootloader` se poznají podle JMÉNA portu, ne podle idProduct: obojí
 drží 0044 a AGENTS.md čte 0044 jako bootloader, což pro openhop_modem neplatí.
 """
-import argparse, glob, os, re, struct, subprocess, sys, threading, time
+import argparse, glob, multiprocessing, os, re, struct, subprocess, sys, time
 
 try:
     import serial
@@ -31,15 +31,11 @@ except ImportError:
     sys.exit("chybi pyserial")
 
 # Kolik sekund nejvys smi trvat otisk CELE sbernice.
-# 8 s staci: probe zive desky trva ~2,5 s (zmereno). Deska, ktera se do te doby
-# neozve, se oznaci jako "visi" -- to je poctivejsi vysledek nez cekat dele.
-# ZNAMY NEDOSTATEK: T1000-E karty blokuji uvnitr serial.Serial() open(2) a drzi
-# beh i pres deadline, takze cely otisk trva ~30 s navic. Nebrani to praci, jen
-# to zdrzuje; skutecna oprava chce otevirat port jinak nez pres pyserial.
-# Musi pokryt PLNY cyklus: settle 0,9 + text 1,2 + companion 1,5 + KISS 1,2 +
-# GetDeviceName 1,2 = ~6 s. S kratsim deadlinem se posledni protokol nestihne a
-# deska se oznaci jako "visi", i kdyz normalne odpovida -- presne to se 2. 9.
-# 2026 stalo KISS modemu na x4 pri BOARD_PROBE_DEADLINE=6.
+# Musi pokryt PLNY cyklus jedne desky: settle 0,9 + text 1,2 + companion 1,5 +
+# KISS 1,2 + GetDeviceName 1,2 = ~6 s (zmereno 2. 9. 2026 na x4: 6,4 s, tri behy
+# za sebou stejne). S kratsim deadlinem se posledni protokol nestihne a deska se
+# oznaci jako "visi", i kdyz normalne odpovida -- presne to se stalo KISS modemu
+# na x4 pri BOARD_PROBE_DEADLINE=6.
 PROBE_DEADLINE = float(os.environ.get("BOARD_PROBE_DEADLINE", "12"))
 
 
@@ -195,44 +191,78 @@ def probe(port):
             pass
 
 
+def _probe_one(sn, port, board, state):
+    """Otisk jedne desky. Bezi ve VLASTNIM PROCESU (viz fingerprint)."""
+    if state in ("boot", "modem"):
+        # Bootloader nemluvi nasim protokolem a openhop_modem nemluvi vubec;
+        # ptat se jich je jen ztrata casu (a u boot i riziko, ze to vypada
+        # jako zaseknuta deska).
+        return (sn, f"{board}/{state}", "-")
+    busy = port_busy(port)
+    if busy:
+        return (sn, f"{board}/obsazeny", f"drzi pid {busy} -- nesaham")
+    kind, ver = probe(port)
+    return (sn, f"{board}/{kind}", ver)
+
+
+def _worker(i, sn, port, board, state, q):
+    try:
+        q.put((i,) + _probe_one(sn, port, board, state))
+    except Exception as e:                      # nikdy nenech potomka umrit potichu
+        q.put((i, sn, f"{board}/chyba", type(e).__name__))
+
+
 def fingerprint():
     """Otisk cele sbernice. Paralelne -- porty jsou nezavisle a serazovat je za
     sebe se necetlo: pet desek po ~9 s (settle + tri protokoly, u mlcicich desek
     plny timeout) delalo pres dve minuty, coz je na kontrolu spoustenou PRED a PO
-    kazdym flashem moc. Poradi vysledku je dane vstupem, ne dobehem."""
+    kazdym flashem moc. Poradi vysledku je dane vstupem, ne dobehem.
+
+    KAZDA DESKA VE VLASTNIM PROCESU, ne ve vlakne. Puvodni verze mela daemon
+    vlakna a tvrdy deadline, jenze `serial.Serial()` umi na nereagujici desce
+    viset v open(2) UVNITR C kodu, ktery NEPOUSTI GIL -- takze jedna zaseklá
+    deska zmrazila i vsechny ostatni probe vlakna a ta pak deadline nestihla.
+    Projev: 2. 9. 2026 hlasil x4 (zdravy KISS modem, sam o sobe 6,4 s)
+    "visi neodpovida v case" pri deadline 12 s, zatimco cely beh trval 42 s.
+    Diagnoza "deska neodpovida" na desce, ktera odpovida, je horsi nez zadna.
+
+    Proces se da terminate() i uprostred blokujiciho open(2), takze deadline
+    plati doopravdy a zbytek flotily se otiskne v normalnim case.
+
+    "visi" u T1000-E NENI diagnoza desky. Obe karty (B3F160.., B612AE..) visi
+    v serial.Serial() open(2) i pres 60 s, kazda samostatne ve vlastnim procesu
+    (zmereno 2. 9. 2026) -- pyserial se z nich otisk proste nedozvi a zvysovani
+    deadlinu s tim nic neudela. Deska pritom muze byt uplne v poradku; na
+    T1000-E se pta textova konzole primo, ne tenhle nastroj."""
     boards = usb_boards()
     rows = [None] * len(boards)
+    if not boards:
+        return []
 
-    def one(i, sn, port, board, state):
-        if state in ("boot", "modem"):
-            # Bootloader nemluvi nasim protokolem a openhop_modem nemluvi vubec;
-            # ptat se jich je jen ztrata casu (a u boot i riziko, ze to vypada
-            # jako zaseknuta deska).
-            rows[i] = (sn, f"{board}/{state}", "-")
-            return
-        busy = port_busy(port)
-        if busy:
-            rows[i] = (sn, f"{board}/obsazeny", f"drzi pid {busy} -- nesaham")
-            return
-        kind, ver = probe(port)
-        rows[i] = (sn, f"{board}/{kind}", ver)
-
-    # TVRDY DEADLINE NA DESKU, a DAEMON vlakna. `serial.Serial()` umi na desce,
-    # ktera neodpovida, viset v open() a nevratit se -- 1. 9. 2026 kvuli tomu cely
-    # otisk nevypsal NIC ani za dve minuty. Nastroj spousteny pred a po kazdem
-    # flashi se nesmi dat zablokovat jednou deskou.
-    #
-    # ThreadPoolExecutor tu nestaci: jeho vlakna nejsou daemon, takze i kdyz se
-    # na vysledek necekalo, Python na ne pri exitu pockal a proces nedobehl
-    # (`timeout` ho pak zabil, exit 124). Vlastni daemon vlakna proces nedrzi.
-    threads = []
+    ctx = multiprocessing.get_context("fork")   # fork: potomek zdedi uz nactene moduly
+    q = ctx.Queue()
+    procs = []
     for i, (sn, port, b, st) in enumerate(boards):
-        t = threading.Thread(target=one, args=(i, sn, port, b, st), daemon=True)
-        t.start()
-        threads.append(t)
+        p = ctx.Process(target=_worker, args=(i, sn, port, b, st, q), daemon=True)
+        p.start()
+        procs.append(p)
+
     deadline = time.time() + PROBE_DEADLINE
-    for t in threads:
-        t.join(timeout=max(0.2, deadline - time.time()))
+    got = 0
+    while got < len(boards) and time.time() < deadline:
+        try:
+            i, sn, kind, ver = q.get(timeout=max(0.05, deadline - time.time()))
+        except Exception:
+            break
+        rows[i] = (sn, kind, ver)
+        got += 1
+
+    for p in procs:
+        if p.is_alive():
+            p.terminate()                       # utne i blokujici open(2)
+    for p in procs:
+        p.join(timeout=1.0)
+
     for i, (sn, _, board, _) in enumerate(boards):
         if rows[i] is None:
             rows[i] = (sn, f"{board}/visi", "neodpovida v case")
