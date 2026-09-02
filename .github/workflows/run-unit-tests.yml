@@ -20,7 +20,12 @@ jobs:
         uses: ./.github/actions/setup-build-environment
 
       - name: Run Unit Tests
-        run: pio test -e native -e native_kiss_modem -vv
+        # native_asan MUSI byt v seznamu. Bounds guardy v Packet::readFrom
+        # zamerne nemeni navratovou hodnotu (odmitnou presne to, co upstream
+        # odmitne az po precteni), takze pod `native` projdou i BEZ nich -- rika
+        # to i hlavicka test_packet_readfrom.cpp. Bez tohohle envu slo ty ctyri
+        # kontroly z Packet.cpp odstranit a CI zustalo zelene.
+        run: pio test -e native -e native_asan -e native_kiss_modem -vv
 
       - name: Upload Test Results
         # Upload test results even if the test step failed.
