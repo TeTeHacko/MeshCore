@@ -60,6 +60,27 @@ fi
 # historii nebo produkcni roli, a prepsat je omylem je draha chyba.
 PROTECTED="B612AE3898A81CCA"   # domaci T1000-E: identita, historie wedge, RemoteTerm
 
+# Cil se da zadat i jako BLE MAC, takze gate musi znat OBOJI. Do 2. 9. 2026 se
+# kontrola delala az po dispatchi a obe BLE cesty (`flash_over_ble` a vetev pro
+# MAC) z ni utekly `exit`em driv, nez na ni dosla rada -- chranenou domaci
+# T1000-E slo pres BLE prepsat bez --force-protected. Ta karta uz o identitu
+# jednou nenavratne prisla.
+is_protected() {
+  local t="$1" sn mac
+  for sn in $PROTECTED; do
+    case "$t" in *"$sn"*) return 0 ;; esac
+    mac="$(ble_mac_for "$sn")"
+    [ -n "$mac" ] && [ "$(printf %s "$t" | tr a-f A-F)" = "$mac" ] && return 0
+  done
+  return 1
+}
+
+guard_protected() {
+  is_protected "$1" || return 0
+  [ "$FORCE" = "1" ] || die "$1 je CHRANENA deska (AGENTS.md: bez vyslovneho
+       zadani na ni nesahat). Kdyz to fakt chces: --force-protected"
+}
+
 # BLE adresy desek, ktere nemaji textovou konzoli. Companion build se do
 # bootloaderu neda poslat prikazem `dfu` (zadna konzole neni), takze jediny zpusob
 # je buttonless DFU pres BLE. Kdyz je pak deska ZAROVEN na USB, samotny prenos jde
@@ -87,9 +108,17 @@ ble_mac_for() {
 # Pozor na dock-quiet: deska, ktera JE na USB, drzi DTR a proto neadvertuje
 # (potvrzeno tyz den na x2). BLE zachrana tedy funguje prave pro ty desky, ktere
 # z USB vypadly -- coz je presne kdyz je potreba.
+# Vraci: 0 = MAC videna, 1 = scan bezel a MAC tam nebyla, 2 = ADAPTER NEVIDEL NIC.
+# Ten treti stav je potreba rozlisit, protoze scanner na tehle pracovni stanici je
+# HLUCHY (MediaTek; `Discovering: yes` a presto nulovy vystup -- viz pamet
+# "BLE jen z e5570"). Bez toho rozliseni skript hlasil "deska neadvertuje" i
+# tehdy, kdyz neslysi adapter, tedy obvinoval desku z vady hostitele.
 ble_reachable() {
-  local mac="$1"
-  timeout 20 bash -c "bluetoothctl --timeout 12 scan on 2>/dev/null | grep -q '$mac'"
+  local mac="$1" out
+  out="$(timeout 20 bash -c "bluetoothctl --timeout 12 scan on 2>/dev/null" || true)"
+  printf %s "$out" | grep -q "$mac" && return 0
+  printf %s "$out" | grep -qE "^\s*\[NEW\] Device |Device [0-9A-F]{2}:" || return 2
+  return 1
 }
 
 flash_over_ble() {
@@ -101,24 +130,27 @@ flash_over_ble() {
   python3 "$HERE/ble_dfu.py" ".pio/build/$ENV_NAME/firmware.zip" "$mac"
 }
 
-ENV_NAME=""; TARGET=""; FORCE=0
+ENV_NAME=""; TARGET=""; FORCE=0; PASSTHRU=()
 for arg in "$@"; do
   case "$arg" in
     --force-protected) FORCE=1 ;;
+    # Vse ostatni s -- se predava ble_flash_node.sh (--require-silence, --via,
+    # --stop-service, --check-only); tady by to nemelo co delat.
+    --*) PASSTHRU+=("$arg") ;;
     *) if [ -z "$ENV_NAME" ]; then ENV_NAME="$arg"; else TARGET="$arg"; fi ;;
   esac
 done
 [ -n "$ENV_NAME" ] || { echo "usage: $(basename "$0") <env> [serial|0..4] [--force-protected]" >&2; exit 1; }
 
-# Cil zadany jako BLE MAC = deska na USB vubec neni (stozar, chata). Cely prenos
-# pak jde po BLE a otisk sbernice nema co porovnavat.
-case "$TARGET" in
-  *:*:*:*:*:*)
-    echo "== cil je BLE MAC $TARGET -- deska neni na USB, jedu cely BLE OTA"
-    "$PIO" run -e "$ENV_NAME" >/dev/null 2>&1 || die "build selhal"
-    exec python3 "$HERE/ble_dfu.py" ".pio/build/$ENV_NAME/firmware.zip" "$TARGET"
-    ;;
-esac
+# Nastroje a pracovni adresar PRED jakoukoli cestou. Do 2. 9. 2026 se PIO
+# prirazovalo AZ ZA vetvi pro BLE MAC, ktera ho pouzivala -- se `set -u` to
+# znamenalo "PIO: unbound variable" a cela dokumentovana cesta na stozar/chatu
+# byla mrtva. `cd "$ROOT"` bylo taky pozdeji, takze build i relativni cesta do
+# .pio/build mirily do cwd volajiciho.
+PIO="$HOME/.platformio/penv/bin/pio"
+[ -x "$PIO" ] || PIO="$(command -v pio)" || die "pio nenalezeno"
+NRF="$HOME/.platformio/packages/tool-adafruit-nrfutil"
+cd "$ROOT"
 
 case "$TARGET" in
   [0-4]) TARGET="$(sed -n "s/^\s*${TARGET})\s*TARGET=\([0-9A-F]\{16\}\)\s*;;/\1/p" \
@@ -126,11 +158,22 @@ case "$TARGET" in
          [ -n "$TARGET" ] || die "cislo desky nenalezeno v xiao_uf2_flash.sh" ;;
 esac
 
-PIO="$HOME/.platformio/penv/bin/pio"
-[ -x "$PIO" ] || PIO="$(command -v pio)" || die "pio nenalezeno"
-NRF="$HOME/.platformio/packages/tool-adafruit-nrfutil"
-
-cd "$ROOT"
+# Cil zadany jako BLE MAC = deska na USB vubec neni (stozar, chata). Predava se
+# ble_flash_node.sh, ktery kolem prenosu dela sest veci, jez tady chybely:
+# odmitnuti spinaveho stromu, prefs PRED i PO (prefs v InternalFS prebijeji build
+# flagy a flash je nepresipe), --require-silence u uzlu s odpojenou antenou,
+# uvolneni linku v BlueZ, overeni verze proti obrazu a vraceni sluzby. Presne
+# u mastovych/chatovych uzlu, kam tahle vetev miri, je ticho ochrana PA.
+case "$TARGET" in
+  *:*:*:*:*:*)
+    guard_protected "$TARGET"
+    BFN="$HERE/ble_flash_node.sh"
+    [ -x "$BFN" ] || die "$BFN nenalezen"
+    echo "== cil je BLE MAC $TARGET -- deska neni na USB, predavam ble_flash_node.sh"
+    echo "   (pokud ma uzel odpojenou antenu, pridej --require-silence)"
+    exec "$BFN" --env "$ENV_NAME" --mac "$TARGET" "${PASSTHRU[@]}"
+    ;;
+esac
 
 # Spinavy strom da verzi s '+', a na uzlu pak nepoznas, co na nem je (AGENTS.md).
 if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
@@ -147,13 +190,20 @@ if [ -n "$TARGET" ]; then
   if [ "$hits" = "0" ]; then
     # Neni na USB. Drive to znamenalo "rekni si o replug"; kdyz ale deska
     # advertuje, da se doflashovat pres BLE a ruce nejsou potreba.
+    guard_protected "$TARGET"
     MAC="$(ble_mac_for "$TARGET")"
     if [ -n "$MAC" ]; then
       echo "== $TARGET neni na USB; zkousim, jestli je na BLE ($MAC)"
-      if ble_reachable "$MAC"; then
+      ble_reachable "$MAC"; BR=$?
+      if [ "$BR" = "0" ]; then
         flash_over_ble "$MAC"
         exit $?
       fi
+      [ "$BR" = "2" ] && die "$TARGET neni na USB a BLE scan na tomhle hostu NEVIDEL
+       ANI JEDNO zarizeni -- to neni vypoved o desce, ale o adapteru. Na tehle
+       pracovni stanici je scanner hluchy (MediaTek): `bluetoothctl` hlasi
+       Discovering: yes a presto nic. Bud replug po USB, nebo BLE cestu spust
+       z hostu, ktery slysi (e5570.doma), nebo pres ble_flash_node.sh --via."
       die "$TARGET neni na USB ani neadvertuje na BLE -- replug.
        POZOR, nez z toho udelas diagnozu: BLE zachrana funguje jen tehdy, kdyz
        ten build BLE vubec MA. USB-only companion (env *_companion_radio_usb,
@@ -170,16 +220,31 @@ else
   TARGET="$(echo "$BEFORE" | awk '{print $1}')"
 fi
 
-case "$PROTECTED" in
-  *"$TARGET"*)
-    [ "$FORCE" = "1" ] || die "$TARGET je CHRANENA deska (AGENTS.md: bez vyslovneho
-       zadani na ni nesahat). Kdyz to fakt chces: --force-protected" ;;
-esac
+guard_protected "$TARGET"
 
 FULL="$(echo "$BEFORE" | awk -v t="$TARGET" '$1 ~ t {print $2}')"
 BOARD="${FULL%%/*}"; STATE="${FULL##*/}"
 PORT="/dev/serial/by-id/$(ls /dev/serial/by-id/ | grep -- "$TARGET" | head -1)"
 echo "== cil: $BOARD, stav: $STATE"
+
+# Stav, ktery NENI zjisteny protokol, znamena "nevim, co na desce bezi" -- a do
+# `xiao/*` propadal na `pio -t upload`, tedy 1200baudovy touch naslepo. U stavu
+# `obsazeny` je to nejhorsi: board_probe.py se portu, ktery drzi nekdo jiny,
+# schvalne NESAHA, protoze 2. 9. 2026 dotek portu, ktery drzel openHop, oznacil
+# link za degradovany a vypnul radio natrvalo do repeater.db. Ta pojistka byla
+# v probe a do dispatcheru se nepropsala.
+case "$STATE" in
+  obsazeny)
+    die "port desky $TARGET drzi jiny proces ($(echo "$BEFORE" | grep -- "$TARGET" | cut -d' ' -f3-)).
+       Nesaham na nej: dotek zive linky umi protistrane vypnout radio natrvalo.
+       Zastav toho, kdo port drzi, a spust znovu." ;;
+  visi|nic|nedostupny|chyba)
+    die "stav desky $TARGET se nepodarilo zjistit (probe hlasi '$STATE'), takze
+       nevim, kterou cestou flashovat -- a hadat znamena touch naslepo.
+       U T1000-E je 'visi' bezne (pyserial ji neotiskne, viz tools/README.md):
+       dostan ji do bootloaderu rucne (dlouhy stisk do 8 s od startu) a spust
+       znovu, pak to pujde vetvi t1000e/boot." ;;
+esac
 
 # OCEKAVANA VERZE. Bez ni umi otisk rict jen "neco se zmenilo", coz je slabe:
 # 2. 9. 2026 pio dvakrat ohlasilo SUCCESS a na desce zustal STARY firmware
@@ -209,7 +274,10 @@ has_uf2_drive() {
 # "No data received on serial port". Cte se tedy i vystup, ne jen navratovy kod.
 run_nrfutil() {
   local port="$1" out
-  "$PIO" run -e "$ENV_NAME" >/dev/null 2>&1 || die "build selhal"
+  # ZADNY dalsi `pio run`: build je jednou nahore, u cteni WANT_VER. Stamping meni
+  # FIRMWARE_BUILD_DATE pri kazdem behu, takze kazde volani znamenalo PLNY rebuild
+  # (10-30 s) -- a hlavne se pak flashoval jiny artefakt, nez ze ktereho se
+  # WANT_VER precetla, cimz ta kontrola prestavala overovat odeslany obraz.
   out="$(PYTHONPATH="$NRF/site-packages" "$HOME/.platformio/penv/bin/python" \
         "$NRF/adafruit-nrfutil.py" dfu serial \
         -pkg ".pio/build/$ENV_NAME/firmware.zip" -p "$port" -b 115200 --singlebank 2>&1)" \
@@ -256,9 +324,13 @@ case "$BOARD/$STATE" in
       # se nezmenila zadna JINA deska -- tedy presne ta pojistka, kvuli ktere
       # tenhle skript vznikl. xiao_uf2_flash.sh si overi svuj cil, my overime zbytek.
       "$HERE/xiao_uf2_flash.sh" ".pio/build/$ENV_NAME/firmware.uf2" "$TARGET" || RC=$?
-    fi
-    echo "== cesta: rucni nrfutil (bootloader bez UF2 disku = serial-only rezim)"
-    if ! run_nrfutil "$PORT"; then
+    # `else` tady CHYBELO, takze po uspesnem UF2 flashi beh propadl do nrfutil na
+    # $PORT zachyceny PRED flashem -- ten uz neexistuje, protoze se deska
+    # rebootla do aplikace. Kazdy uspesny UF2 flash se tim ohlasil jako selhany,
+    # vcetne rady "dvojklikni RESET a spust znovu" pro flash, ktery prosel.
+    else
+      echo "== cesta: rucni nrfutil (bootloader bez UF2 disku = serial-only rezim)"
+      if ! run_nrfutil "$PORT"; then
       # Videno 1. 9. 2026 na x2: bootloader vystavuje CDC (USB tridy 02+0a, zadne
       # mass storage), ale na DFU protokol neodpovida -- nrfutil skonci na "No
       # data received", se `--singlebank` i bez nej. Deska neni mrtva a replug
@@ -266,10 +338,11 @@ case "$BOARD/$STATE" in
       # kterym se bootloader prepne do UF2 rezimu a VYSTAVI DISK. Pak uz tenhle
       # skript sam zvoli druhou cestu (xiao_uf2_flash.sh).
       echo >&2
-      echo "Bootloader neodpovida na serial DFU, a UF2 disk nevystavuje." >&2
-      echo "DVOJKLIKNI na male tlacitko RESET -- tim se prepne do UF2 rezimu" >&2
-      echo "a objevi se disk. Pak spust tenhle skript znovu, uz pujde diskem." >&2
-      RC=1
+        echo "Bootloader neodpovida na serial DFU, a UF2 disk nevystavuje." >&2
+        echo "DVOJKLIKNI na male tlacitko RESET -- tim se prepne do UF2 rezimu" >&2
+        echo "a objevi se disk. Pak spust tenhle skript znovu, uz pujde diskem." >&2
+        RC=1
+      fi
     fi
     ;;
   xiao/*)
@@ -342,14 +415,35 @@ fi
 echo "== otisk desek PO flashi (necham CDC nabehnout)"
 sleep 8
 AFTER="$("$HERE/board_probe.py" --all)"
-"$HERE/board_probe.py" --all --compare <(echo "$BEFORE") --expect-changed "$TARGET" || true
+# JEDEN otisk pro obe kontrole. Driv se sbernice otiskovala dvakrat za sebou
+# (kazdy az PROBE_DEADLINE dlouhy) a verdikt o zmenach se pocital z jineho
+# vzorku, nez overeni verze.
+#
+# A `|| true` tady BYT NESMI. Do 2. 9. 2026 tam bylo, takze verdikt "zmenila se
+# i jina deska" se jen vypsal a skript skoncil nulou -- tedy presne ten nalez,
+# pro ktery tenhle nastroj vznikl (obraz mel jit na x4 a pristal na x2), se dal
+# prehlednout a kazdy volajici, ktery se ridi exit kodem, videl uspech.
+if ! "$HERE/board_probe.py" --all --compare <(echo "$BEFORE") \
+       --expect-changed "$TARGET" --now <(echo "$AFTER"); then
+  echo >&2
+  die "otisk sbernice nesouhlasi (viz vys). Bud se zmenila i JINA deska, nebo se
+       cil nezmenil -- obojim smerem to znamena, ze obraz sel jinam, nez mel."
+fi
 
 GOT_VER="$(echo "$AFTER" | awk -v t="$TARGET" '$1 ~ t {print $3}')"
-if [ -z "$GOT_VER" ] || [ "$GOT_VER" = "-" ]; then
-  echo >&2
-  die "cil $TARGET po flashi neodpovida (verzi z nej neprectu), takze flash NENI
-       overeny. Deska nejspis spadla z USB -- replug a spust znovu."
-fi
+# Rozlisuj NEOVERITELNE od OVERENE SPATNE. board_probe umi vratit stavovy text
+# misto verze (napr. T1000-E, kterou pyserial neotiskne -- tools/README.md), a
+# ten se drive porovnal s WANT_VER a vypsal "FLASH SE NEAPLIKOVAL" po flashi,
+# ktery klidne prosel. Dokumentovana cesta `flash_node.sh t1000e_repeater B3F160`
+# tak koncila chybou vzdycky.
+case "$GOT_VER" in
+  ""|"-"|neodpovida|drzi|nenalezen)
+    echo >&2
+    echo "NEOVERENO: flash probehl bez chyby, ale verzi z $TARGET nejde precist" >&2
+    echo "(probe hlasi '$STATE'). NEZNAMENA to, ze flash selhal -- u T1000-E je to" >&2
+    echo "bezny stav. Over rucne z konzole: 'ver' ma dat $WANT_VER." >&2
+    exit 2 ;;
+esac
 if [ "$GOT_VER" != "$WANT_VER" ]; then
   echo >&2
   die "FLASH SE NEAPLIKOVAL. Deska hlasi '$GOT_VER', obraz ma '$WANT_VER'.
