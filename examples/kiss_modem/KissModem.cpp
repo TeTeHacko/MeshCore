@@ -1,5 +1,6 @@
 #include "KissModem.h"
 #include <CayenneLPP.h>
+#include <cstdio>   // snprintf: na desce ho tahne Arduino.h, na hostu (env:native_kiss_modem) ne
 
 KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& rng,
                      mesh::Radio& radio, mesh::MainBoard& board, SensorManager& sensors)
