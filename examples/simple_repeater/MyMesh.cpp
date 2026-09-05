@@ -738,7 +738,7 @@ bool MyMesh::fairnessHandleCommand(const char *command, char *reply, int reply_m
   if (strcmp(arg, "on") == 0 || strcmp(arg, "off") == 0) {
     _prefs.fairness_enabled = (arg[1] == 'n') ? 1 : 0;
     savePrefs();
-    sprintf(reply, "OK - fairness %s", _prefs.fairness_enabled ? "on" : "off");
+    snprintf(reply, reply_max, "OK - fairness %s", _prefs.fairness_enabled ? "on" : "off");
     return true;
   }
 
@@ -749,7 +749,9 @@ bool MyMesh::fairnessHandleCommand(const char *command, char *reply, int reply_m
     return true;
   }
 
-  if (memcmp(arg, "cap ", 4) == 0) {
+  // strncmp, not memcmp: for the bare `fairness` command arg is the 1-byte ""
+  // literal, and memcmp(arg, "cap ", 4) would over-read it (UB, trips ASAN).
+  if (strncmp(arg, "cap ", 4) == 0) {
     int g = 0, s = 0, a = 0;
     if (sscanf(arg + 4, "%d %d %d", &g, &s, &a) != 3 || g < 0 || s < 0 || a < 0 || g > 255 || s > 255 || a > 255) {
       strcpy(reply, "Err - fairness cap <group> <sender> <advert> (0=default)");
@@ -762,13 +764,13 @@ bool MyMesh::fairnessHandleCommand(const char *command, char *reply, int reply_m
     fairness_limiter.setSenderNormalCap(_prefs.fair_sender_cap);
     fairness_limiter.setSenderLowCap(_prefs.fair_advert_cap);
     savePrefs();
-    sprintf(reply, "OK - cap group %u sender %u advert %u",
+    snprintf(reply, reply_max, "OK - cap group %u sender %u advert %u",
             (uint32_t)fairness_limiter.groupCap(), (uint32_t)fairness_limiter.senderNormalCap(),
             (uint32_t)fairness_limiter.senderLowCap());
     return true;
   }
 
-  if (memcmp(arg, "refill ", 7) == 0) {
+  if (strncmp(arg, "refill ", 7) == 0) {
     int g = 0, s = 0, a = 0;
     if (sscanf(arg + 7, "%d %d %d", &g, &s, &a) != 3 || g < 0 || s < 0 || a < 0 || g > 65535 || s > 65535 || a > 65535) {
       strcpy(reply, "Err - fairness refill <group_s> <sender_s> <advert_s> (0=default)");
@@ -782,7 +784,7 @@ bool MyMesh::fairnessHandleCommand(const char *command, char *reply, int reply_m
     next_fair_sender_normal_refill = futureMillis(fairSenderRefillMs());
     next_fair_sender_low_refill = futureMillis(fairAdvertRefillMs());
     savePrefs();
-    sprintf(reply, "OK - refill group %us sender %us advert %us",
+    snprintf(reply, reply_max, "OK - refill group %us sender %us advert %us",
             (uint32_t)(fairGroupRefillMs() / 1000), (uint32_t)(fairSenderRefillMs() / 1000),
             (uint32_t)(fairAdvertRefillMs() / 1000));
     return true;

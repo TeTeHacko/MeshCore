@@ -47,7 +47,7 @@ bool MyMesh::filterHandleCommand(const char* command, char* reply, int reply_max
     int rc = chan_list_add(_prefs.filter_deny, sizeof(_prefs.filter_deny), name, strlen(name));
     if (rc == CHAN_LIST_OK) {
       savePrefs();
-      sprintf(reply, "OK - deny: %s", _prefs.filter_deny);
+      snprintf(reply, reply_max, "OK - deny: %s", _prefs.filter_deny);
     } else if (rc == CHAN_LIST_DUP) {
       strcpy(reply, "Err - already listed");
     } else if (rc == CHAN_LIST_FULL) {

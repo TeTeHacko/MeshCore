@@ -187,9 +187,11 @@ static int fmt_deny_cat(char* out, int max_len, const char* label,
 }
 
 int FairnessLimiter::formatGrid(char* out, int max_len) const {
+  if (max_len <= 0) return 0;
   // Work on scratch copies so the busiest-first selection can null entries as
-  // it consumes them without disturbing the live counters.
-  static uint16_t g[GROUP_MAP_SIZE], sn[SENDER_NORMAL_MAP_SIZE], sl[SENDER_LOW_MAP_SIZE];
+  // it consumes them without disturbing the live counters. Plain locals (~448 B
+  // on the stack) -- called only from the main-loop CLI path, never an ISR.
+  uint16_t g[GROUP_MAP_SIZE], sn[SENDER_NORMAL_MAP_SIZE], sl[SENDER_LOW_MAP_SIZE];
   memcpy(g, group_deny, sizeof(g));
   memcpy(sn, sender_normal_deny, sizeof(sn));
   memcpy(sl, sender_low_deny, sizeof(sl));

@@ -71,6 +71,8 @@ static int chan_list_add(char* list, int cap, const char* name, int name_len) {
 // Remove the (case-insensitively) matching entry. Returns false when absent.
 static bool chan_list_del(char* list, const char* name) {
   while (*name == ' ') name++;
+  int name_len = strlen(name);
+  while (name_len > 0 && name[name_len - 1] == ' ') name_len--;   // trim trailing too (RF pads)
   char out[512];   // callers' lists are far smaller (filter_deny is 128 B)
   int out_len = 0;
   bool removed = false;
@@ -86,7 +88,7 @@ static bool chan_list_del(char* list, const char* name) {
     while (elen > 0 && *e == ' ') { e++; elen--; }
     while (elen > 0 && e[elen - 1] == ' ') elen--;
     bool match = false;
-    if ((int)strlen(name) == elen) {
+    if (name_len == elen) {
       int i = 0;
       while (i < elen && tolower((unsigned char)name[i]) == tolower((unsigned char)e[i])) i++;
       match = (i == elen);

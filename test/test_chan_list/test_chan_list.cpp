@@ -117,6 +117,13 @@ TEST(ChanListDel, AbsentEntryLeavesListAlone) {
     EXPECT_STREQ(list, "a,b");
 }
 
+// RF-padded `filter del Bob ` (trailing space) must still match, like add trims.
+TEST(ChanListDel, TrimsTrailingSpaceOfName) {
+    char list[128] = "Alice,Bob,Carol";
+    EXPECT_TRUE(chan_list_del(list, "  Bob  "));
+    EXPECT_STREQ(list, "Alice,Carol");
+}
+
 // ── round trip: what add put in, has finds and del removes ───────────────────
 
 TEST(ChanList, RoundTrip) {
