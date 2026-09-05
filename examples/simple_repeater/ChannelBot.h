@@ -1,7 +1,9 @@
 #pragma once
 
 // CUSTOM (TeTeHacko): channel bot -- not part of upstream simple_repeater.
-// Included at the bottom of MyMesh.cpp, after all class definitions, so these
+// Included at the bottom of MyMesh.cpp, after ChannelCommon.h (which owns the
+// channel registry, the PSK parsing, searchChannelsByHash() and the
+// onGroupDataRecv() dispatcher that calls botOnChannelText() here), so these
 // are plain MyMesh methods with full access to the analyzer state.
 //
 // WHY THIS LIVES IN THE REPEATER/ANALYZER BUILD
@@ -67,7 +69,6 @@
 #endif
 
 #define BOT_REPLY_LEN     120   // well under the 184 B packet payload
-#define BOT_TEXT_LEN      160   // inbound text, after the "<sender>: " prefix
 #define BOT_PATH_STR_LEN   64   // "3f:a1:c8..." -- caps how many hops we print
 // One !command's answer. Sized for the WORST CASE of !link, which is the longest:
 // botFormatPath() caps the path string at 62 chars (21 hops x 1 B, or 9 x 3 B, or
@@ -81,59 +82,18 @@
 // the command exists to report ("... 209f:34fa:ed9c, SNR 4.0 ").
 #define BOT_FRAG_LEN      100
 
-static int bot_hex_nibble(char c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-  return -1;
-}
-
-// The PSK is given as HEX, which is exactly the form `meshcore-cli get_channel
-// <n>` prints -- no base64 round trip by hand, and no base64.hpp dependency in
-// this build (only companion_radio pulls that in). 32 hex chars = 128-bit key
-// (what the phone app generates), 64 = 256-bit.
+// Registers the bot channel in the shared registry (ChannelCommon.h does the
+// hex parse and hash derivation) and resets bot state. Called by channelsInit().
 void MyMesh::botInit() {
-  bot_channel_valid = false;
   bot_next_reply_at = 0;
   bot_replies_sent = 0;
   bot_ignored = 0;
   bot_throttled = 0;
   memset(bot_peers, 0, sizeof(bot_peers));
   bot_last_reply_secs = 0;
-  memset(&bot_channel, 0, sizeof(bot_channel));
 
   const char* psk = BOT_CHANNEL_PSK;
-  int n = strlen(psk);
-  if (n != 32 && n != 64) {
-    MESH_DEBUG_PRINTLN("botInit: BOT_CHANNEL_PSK must be 32 or 64 hex chars, got %d", n);
-    return;
-  }
-  int key_len = n / 2;
-  for (int i = 0; i < key_len; i++) {
-    int hi = bot_hex_nibble(psk[i * 2]);
-    int lo = bot_hex_nibble(psk[i * 2 + 1]);
-    if (hi < 0 || lo < 0) {
-      MESH_DEBUG_PRINTLN("botInit: BOT_CHANNEL_PSK is not hex");
-      return;
-    }
-    bot_channel.secret[i] = (uint8_t)((hi << 4) | lo);
-  }
-  // Same derivation as BaseChatMesh::addChannel() (BaseChatMesh.cpp:875), so the
-  // hash matches what every other node computes for this channel. Cross-checked
-  // against a live node: the 128-bit #tth-test key hashes to 0x75, which is what
-  // `get_channel 1` reports as channel_hash.
-  mesh::Utils::sha256(bot_channel.hash, sizeof(bot_channel.hash), bot_channel.secret, key_len);
-  bot_channel_valid = true;
-}
-
-// Mirrors BaseChatMesh::searchChannelsByHash() for our single channel. Matching
-// on hash[0] alone is upstream's design: PATH_HASH_SIZE is 1, so collisions are
-// expected and resolved by MACThenDecrypt() failing in the caller.
-int MyMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel channels[], int max_matches) {
-  if (!bot_channel_valid || max_matches < 1) return 0;
-  if (bot_channel.hash[0] != hash[0]) return 0;
-  channels[0] = bot_channel;
-  return 1;
+  bot_channel_idx = (int8_t)channelAddFromPsk(psk, strlen(psk), CHAN_FLAG_BOT);
 }
 
 // Colon-separated per-hop hashes, the same self-describing convention the
@@ -160,34 +120,17 @@ void MyMesh::botFormatPath(char* out, const mesh::Packet* pkt) const {
   *p = 0;
 }
 
-// Exact, case-insensitive membership in a comma-separated list. Distinct from
-// botTriggerMatches(), which is a SUBSTRING search: an ignore list or a command
-// whitelist matching on substrings would be a trap ("path" enabling "!pathx",
-// a node called "TTH" silencing "TTH-L1").
-static bool bot_list_has(const char* list, const char* word) {
-  const char* seg = list;
-  while (*seg) {
-    const char* comma = strchr(seg, ',');
-    int len = comma ? (int)(comma - seg) : (int)strlen(seg);
-    while (len > 0 && *seg == ' ') { seg++; len--; }
-    while (len > 0 && seg[len - 1] == ' ') len--;
-    if (len > 0 && (int)strlen(word) == len) {
-      int i = 0;
-      while (i < len && tolower((unsigned char)word[i]) == tolower((unsigned char)seg[i])) i++;
-      if (i == len) return true;
-    }
-    if (!comma) break;
-    seg = comma + 1;
-  }
-  return false;
-}
+// NOTE: exact-membership matching lives in chan_list_has() (ChannelCommon.h);
+// it is distinct from botTriggerMatches(), which is a SUBSTRING search -- an
+// ignore list or a command whitelist matching on substrings would be a trap
+// ("path" enabling "!pathx", a node called "TTH" silencing "TTH-L1").
 
 // One `!command` -> one text fragment. Returns chars written, 0 for unknown.
 // The interesting ones are the analyzer's: a companion bot cannot answer these
 // at all, because it has no rxlog and no heard registry.
 int MyMesh::botCommandReply(char* out, int max_len, const char* cmd, const mesh::Packet* pkt) {
   // An empty BOT_COMMANDS means "all"; otherwise only what is listed.
-  if (BOT_COMMANDS[0] != 0 && !bot_list_has(BOT_COMMANDS, cmd)) return 0;
+  if (BOT_COMMANDS[0] != 0 && !chan_list_has(BOT_COMMANDS, cmd)) return 0;
 
   if (strcmp(cmd, "noise") == 0) {
     // Noise floor is the analyzer's own measurement -- a companion bot has no
@@ -315,7 +258,7 @@ void MyMesh::botSendReply(const mesh::Packet* pkt, const char* text) {
   if (n < 0) return;
   if (n > BOT_REPLY_LEN - 1) n = BOT_REPLY_LEN - 1;   // snprintf reports untruncated length
 
-  auto reply = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, bot_channel, temp, 5 + n);
+  auto reply = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, known_channels[bot_channel_idx], temp, 5 + n);
   if (reply == NULL) {
     MESH_DEBUG_PRINTLN("botSendReply: packet pool empty");
     return;
@@ -351,38 +294,23 @@ bool MyMesh::botPeerAllowed(const char* name) {
   return true;
 }
 
-void MyMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel,
-                             uint8_t* data, size_t len) {
-  if (type != PAYLOAD_TYPE_GRP_TXT) return;   // GRP_DATA (telemetry etc.) is not ours
-  if (len < 5) return;
-  if ((data[4] >> 2) != 0) return;            // only plain text, per BaseChatMesh.cpp:374
-
-  // Work on a bounded copy. Upstream NUL-terminates the caller's buffer in place
-  // (data[len] = 0), which is fine there but relies on headroom this function
-  // cannot verify -- and every other parse in this fork is bounds-checked.
-  char text[BOT_TEXT_LEN];
-  size_t body = len - 5;
-  if (body >= sizeof(text)) body = sizeof(text) - 1;
-  memcpy(text, &data[5], body);
-  text[body] = 0;
-
-  // "<sender>: <msg>". Bail out if the sender is us: our own reply comes back
-  // through the mesh and would otherwise ping-pong forever. The cooldown alone
-  // would not stop that, it would only slow it down.
-  const char* msg = text;
-  char* sep = strstr(text, ": ");
-  if (sep) {
-    *sep = 0;
-    if (strcmp(text, _prefs.node_name) == 0) return;
+// Called from onChannelText() (ChannelCommon.h) for messages on the bot
+// channel only -- the "<sender>: <msg>" split already happened there, and a
+// sender on the ChannelFilter deny list never reaches this point.
+void MyMesh::botOnChannelText(mesh::Packet* packet, const char* sender, const char* msg) {
+  // Bail out if the sender is us: our own reply comes back through the mesh and
+  // would otherwise ping-pong forever. The cooldown alone would not stop that,
+  // it would only slow it down.
+  if (sender[0] != 0) {
+    if (strcmp(sender, _prefs.node_name) == 0) return;
     // Peer bots: skip before any trigger or command matching. Measured need --
     // TTH-L1 puts "Ping" on this channel by itself, and answering those ate the
     // cooldown, so a human question landed in a closed window.
-    if (BOT_IGNORE_SENDERS[0] != 0 && bot_list_has(BOT_IGNORE_SENDERS, text)) {
+    if (BOT_IGNORE_SENDERS[0] != 0 && chan_list_has(BOT_IGNORE_SENDERS, sender)) {
       bot_ignored++;
       MESH_DEBUG_PRINTLN("bot: ignoruji odesilatele z BOT_IGNORE_SENDERS");
       return;
     }
-    msg = sep + 2;
   }
 
   char reply[BOT_REPLY_LEN];
@@ -402,7 +330,7 @@ void MyMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::Gro
   }
   // Then this sender's own window. Name-based, so spoofable -- fine, this is a
   // politeness throttle and channel messages carry no identity anyway.
-  if (!botPeerAllowed(sep ? text : "")) {
+  if (!botPeerAllowed(sender)) {
     MESH_DEBUG_PRINTLN("bot: reply suppressed, sender cooldown");
     bot_throttled++;
     return;
@@ -419,12 +347,12 @@ void MyMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::Gro
 bool MyMesh::botHandleCommand(const char* command, char* reply) {
   if (memcmp(command, "bot", 3) != 0 || (command[3] != 0 && command[3] != ' ')) return false;
 
-  if (!bot_channel_valid) {
+  if (bot_channel_idx < 0) {
     strcpy(reply, "bot: DISABLED (bad BOT_CHANNEL_PSK)");
     return true;
   }
   sprintf(reply, "bot: chan %02X, trigger '%s', cmds '%s', ignore '%s', cooldown %d ms/odesilatel + %d ms floor, replies %u, throttled %u, ignored %u, last %u",
-          (uint32_t)bot_channel.hash[0], BOT_TRIGGER,
+          (uint32_t)known_channels[bot_channel_idx].hash[0], BOT_TRIGGER,
           BOT_COMMANDS[0] ? BOT_COMMANDS : "(vse)",
           BOT_IGNORE_SENDERS[0] ? BOT_IGNORE_SENDERS : "(nikdo)",
           (int)BOT_REPLY_COOLDOWN_MS, (int)BOT_MIN_GAP_MS,

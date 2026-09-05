@@ -11,8 +11,11 @@ void Mesh::loop() {
   Dispatcher::loop();
 }
 
-bool Mesh::allowPacketForward(const mesh::Packet* packet) { 
+bool Mesh::allowPacketForward(const mesh::Packet* packet) {
   return false;  // by default, Transport NOT enabled
+}
+bool Mesh::takeForwardingRateLimit(const mesh::Packet* packet) {
+  return true;  // by default, rate limiting is not implemented
 }
 uint32_t Mesh::getRetransmitDelay(const mesh::Packet* packet) { 
   uint32_t t = (_radio->getEstAirtimeFor(packet->getRawLength()) * 52 / 50) / 2;
@@ -60,7 +63,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       if (offset >= len) {   // TRACE has reached end of given path
         onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
       } else if ((size_t)i + offset + (1u << path_sz) <= pkt->payload_len
-                 && self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
+                 && self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)
+                 && takeForwardingRateLimit(pkt)) {
         _tables->markSeen(pkt);
         // append SNR (Not hash!)
         pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
@@ -103,12 +107,12 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         return ACTION_RELEASE;
       }
 
-      if (!_tables->wasSeen(pkt)) {
+      if (!_tables->wasSeen(pkt) && takeForwardingRateLimit(pkt)) {
         _tables->markSeen(pkt);
         removeSelfFromPath(pkt);
 
         uint32_t d = getDirectRetransmitDelay(pkt);
-        return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
+        return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority
       }
     }
     return ACTION_RELEASE;   // this node is NOT the next hop (OR this packet has already been forwarded), so discard.
@@ -355,7 +359,8 @@ void Mesh::removeSelfFromPath(Packet* pkt) {
 DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
   uint8_t n = packet->getPathHashCount();
   if (packet->isRouteFlood() && !packet->isMarkedDoNotRetransmit()
-    && (n + 1)*packet->getPathHashSize() <= MAX_PATH_SIZE && allowPacketForward(packet)) {
+    && (n + 1)*packet->getPathHashSize() <= MAX_PATH_SIZE && allowPacketForward(packet)
+    && takeForwardingRateLimit(packet)) {
     // append this node's hash to 'path'
     self_id.copyHashTo(&packet->path[n * packet->getPathHashSize()], packet->getPathHashSize());
     packet->setPathHashCount(n + 1);
@@ -388,7 +393,7 @@ DispatcherAction Mesh::forwardMultipartDirect(Packet* pkt) {
 }
 
 void Mesh::routeDirectRecvAcks(Packet* packet, uint32_t delay_millis) {
-  if (!packet->isMarkedDoNotRetransmit()) {
+  if (!packet->isMarkedDoNotRetransmit() && takeForwardingRateLimit(packet)) {
     uint8_t extra = getExtraAckTransmitCount();
     while (extra > 0) {
       delay_millis += getDirectRetransmitDelay(packet) + 300;

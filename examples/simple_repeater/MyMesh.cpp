@@ -724,6 +724,29 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   return true;
 }
 
+// CUSTOM (TeTeHacko): `fairness` -- denied-forward stats; `fairness on|off` --
+// runtime kill switch (persisted, so a mast reboot keeps the chosen state).
+bool MyMesh::fairnessHandleCommand(const char *command, char *reply) {
+  if (memcmp(command, "fairness", 8) != 0 || (command[8] != 0 && command[8] != ' ')) return false;
+
+  if (command[8] == ' ') {
+    const char *arg = &command[9];
+    if (strcmp(arg, "on") == 0 || strcmp(arg, "off") == 0) {
+      _prefs.fairness_enabled = (arg[1] == 'n') ? 1 : 0;
+      savePrefs();
+      sprintf(reply, "OK - fairness %s", _prefs.fairness_enabled ? "on" : "off");
+    } else {
+      strcpy(reply, "Err - fairness [on|off]");
+    }
+    return true;
+  }
+  sprintf(reply, "fairness: %s, denied group %u, sender %u, advert %u",
+          _prefs.fairness_enabled ? "on" : "OFF",
+          fairness_limiter.deniedGroup(), fairness_limiter.deniedSenderNormal(),
+          fairness_limiter.deniedSenderLow());
+  return true;
+}
+
 const char *MyMesh::getLogDateTime() {
   static char tmp[32];
   uint32_t now = getRTCClock()->getCurrentTime();
@@ -1175,6 +1198,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   last_millis = 0;
   uptime_millis = 0;
   next_local_advert = next_flood_advert = 0;
+  next_fair_sender_normal_refill = next_fair_sender_low_refill = next_fair_group_refill = 0;
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
   _logging = false;
@@ -1198,8 +1222,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   pktfeed_next_seq = 1;   // seq 0 is reserved for "empty slot" / initial cursor
   pktfeed_stage_len = 0;
 #endif
-#ifdef BOT_CHANNEL_PSK
-  botInit();
+#if defined(BOT_CHANNEL_PSK) || defined(FILTER_CHANNEL_PSKS)
+  channelsInit();   // registers the bot channel and/or the filter channels
 #endif
 
   // defaults
@@ -1255,6 +1279,12 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max = 64;
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
+  // CUSTOM (TeTeHacko): FairnessLimiter on by default; `fairness off` is the
+  // runtime kill switch (persisted, so it survives a reboot on the mast).
+  #ifndef FAIRNESS_ENABLED_DEFAULT
+  #define FAIRNESS_ENABLED_DEFAULT 1
+  #endif
+  _prefs.fairness_enabled = FAIRNESS_ENABLED_DEFAULT;
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
   _prefs.loop_detect = LOOP_DETECT_MINIMAL;
@@ -1297,6 +1327,15 @@ void MyMesh::begin(FILESYSTEM *fs) {
   // load persisted prefs
   _cli.loadPrefs(_fs);
   acl.load(_fs, self_id);
+
+  // Fairness buckets start with just ONE token (not the full cap): a repeater
+  // stuck in a crash loop must not hand out a fresh burst on every boot.
+  fairness_limiter.refillSenderNormal();
+  fairness_limiter.refillSenderLow();
+  fairness_limiter.refillGroup();
+  next_fair_sender_normal_refill = futureMillis(FAIRNESS_SENDER_NORMAL_REFILL_MS);
+  next_fair_sender_low_refill = futureMillis(FAIRNESS_SENDER_LOW_REFILL_MS);
+  next_fair_group_refill = futureMillis(FAIRNESS_GROUP_REFILL_MS);
   // TODO: key_store.begin();
   region_map.load(_fs);
 
@@ -1656,6 +1695,13 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     // CUSTOM (TeTeHacko): `bot` — read-only channel bot diagnostics. See ChannelBot.h.
     if (botHandleCommand(command, reply)) return;
 #endif
+#ifdef FILTER_CHANNEL_PSKS
+    // CUSTOM (TeTeHacko): `filter add|del|list|clear` — runtime deny list for
+    // channel messages this repeater refuses to forward. See ChannelFilter.h.
+    if (filterHandleCommand(command, reply, reply_max)) return;
+#endif
+    // CUSTOM (TeTeHacko): `fairness [on|off]` — forwarding rate limiter stats + kill switch.
+    if (fairnessHandleCommand(command, reply)) return;
     // CUSTOM (TeTeHacko): `blink [n]` — flash the LED to identify this board.
     // Outside the BLE guard on purpose: a USB-only build needs it just as much,
     // since a board with no data cable and no BLE cannot be identified at all.
@@ -1691,6 +1737,19 @@ void MyMesh::loop() {
 #endif
 
   mesh::Mesh::loop();
+
+  // Fairness limiter refilling. The `else if` chain keeps the three timers from
+  // aligning on one loop pass; each adds ONE token per bucket per interval.
+  if (next_fair_sender_normal_refill && millisHasNowPassed(next_fair_sender_normal_refill)) {
+    fairness_limiter.refillSenderNormal();
+    next_fair_sender_normal_refill = futureMillis(FAIRNESS_SENDER_NORMAL_REFILL_MS);
+  } else if (next_fair_sender_low_refill && millisHasNowPassed(next_fair_sender_low_refill)) {
+    fairness_limiter.refillSenderLow();
+    next_fair_sender_low_refill = futureMillis(FAIRNESS_SENDER_LOW_REFILL_MS);
+  } else if (next_fair_group_refill && millisHasNowPassed(next_fair_group_refill)) {
+    fairness_limiter.refillGroup();
+    next_fair_group_refill = futureMillis(FAIRNESS_GROUP_REFILL_MS);
+  }
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
@@ -1733,9 +1792,12 @@ void MyMesh::loop() {
   last_millis = now;
 }
 
-// CUSTOM (TeTeHacko): channel bot method bodies. Included here, at the very
+// CUSTOM (TeTeHacko): channel module method bodies. Included here, at the very
 // bottom, so they see the complete MyMesh definition (same convention the Solo
-// firmware uses for its own bot).
+// firmware uses for its own bot). Order matters: ChannelCommon.h defines the
+// helpers (chan_list_has, channelAddFromPsk) the other two use.
+#include "ChannelCommon.h"
+#include "ChannelFilter.h"
 #include "ChannelBot.h"
 
 // To check if there is pending work

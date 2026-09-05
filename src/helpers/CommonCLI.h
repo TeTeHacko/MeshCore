@@ -72,6 +72,11 @@ public:
   uint8_t loop_detect = 0;
   uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
   uint8_t extra_sf[4];
+  // CUSTOM (TeTeHacko): antispam knobs of simple_repeater. Live here so that the
+  // existing savePrefs()/loadPrefs() machinery persists them; other examples
+  // just leave them at defaults.
+  uint8_t fairness_enabled = 0;  // FairnessLimiter runtime kill switch
+  char filter_deny[128];         // channel-filter deny list, comma-separated node names
 
 private:
   class RadioPrefs : public CommonRadioPrefs {
@@ -186,6 +191,8 @@ private:
       def("f_max_uns", _parent->flood_max_unscoped);
       def("f_max_adv", _parent->flood_max_advert);
       def("loop", _parent->loop_detect);
+      def("fair_en", _parent->fairness_enabled);
+      def("f_deny", _parent->filter_deny, sizeof(_parent->filter_deny));
     }
   public:
     RepeatPrefs(NodePrefs* parent) : _parent(parent) { }
@@ -231,6 +238,7 @@ public:
     guest_password[0] = 0;
     bridge_secret[0] = 0;
     owner_info[0] = 0;
+    filter_deny[0] = 0;
   }
 
   CommonRadioPrefs* getRadioPrefs() { return &radio; }

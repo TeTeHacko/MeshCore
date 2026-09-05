@@ -33,6 +33,7 @@
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/FairnessLimiter.h>
 #include <helpers/RegionMap.h>
 #include <helpers/RoutingPolicy.h>
 #include "RateLimiter.h"
@@ -205,6 +206,10 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RegionEntry* recv_pkt_region;
   TransportKey default_scope;
   RateLimiter discover_limiter, anon_limiter;
+  // CUSTOM (TeTeHacko): token-bucket limiter over FORWARDED traffic (port of
+  // upstream proposal #1502). Kill switch: _prefs.fairness_enabled.
+  FairnessLimiter fairness_limiter;
+  unsigned long next_fair_sender_normal_refill, next_fair_sender_low_refill, next_fair_group_refill;
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
   bool region_load_active;
@@ -230,14 +235,27 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t pktfeed_stage[MAX_TRANS_UNIT];
   uint8_t pktfeed_stage_len;  // 0 = nothing staged
 #endif
+#if defined(BOT_CHANNEL_PSK) || defined(FILTER_CHANNEL_PSKS)
+  // CUSTOM (TeTeHacko): registry of channels this node can DECRYPT (the bot
+  // channel and/or the filter channels). Shared by ChannelBot.h and
+  // ChannelFilter.h; fed to searchChannelsByHash(), whose API caps matches at 4.
+  #define MAX_KNOWN_CHANNELS 4
+  #define CHAN_FLAG_BOT     0x01   // ChannelBot answers on this channel
+  #define CHAN_FLAG_FILTER  0x02   // deny list applies to this channel
+  mesh::GroupChannel known_channels[MAX_KNOWN_CHANNELS];
+  uint8_t known_channel_flags[MAX_KNOWN_CHANNELS];
+  uint8_t num_known_channels;
+#endif
+#ifdef FILTER_CHANNEL_PSKS
+  uint32_t filter_dropped;        // forwards vetoed by the deny list
+#endif
 #ifdef BOT_CHANNEL_PSK
   // Default zde, ne az v ChannelBot.h -- ten se includuje na konci MyMesh.cpp,
   // tedy dlouho po teto deklaraci pole.
   #ifndef BOT_PEER_SLOTS
     #define BOT_PEER_SLOTS 8
   #endif
-  mesh::GroupChannel bot_channel;   // 1 B hash + 32 B secret, derived from BOT_CHANNEL_PSK
-  bool bot_channel_valid;           // false = PSK malformed, bot silently off
+  int8_t bot_channel_idx;           // index into known_channels, -1 = PSK malformed, bot silently off
   unsigned long bot_next_reply_at;  // cooldown gate, 0 = not armed
   uint32_t bot_replies_sent;
   uint32_t bot_ignored;           // zprav zahozenych podle BOT_IGNORE_SENDERS
@@ -275,11 +293,24 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void commitPktFeed(const mesh::Packet* pkt);
   void formatPktFeedReply(char* reply, int max_len, uint32_t cursor);
 #endif
+#if defined(BOT_CHANNEL_PSK) || defined(FILTER_CHANNEL_PSKS)
+  // CUSTOM (TeTeHacko): shared channel plumbing. Definitions in ChannelCommon.h,
+  // included at the bottom of MyMesh.cpp.
+  void channelsInit();
+  int  channelAddFromPsk(const char* psk_hex, int psk_len, uint8_t flag);
+  void onChannelText(mesh::Packet* packet, int chan_idx, const char* sender, const char* msg);
+#endif
+#ifdef FILTER_CHANNEL_PSKS
+  // CUSTOM (TeTeHacko): deny-list forwarding filter. Definitions in ChannelFilter.h.
+  bool filterDenied(const char* sender) const;
+  bool filterHandleCommand(const char* command, char* reply, int reply_max);
+#endif
 #ifdef BOT_CHANNEL_PSK
   // CUSTOM (TeTeHacko): channel bot. Definitions in ChannelBot.h, included at
   // the bottom of MyMesh.cpp. See that file for why this lives in the analyzer
   // build rather than in companion_radio.
   void botInit();
+  void botOnChannelText(mesh::Packet* packet, const char* sender, const char* msg);
   bool botTriggerMatches(const char* text) const;
   void botFormatPath(char* out, const mesh::Packet* pkt) const;
   int  botCommandReply(char* out, int max_len, const char* cmd, const mesh::Packet* pkt);
@@ -288,6 +319,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool botPeerAllowed(const char* name);
   bool botHandleCommand(const char* command, char* reply);
 #endif
+  // CUSTOM (TeTeHacko): `fairness [on|off]` CLI. Defined in MyMesh.cpp.
+  bool fairnessHandleCommand(const char* command, char* reply);
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
@@ -309,15 +342,23 @@ protected:
   // Díky tomuhle overridu ji dostanou i volání send*(), která ji nepředávají
   // explicitně (ACKy, PATH-return, zerohop odpovědi sousedovi).
   uint8_t getSelfPathHashSize() const override { return _prefs.path_hash_mode + 1; }
-#ifdef BOT_CHANNEL_PSK
+#if defined(BOT_CHANNEL_PSK) || defined(FILTER_CHANNEL_PSKS)
   // CUSTOM (TeTeHacko): both are no-op virtuals in mesh::Mesh, which is the only
   // reason a repeater is normally deaf to channel traffic. Overriding them does
-  // NOT affect forwarding -- Mesh::onRecvPacket() calls routeRecvPacket() either
-  // way (Mesh.cpp:236-249).
+  // NOT affect forwarding by itself -- Mesh::onRecvPacket() calls routeRecvPacket()
+  // either way (Mesh.cpp:237-259). The ChannelFilter DOES veto forwarding of
+  // matched packets, via packet->markDoNotRetransmit() (same mechanism the ANON
+  // branch uses at Mesh.cpp:229).
   int  searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel channels[], int max_matches) override;
   void onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel,
                        uint8_t* data, size_t len) override;
 #endif
+  // CUSTOM (TeTeHacko): FairnessLimiter veto. mesh::Mesh consults this as the
+  // LAST condition of every forward decision, so a token is only taken for a
+  // packet that would otherwise transmit. Runtime kill switch in prefs.
+  bool takeForwardingRateLimit(const mesh::Packet* packet) override {
+    return !_prefs.fairness_enabled || fairness_limiter.allowPacket(packet);
+  }
   const char* getLogDateTime() override;
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
 

@@ -57,6 +57,14 @@ protected:
   virtual bool allowPacketForward(const Packet* packet);
 
   /**
+   * \brief  Takes a token from the rate-limiter, deciding whether this packet should be forwarded.
+   *     May CONSUME limiter state, so callers keep it as the LAST condition of a forward decision
+   *     and call it at most once per packet. (CUSTOM TeTeHacko: port of upstream proposal #1502.)
+   * \returns true, if the packet should be forwarded
+   */
+  virtual bool takeForwardingRateLimit(const Packet* packet);
+
+  /**
    * \returns  number of milliseconds delay to apply to retransmitting the given packet.
    */
   virtual uint32_t getRetransmitDelay(const Packet* packet);
