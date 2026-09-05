@@ -70,7 +70,9 @@
  * nothing" reduction in wasteful repeats, freeing airtime for useful repeats.
  */
 class FairnessLimiter {
-  // Capacity of when a bucket is full.
+  // Capacity of when a bucket is full. Runtime-settable (setGroupCap etc.) so
+  // limits can be loosened over RF admin without a reflash -- 0 to a setter
+  // resets to the build default below.
   uint8_t group_cap = FAIRNESS_GROUP_CAP, sender_normal_cap = FAIRNESS_SENDER_NORMAL_CAP,
           sender_low_cap = FAIRNESS_SENDER_LOW_CAP;
 
@@ -80,6 +82,11 @@ class FairnessLimiter {
   uint8_t sender_normal_map[SENDER_NORMAL_MAP_SIZE] = {};
   uint8_t sender_low_map[SENDER_LOW_MAP_SIZE] = {};
   uint8_t group_map[GROUP_MAP_SIZE] = {};
+  // Per-bucket deny counters -- the "grid": which hash buckets we are actually
+  // shedding, so a shed is visible instead of a bare total. Saturating uint16.
+  uint16_t group_deny[GROUP_MAP_SIZE] = {};
+  uint16_t sender_normal_deny[SENDER_NORMAL_MAP_SIZE] = {};
+  uint16_t sender_low_deny[SENDER_LOW_MAP_SIZE] = {};
 
 public:
   FairnessLimiter() {}
@@ -103,6 +110,20 @@ public:
   uint32_t deniedSenderNormal() const { return denied_sender_normal; }
   uint32_t deniedSenderLow() const { return denied_sender_low; }
   uint32_t deniedGroup() const { return denied_group; }
+
+  // Runtime cap tuning (0 = restore the build default for that bucket).
+  void setGroupCap(uint8_t c) { group_cap = c ? c : FAIRNESS_GROUP_CAP; }
+  void setSenderNormalCap(uint8_t c) { sender_normal_cap = c ? c : FAIRNESS_SENDER_NORMAL_CAP; }
+  void setSenderLowCap(uint8_t c) { sender_low_cap = c ? c : FAIRNESS_SENDER_LOW_CAP; }
+  uint8_t groupCap() const { return group_cap; }
+  uint8_t senderNormalCap() const { return sender_normal_cap; }
+  uint8_t senderLowCap() const { return sender_low_cap; }
+
+  // The grid: append "<pfx>=<count>" for each bucket with denies, per category,
+  // busiest first, into `out` (bounded by max_len). Returns chars written.
+  // `pfx` is the low bits of the sender/channel hash -- cross-reference the
+  // observer feed / CoreScope to map a hot bucket back to an actual node.
+  int formatGrid(char* out, int max_len) const;
 
   static int sender_normal_idx(const uint8_t* hash) { return hash[0] & SENDER_NORMAL_MASK; }
   static int sender_low_idx(const uint8_t* hash) { return hash[0] & SENDER_LOW_MASK; }

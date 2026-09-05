@@ -1,6 +1,8 @@
 #include "FairnessLimiter.h"
 
 #include <MeshCore.h>
+#include <cstdio>
+#include <cstring>
 
 uint8_t FairnessLimiter::peekGroup(const uint8_t* hash) {
   auto i = group_idx(hash);
@@ -18,6 +20,7 @@ bool FairnessLimiter::takeGroup(const uint8_t* hash) {
     allow = true;
   } else {
     denied_group++;
+    if (i < GROUP_MAP_SIZE && group_deny[i] != 0xFFFF) group_deny[i]++;
   }
   MESH_DEBUG_PRINTLN("FAIR, group=%02X allow=%u", (uint32_t)hash[0], (uint32_t)allow);
   return allow;
@@ -57,6 +60,7 @@ bool FairnessLimiter::takeSenderNormal(const uint8_t* hash) {
     allow = true;
   } else {
     denied_sender_normal++;
+    if (i < SENDER_NORMAL_MAP_SIZE && sender_normal_deny[i] != 0xFFFF) sender_normal_deny[i]++;
   }
   MESH_DEBUG_PRINTLN("FAIR, sender=%02X prio=normal allow=%u", (uint32_t)hash[0], (uint32_t)allow);
   return allow;
@@ -96,6 +100,7 @@ bool FairnessLimiter::takeSenderLow(const uint8_t* hash) {
     allow = true;
   } else {
     denied_sender_low++;
+    if (i < SENDER_LOW_MAP_SIZE && sender_low_deny[i] != 0xFFFF) sender_low_deny[i]++;
   }
   MESH_DEBUG_PRINTLN("FAIR, sender=%02X prio=low allow=%u", (uint32_t)hash[0], (uint32_t)allow);
   return allow;
@@ -151,4 +156,49 @@ bool FairnessLimiter::allowPacket(const mesh::Packet* pkt) {
   // PAYLOAD_TYPE_ACK, PAYLOAD_TYPE_TRACE, PAYLOAD_TYPE_MULTIPART,
   // PAYLOAD_TYPE_CONTROL, PAYLOAD_TYPE_RAW_CUSTOM
   return true;
+}
+
+// Append the busiest deny buckets of one category to `out`. Repeated max-scan
+// over a small array (<=128) -- picks up to `top` entries, busiest first, and
+// skips a bucket once emitted by nulling a scratch copy. Returns chars written.
+static int fmt_deny_cat(char* out, int max_len, const char* label,
+                        uint16_t* deny, int size, uint8_t cap, int top) {
+  int w = snprintf(out, max_len, "%s(cap %u):", label, (unsigned)cap);
+  if (w < 0 || w >= max_len) return (w < 0) ? 0 : max_len - 1;
+  bool any = false;
+  for (int n = 0; n < top; n++) {
+    int best = -1;
+    uint16_t best_v = 0;
+    for (int i = 0; i < size; i++) {
+      if (deny[i] > best_v) { best_v = deny[i]; best = i; }
+    }
+    if (best < 0) break;   // no non-zero left
+    int adv = snprintf(out + w, max_len - w, " %02x=%u", (unsigned)best, (unsigned)best_v);
+    if (adv < 0 || adv >= max_len - w) { out[w] = 0; break; }   // no room, stop clean
+    w += adv;
+    any = true;
+    deny[best] = 0;   // consumed for the next pass; `deny` is formatGrid's scratch copy
+  }
+  if (!any) {
+    int adv = snprintf(out + w, max_len - w, " -");
+    if (adv > 0 && adv < max_len - w) w += adv;
+  }
+  return w;
+}
+
+int FairnessLimiter::formatGrid(char* out, int max_len) const {
+  // Work on scratch copies so the busiest-first selection can null entries as
+  // it consumes them without disturbing the live counters.
+  static uint16_t g[GROUP_MAP_SIZE], sn[SENDER_NORMAL_MAP_SIZE], sl[SENDER_LOW_MAP_SIZE];
+  memcpy(g, group_deny, sizeof(g));
+  memcpy(sn, sender_normal_deny, sizeof(sn));
+  memcpy(sl, sender_low_deny, sizeof(sl));
+
+  int w = 0;
+  w += fmt_deny_cat(out + w, max_len - w, "group", g, GROUP_MAP_SIZE, group_cap, 6);
+  if (w < max_len - 2) { int a = snprintf(out + w, max_len - w, " | "); if (a > 0) w += a; }
+  w += fmt_deny_cat(out + w, max_len - w, "sender", sn, SENDER_NORMAL_MAP_SIZE, sender_normal_cap, 6);
+  if (w < max_len - 2) { int a = snprintf(out + w, max_len - w, " | "); if (a > 0) w += a; }
+  w += fmt_deny_cat(out + w, max_len - w, "advert", sl, SENDER_LOW_MAP_SIZE, sender_low_cap, 4);
+  return w;
 }

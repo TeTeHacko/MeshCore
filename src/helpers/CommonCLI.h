@@ -77,6 +77,9 @@ public:
   // just leave them at defaults.
   uint8_t fairness_enabled = 0;  // FairnessLimiter runtime kill switch
   char filter_deny[128];         // channel-filter deny list, comma-separated node names
+  // FairnessLimiter runtime tuning; 0 = use the firmware build default.
+  uint8_t fair_group_cap = 0, fair_sender_cap = 0, fair_advert_cap = 0;
+  uint16_t fair_group_refill_s = 0, fair_sender_refill_s = 0, fair_advert_refill_s = 0;
 
 private:
   class RadioPrefs : public CommonRadioPrefs {
@@ -193,6 +196,12 @@ private:
       def("loop", _parent->loop_detect);
       def("fair_en", _parent->fairness_enabled);
       def("f_deny", _parent->filter_deny, sizeof(_parent->filter_deny));
+      def("fair_gcap", _parent->fair_group_cap);
+      def("fair_scap", _parent->fair_sender_cap);
+      def("fair_acap", _parent->fair_advert_cap);
+      def("fair_grf", _parent->fair_group_refill_s);
+      def("fair_srf", _parent->fair_sender_refill_s);
+      def("fair_arf", _parent->fair_advert_refill_s);
     }
   public:
     RepeatPrefs(NodePrefs* parent) : _parent(parent) { }

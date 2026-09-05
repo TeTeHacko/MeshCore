@@ -724,26 +724,85 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   return true;
 }
 
-// CUSTOM (TeTeHacko): `fairness` -- denied-forward stats; `fairness on|off` --
-// runtime kill switch (persisted, so a mast reboot keeps the chosen state).
-bool MyMesh::fairnessHandleCommand(const char *command, char *reply) {
+// CUSTOM (TeTeHacko): `fairness` -- denied-forward stats + current caps;
+//   `fairness on|off`  -- runtime kill switch (persisted).
+//   `fairness grid`    -- busiest deny buckets per category (what we shed).
+//   `fairness cap <group> <sender> <advert>`      -- burst caps, 0 = default.
+//   `fairness refill <group_s> <sender_s> <advert_s>` -- refill interval secs, 0 = default.
+// All tuning is persisted, so a mast reboot keeps it.
+bool MyMesh::fairnessHandleCommand(const char *command, char *reply, int reply_max) {
   if (memcmp(command, "fairness", 8) != 0 || (command[8] != 0 && command[8] != ' ')) return false;
 
-  if (command[8] == ' ') {
-    const char *arg = &command[9];
-    if (strcmp(arg, "on") == 0 || strcmp(arg, "off") == 0) {
-      _prefs.fairness_enabled = (arg[1] == 'n') ? 1 : 0;
-      savePrefs();
-      sprintf(reply, "OK - fairness %s", _prefs.fairness_enabled ? "on" : "off");
-    } else {
-      strcpy(reply, "Err - fairness [on|off]");
-    }
+  const char *arg = (command[8] == ' ') ? &command[9] : "";
+
+  if (strcmp(arg, "on") == 0 || strcmp(arg, "off") == 0) {
+    _prefs.fairness_enabled = (arg[1] == 'n') ? 1 : 0;
+    savePrefs();
+    sprintf(reply, "OK - fairness %s", _prefs.fairness_enabled ? "on" : "off");
     return true;
   }
-  sprintf(reply, "fairness: %s, denied group %u, sender %u, advert %u",
-          _prefs.fairness_enabled ? "on" : "OFF",
-          fairness_limiter.deniedGroup(), fairness_limiter.deniedSenderNormal(),
-          fairness_limiter.deniedSenderLow());
+
+  if (strcmp(arg, "grid") == 0) {
+    char grid[180];
+    fairness_limiter.formatGrid(grid, sizeof(grid));
+    snprintf(reply, reply_max, "%s", grid);
+    return true;
+  }
+
+  if (memcmp(arg, "cap ", 4) == 0) {
+    int g = 0, s = 0, a = 0;
+    if (sscanf(arg + 4, "%d %d %d", &g, &s, &a) != 3 || g < 0 || s < 0 || a < 0 || g > 255 || s > 255 || a > 255) {
+      strcpy(reply, "Err - fairness cap <group> <sender> <advert> (0=default)");
+      return true;
+    }
+    _prefs.fair_group_cap = (uint8_t)g;
+    _prefs.fair_sender_cap = (uint8_t)s;
+    _prefs.fair_advert_cap = (uint8_t)a;
+    fairness_limiter.setGroupCap(_prefs.fair_group_cap);
+    fairness_limiter.setSenderNormalCap(_prefs.fair_sender_cap);
+    fairness_limiter.setSenderLowCap(_prefs.fair_advert_cap);
+    savePrefs();
+    sprintf(reply, "OK - cap group %u sender %u advert %u",
+            (uint32_t)fairness_limiter.groupCap(), (uint32_t)fairness_limiter.senderNormalCap(),
+            (uint32_t)fairness_limiter.senderLowCap());
+    return true;
+  }
+
+  if (memcmp(arg, "refill ", 7) == 0) {
+    int g = 0, s = 0, a = 0;
+    if (sscanf(arg + 7, "%d %d %d", &g, &s, &a) != 3 || g < 0 || s < 0 || a < 0 || g > 65535 || s > 65535 || a > 65535) {
+      strcpy(reply, "Err - fairness refill <group_s> <sender_s> <advert_s> (0=default)");
+      return true;
+    }
+    _prefs.fair_group_refill_s = (uint16_t)g;
+    _prefs.fair_sender_refill_s = (uint16_t)s;
+    _prefs.fair_advert_refill_s = (uint16_t)a;
+    // reschedule so the new interval takes effect from now
+    next_fair_group_refill = futureMillis(fairGroupRefillMs());
+    next_fair_sender_normal_refill = futureMillis(fairSenderRefillMs());
+    next_fair_sender_low_refill = futureMillis(fairAdvertRefillMs());
+    savePrefs();
+    sprintf(reply, "OK - refill group %us sender %us advert %us",
+            (uint32_t)(fairGroupRefillMs() / 1000), (uint32_t)(fairSenderRefillMs() / 1000),
+            (uint32_t)(fairAdvertRefillMs() / 1000));
+    return true;
+  }
+
+  if (arg[0] != 0) {
+    strcpy(reply, "Err - fairness [on|off|grid|cap ...|refill ...]");
+    return true;
+  }
+
+  // bare `fairness` -- stats + current caps/refills
+  snprintf(reply, reply_max,
+           "fairness: %s, denied group %u/sender %u/advert %u; cap %u/%u/%u; refill %u/%u/%us",
+           _prefs.fairness_enabled ? "on" : "OFF",
+           fairness_limiter.deniedGroup(), fairness_limiter.deniedSenderNormal(),
+           fairness_limiter.deniedSenderLow(),
+           (uint32_t)fairness_limiter.groupCap(), (uint32_t)fairness_limiter.senderNormalCap(),
+           (uint32_t)fairness_limiter.senderLowCap(),
+           (uint32_t)(fairGroupRefillMs() / 1000), (uint32_t)(fairSenderRefillMs() / 1000),
+           (uint32_t)(fairAdvertRefillMs() / 1000));
   return true;
 }
 
@@ -1328,14 +1387,20 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _cli.loadPrefs(_fs);
   acl.load(_fs, self_id);
 
+  // Apply any persisted runtime cap tuning (0 = build default). Do this before
+  // the first refill so the initial token respects a raised cap.
+  fairness_limiter.setGroupCap(_prefs.fair_group_cap);
+  fairness_limiter.setSenderNormalCap(_prefs.fair_sender_cap);
+  fairness_limiter.setSenderLowCap(_prefs.fair_advert_cap);
+
   // Fairness buckets start with just ONE token (not the full cap): a repeater
   // stuck in a crash loop must not hand out a fresh burst on every boot.
   fairness_limiter.refillSenderNormal();
   fairness_limiter.refillSenderLow();
   fairness_limiter.refillGroup();
-  next_fair_sender_normal_refill = futureMillis(FAIRNESS_SENDER_NORMAL_REFILL_MS);
-  next_fair_sender_low_refill = futureMillis(FAIRNESS_SENDER_LOW_REFILL_MS);
-  next_fair_group_refill = futureMillis(FAIRNESS_GROUP_REFILL_MS);
+  next_fair_sender_normal_refill = futureMillis(fairSenderRefillMs());
+  next_fair_sender_low_refill = futureMillis(fairAdvertRefillMs());
+  next_fair_group_refill = futureMillis(fairGroupRefillMs());
   // TODO: key_store.begin();
   region_map.load(_fs);
 
@@ -1700,8 +1765,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     // channel messages this repeater refuses to forward. See ChannelFilter.h.
     if (filterHandleCommand(command, reply, reply_max)) return;
 #endif
-    // CUSTOM (TeTeHacko): `fairness [on|off]` — forwarding rate limiter stats + kill switch.
-    if (fairnessHandleCommand(command, reply)) return;
+    // CUSTOM (TeTeHacko): `fairness [on|off|grid|cap ...|refill ...]` — rate limiter.
+    if (fairnessHandleCommand(command, reply, reply_max)) return;
     // CUSTOM (TeTeHacko): `blink [n]` — flash the LED to identify this board.
     // Outside the BLE guard on purpose: a USB-only build needs it just as much,
     // since a board with no data cable and no BLE cannot be identified at all.
@@ -1742,13 +1807,13 @@ void MyMesh::loop() {
   // aligning on one loop pass; each adds ONE token per bucket per interval.
   if (next_fair_sender_normal_refill && millisHasNowPassed(next_fair_sender_normal_refill)) {
     fairness_limiter.refillSenderNormal();
-    next_fair_sender_normal_refill = futureMillis(FAIRNESS_SENDER_NORMAL_REFILL_MS);
+    next_fair_sender_normal_refill = futureMillis(fairSenderRefillMs());
   } else if (next_fair_sender_low_refill && millisHasNowPassed(next_fair_sender_low_refill)) {
     fairness_limiter.refillSenderLow();
-    next_fair_sender_low_refill = futureMillis(FAIRNESS_SENDER_LOW_REFILL_MS);
+    next_fair_sender_low_refill = futureMillis(fairAdvertRefillMs());
   } else if (next_fair_group_refill && millisHasNowPassed(next_fair_group_refill)) {
     fairness_limiter.refillGroup();
-    next_fair_group_refill = futureMillis(FAIRNESS_GROUP_REFILL_MS);
+    next_fair_group_refill = futureMillis(fairGroupRefillMs());
   }
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {

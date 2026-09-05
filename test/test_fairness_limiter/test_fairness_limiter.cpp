@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <string>
 #include "helpers/FairnessLimiter.h"
 
 using namespace mesh;
@@ -139,6 +140,54 @@ TEST(FairnessLimiter, TransportFloodIsLimitedLikeFlood) {
     Packet p = makePacket(ROUTE_TYPE_TRANSPORT_FLOOD, PAYLOAD_TYPE_GRP_TXT, {0xEF, 0, 0});
     EXPECT_FALSE(fl.allowPacket(&p));
     EXPECT_EQ(fl.deniedGroup(), 1u);
+}
+
+// ── runtime cap tuning ───────────────────────────────────────────────────────
+
+TEST(FairnessLimiter, SetCapZeroRestoresDefault) {
+    FairnessLimiter fl;
+    fl.setGroupCap(5);
+    EXPECT_EQ(fl.groupCap(), 5);
+    fl.setGroupCap(0);                       // 0 = restore build default
+    EXPECT_EQ(fl.groupCap(), FAIRNESS_GROUP_CAP);
+}
+
+TEST(FairnessLimiter, RaisedSenderCapAllowsBiggerBurst) {
+    FairnessLimiter fl;
+    fl.setSenderNormalCap(100);
+    for (int i = 0; i < 200; i++) fl.refillSenderNormal();   // fill to the raised cap
+    Packet p = makePacket(ROUTE_TYPE_FLOOD, PAYLOAD_TYPE_TXT_MSG, {0x10, 0x22, 0, 0});
+    int allowed = 0;
+    for (int i = 0; i < 200; i++) if (fl.allowPacket(&p)) allowed++;
+    EXPECT_EQ(allowed, 100);                 // the new cap, not the default 30
+}
+
+// ── grid: which buckets we shed ──────────────────────────────────────────────
+
+TEST(FairnessLimiter, GridReportsDeniedBuckets) {
+    FairnessLimiter fl;
+    fl.refillGroup();                        // 1 token per group bucket
+    // 0xEF -> bucket 0x0F; first passes, then 2 denies on that bucket
+    Packet g = makePacket(ROUTE_TYPE_FLOOD, PAYLOAD_TYPE_GRP_TXT, {0xEF, 0, 0});
+    fl.allowPacket(&g);                       // consumes the token
+    fl.allowPacket(&g);                       // deny 1
+    fl.allowPacket(&g);                       // deny 2
+    char grid[180];
+    fl.formatGrid(grid, sizeof(grid));
+    std::string s(grid);
+    EXPECT_NE(s.find("group(cap 20):"), std::string::npos);
+    EXPECT_NE(s.find("0f=2"), std::string::npos);   // bucket 0x0f denied twice
+    EXPECT_NE(s.find("sender(cap 30): -"), std::string::npos);  // nothing shed there
+}
+
+TEST(FairnessLimiter, GridIsNonDestructive) {
+    FairnessLimiter fl;
+    Packet g = makePacket(ROUTE_TYPE_FLOOD, PAYLOAD_TYPE_GRP_TXT, {0xEF, 0, 0});
+    fl.allowPacket(&g);                       // zero tokens -> deny 1
+    char a[180], b[180];
+    fl.formatGrid(a, sizeof(a));
+    fl.formatGrid(b, sizeof(b));
+    EXPECT_STREQ(a, b);                       // repeated calls give the same picture
 }
 
 int main(int argc, char** argv) {

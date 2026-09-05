@@ -319,8 +319,18 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool botPeerAllowed(const char* name);
   bool botHandleCommand(const char* command, char* reply);
 #endif
-  // CUSTOM (TeTeHacko): `fairness [on|off]` CLI. Defined in MyMesh.cpp.
-  bool fairnessHandleCommand(const char* command, char* reply);
+  // CUSTOM (TeTeHacko): `fairness [on|off|grid|cap ...|refill ...]` CLI. Defined in MyMesh.cpp.
+  bool fairnessHandleCommand(const char* command, char* reply, int reply_max);
+  // Refill interval in ms: persisted pref (seconds) if set, else the build default.
+  uint32_t fairGroupRefillMs() const {
+    return _prefs.fair_group_refill_s ? (uint32_t)_prefs.fair_group_refill_s * 1000 : FAIRNESS_GROUP_REFILL_MS;
+  }
+  uint32_t fairSenderRefillMs() const {
+    return _prefs.fair_sender_refill_s ? (uint32_t)_prefs.fair_sender_refill_s * 1000 : FAIRNESS_SENDER_NORMAL_REFILL_MS;
+  }
+  uint32_t fairAdvertRefillMs() const {
+    return _prefs.fair_advert_refill_s ? (uint32_t)_prefs.fair_advert_refill_s * 1000 : FAIRNESS_SENDER_LOW_REFILL_MS;
+  }
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
