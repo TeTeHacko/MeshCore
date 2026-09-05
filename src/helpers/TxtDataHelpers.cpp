@@ -100,12 +100,11 @@ static void _ftoa(float f, char *p, int *status)
       *p++ = '-';
   if (int_part == 0)
     *p++ = '0';
-  else 
-  {
-    ltoa(int_part, p, 10);
-    while (*p)
-      p++;
-  }
+  else
+    // ltoa() is not declared on every toolchain (STM32/newlib-nano lacks it,
+    // breaking the wio-e5 build); sprintf %lu is portable. int_part is the
+    // non-negative magnitude here -- the sign was already emitted above.
+    p += sprintf(p, "%lu", (unsigned long)int_part);
   *p++ = '.';
   if (frac_part == 0)
     *p++ = '0';
