@@ -1,0 +1,1613 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/mesh-analyzer/">
+      
+      
+        <link rel="prev" href="../kiss_modem_protocol/">
+      
+      
+        <link rel="next" href="../mesh-review-2026-08-19/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>MeshCore Passive Mesh Analyzer - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#meshcore-passive-mesh-analyzer" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              MeshCore Passive Mesh Analyzer
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ble-flash-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ble-lora-coexistence-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BLE/LoRa coexistence — bench reproduction attempt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kiss_modem_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore KISS Modem Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore Passive Mesh Analyzer
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore Passive Mesh Analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-firmware-protocol-implemented" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Firmware protocol (implemented)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Firmware protocol (implemented)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-nodes-offset-heard-repeaterroom-server-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 nodes [offset] — heard repeater/room-server registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-rxlog-cursor-firehose-of-every-frame-heard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 rxlog [cursor] — firehose of every frame heard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-decoding-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 Decoding reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-multi-path-how-to-show-every-route-a-node-reaches-us-by" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 Multi-path — how to show every route a node reaches us by
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#15-pktlog-cursor-raw-frame-feed-community-observer-interop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5 pktlog [cursor] — raw-frame feed (community observer interop)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-bridge-map-spec-for-the-other-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Bridge + map spec (for the other agent)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Bridge + map spec (for the other agent)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-transport-poll-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Transport &amp; poll loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Parsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-hash-node-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Hash → node resolution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-mqtt-optional-for-interop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 MQTT (optional, for interop)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-map-leaflet-self-contained" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Map (Leaflet, self-contained)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-prior-art-to-study-stay-compatible-with" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Prior art to study / stay compatible with
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#27-external-data-sources-where-to-prove-a-packet-got-through" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.7 External data sources — where to prove a packet got through
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-firmware-data-model-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Firmware data model (reference)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mesh-review-2026-08-19/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Revize meshe: šířka path hashe a čas (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../number_allocations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Number Allocations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Payload Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../power-saving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power saving on a solar repeater — what it costs, measured
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upstream-prs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Co z forku posíláme do upstreamu (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upstream-v1.17.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-firmware-protocol-implemented" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Firmware protocol (implemented)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Firmware protocol (implemented)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-nodes-offset-heard-repeaterroom-server-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 nodes [offset] — heard repeater/room-server registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-rxlog-cursor-firehose-of-every-frame-heard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 rxlog [cursor] — firehose of every frame heard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-decoding-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 Decoding reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-multi-path-how-to-show-every-route-a-node-reaches-us-by" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 Multi-path — how to show every route a node reaches us by
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#15-pktlog-cursor-raw-frame-feed-community-observer-interop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.5 pktlog [cursor] — raw-frame feed (community observer interop)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-bridge-map-spec-for-the-other-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Bridge + map spec (for the other agent)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Bridge + map spec (for the other agent)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-transport-poll-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Transport &amp; poll loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Parsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-hash-node-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Hash → node resolution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-mqtt-optional-for-interop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4 MQTT (optional, for interop)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-map-leaflet-self-contained" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5 Map (Leaflet, self-contained)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#26-prior-art-to-study-stay-compatible-with" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.6 Prior art to study / stay compatible with
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#27-external-data-sources-where-to-prove-a-packet-got-through" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.7 External data sources — where to prove a packet got through
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-firmware-data-model-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Firmware data model (reference)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/mesh-analyzer.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="meshcore-passive-mesh-analyzer">MeshCore Passive Mesh Analyzer</h1>
+<p>A zero-infrastructure way to pull <strong>everything a node hears on the radio</strong> out
+over BLE/serial and plot it on a map — the "MeshSense for MeshCore" that does
+not exist yet (see prior-art gap analysis below).</p>
+<pre><code>  repeater FW  ──(text console: BLE-NUS / USB serial)──▶  bridge  ──▶  MQTT + map
+  (this repo)        nodes / rxlog  commands                 (separate agent)
+</code></pre>
+<p>The <strong>firmware half is implemented in this repo</strong> (repeater, <code>SenseCap_Solar_repeater_ble</code>).
+The <strong>bridge + map half is a separate project</strong> for another agent; this document
+is its spec. Everything the bridge needs to know about the FW protocol is here,
+so the bridge author does not need to read the firmware source.</p>
+<hr />
+<h2 id="1-firmware-protocol-implemented">1. Firmware protocol (implemented)</h2>
+<p>Two RAM-only, opt-in tables are fed from the normal RX path and exposed as
+<strong>text CLI commands</strong> on the repeater console. The console is request/reply and
+both commands are <strong>paged</strong> with a trailer so the caller can drain them and
+detect if it fell behind. Page size depends on the transport: the <strong>local
+console (USB serial / BLE NUS) serves ~1000-byte pages</strong> (~20 rxlog records or
+~7 nodes lines per round trip); the <strong>mesh admin CLI keeps a ~150-byte page</strong>
+so the reply still fits one LoRa packet. A page ends with the <code>E,...</code> trailer
+line — detect it instead of waiting for line silence. Reachable over USB
+serial, the PIN-paired BLE Nordic-UART console, and the admin mesh CLI — exactly
+like the existing <code>neighbors</code> command.</p>
+<p>Enabled per-variant via build flags (compiled out otherwise):</p>
+<pre><code class="language-ini">-D MAX_HEARD_NODES=48   ; size of the heard-repeater/room registry
+-D RXLOG_SIZE=96        ; size of the circular &quot;everything heard&quot; ring
+</code></pre>
+<h3 id="11-nodes-offset-heard-repeaterroom-server-registry">1.1 <code>nodes [offset]</code> — heard repeater/room-server registry</h3>
+<p>One row per <strong>distinct repeater or room server</strong> whose (signature-verified)
+advert we heard. <strong>Chat clients and sensors are intentionally NOT recorded</strong> —
+they are personal/mobile devices, so mapping them is a privacy concern and just
+churns the table. Sorted newest-heard first.</p>
+<p>Per-node line:</p>
+<pre><code>N,&lt;prefix&gt;,&lt;type&gt;,&lt;lat&gt;,&lt;lon&gt;,&lt;snr&gt;,&lt;rssi&gt;,&lt;age&gt;,&lt;pkthash&gt;,&lt;path&gt;,&lt;name&gt;
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prefix</code></td>
+<td>first <strong>6 bytes</strong> of the node's Ed25519 pubkey, hex (12 chars). The 1st byte is its path-hash.</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>advert node type: <code>2</code>=repeater, <code>3</code>=room server (only these appear)</td>
+</tr>
+<tr>
+<td><code>lat</code></td>
+<td>latitude × 1e6, signed integer (<code>0</code> = unknown)</td>
+</tr>
+<tr>
+<td><code>lon</code></td>
+<td>longitude × 1e6, signed integer (<code>0</code> = unknown)</td>
+</tr>
+<tr>
+<td><code>snr</code></td>
+<td>SNR <strong>× 4</strong> (0.25 dB units) of the representative path; divide by 4 for dB</td>
+</tr>
+<tr>
+<td><code>rssi</code></td>
+<td>RSSI in dBm (signed) of the representative path</td>
+</tr>
+<tr>
+<td><code>age</code></td>
+<td>seconds since last heard</td>
+</tr>
+<tr>
+<td><code>pkthash</code></td>
+<td>FNV-1a of this node's latest advert (type‖payload), hex (8 chars). <strong>JOIN KEY</strong> — see §1.4 (multi-path).</td>
+</tr>
+<tr>
+<td><code>path</code></td>
+<td>ONE representative trail of <strong>colon-separated</strong> hop-hashes, direct/0-hop preferred (empty = direct). Full set of paths via the join. See §1.3/§1.4.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>node name (UTF-8). <strong>Everything after the 10th comma is the name</strong> — it may itself contain commas.</td>
+</tr>
+</tbody>
+</table>
+<p>Trailer line: <code>E,&lt;next_offset&gt;,&lt;total&gt;</code>
+- <code>next_offset</code> — pass as the next <code>offset</code>; when it equals <code>total</code>, you are done.
+- <code>total</code> — total non-empty rows in the registry.</p>
+<p>Example:</p>
+<pre><code>&gt; nodes
+N,a3f19c02bb71,2,50548100,14128500,48,-95,37,E18D9489,,tth-ltm.meshcore.cz
+N,10c4de00aa02,2,50510000,14200000,24,-108,410,7F0E1122,A3,Repeater-Hill
+E,2,2
+</code></pre>
+<p>(first node: empty path = heard direct; second: one 1-byte hop <code>A3</code>. The
+<code>E18D9489</code>/<code>7F0E1122</code> are the pkthash join keys.)</p>
+<h3 id="12-rxlog-cursor-firehose-of-every-frame-heard">1.2 <code>rxlog [cursor]</code> — firehose of every frame heard</h3>
+<p>A circular buffer capturing <strong>every parsed frame</strong> the radio decoded (any type,
+whether or not it was for us), fed synchronously so SNR/RSSI belong to that
+exact frame. Returns records with <code>seq &gt; cursor</code>, oldest first.</p>
+<p>Per-record line:</p>
+<pre><code>R,&lt;seq&gt;,&lt;when&gt;,&lt;pkthash&gt;,&lt;hdr&gt;,&lt;snr&gt;,&lt;rssi&gt;,&lt;path&gt;
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seq</code></td>
+<td>monotonic capture sequence (the paging cursor)</td>
+</tr>
+<tr>
+<td><code>when</code></td>
+<td>capture time, epoch seconds (node RTC; may be wrong until GPS/clock sync)</td>
+</tr>
+<tr>
+<td><code>pkthash</code></td>
+<td>FNV-1a hash of (type‖payload), hex (8 chars) — cheap dedup / correlation across nodes running this FW. <strong>Not</strong> the MeshCore SHA packet-hash (avoided to keep the radio hot path light).</td>
+</tr>
+<tr>
+<td><code>hdr</code></td>
+<td>raw header byte, hex. Decode: see §1.3</td>
+</tr>
+<tr>
+<td><code>snr</code></td>
+<td>SNR × 4 (0.25 dB units)</td>
+</tr>
+<tr>
+<td><code>rssi</code></td>
+<td>RSSI in dBm, signed</td>
+</tr>
+<tr>
+<td><code>path</code></td>
+<td><strong>colon-separated</strong> hop-hashes of this copy's trail (empty = 0-hop). See §1.3.</td>
+</tr>
+</tbody>
+</table>
+<p>Trailer line: <code>E,&lt;last_seq&gt;,&lt;oldest_seq&gt;,&lt;newest_seq&gt;</code>
+- <code>last_seq</code> — highest seq returned this call; pass it as the next <code>cursor</code>.
+- <code>oldest_seq</code> / <code>newest_seq</code> — the seq range still held in the ring.
+- <strong>Drop detection:</strong> if your previous cursor <code>+ 1 &lt; oldest_seq</code>, the ring
+  overwrote <code>(oldest_seq − cursor − 1)</code> records before you read them — poll faster
+  or grow <code>RXLOG_SIZE</code>.</p>
+<p>Example:</p>
+<pre><code>&gt; rxlog 40
+R,41,1799887654,ab12cd34,11,48,-95,
+R,42,1799887656,7f0e1122,09,20,-110,A3:10:C4
+E,42,17,42
+</code></pre>
+<h3 id="13-decoding-reference">1.3 Decoding reference</h3>
+<p><strong>Header byte</strong> (<code>hdr</code>):
+- bits 0-1 = route type: <code>0</code>=transport-flood, <code>1</code>=flood, <code>2</code>=direct, <code>3</code>=transport-direct
+- bits 2-5 = payload type (table below)
+- bits 6-7 = payload version</p>
+<p><strong>Payload types:</strong> <code>0</code>=REQ, <code>1</code>=RESPONSE, <code>2</code>=TXT_MSG, <code>3</code>=ACK, <code>4</code>=<strong>ADVERT</strong>,
+<code>5</code>=GRP_TXT, <code>6</code>=GRP_DATA, <code>7</code>=ANON_REQ, <code>8</code>=<strong>PATH</strong>, <code>9</code>=<strong>TRACE</strong>,
+<code>0xA</code>=MULTIPART, <code>0xB</code>=CONTROL, <code>0xF</code>=RAW_CUSTOM.</p>
+<p><strong>Path field</strong> (<code>nodes</code> and <code>rxlog</code>): a flood packet accumulates one hop-hash per
+repeater it traverses. Each hop-hash is the <strong>leading byte(s) of that repeater's
+pubkey</strong>. Hash width is 1, 2 or 3 bytes (v1.14+ "multibyte path hash"), uniform
+within one packet.</p>
+<p>The path is emitted as <strong>colon-separated hops</strong> so you never have to guess the
+width: each token between <code>:</code> is one hop-hash, and its byte width is
+<code>len(token)/2</code>. So <code>A3:1F:C2</code> = three 1-byte hops; <code>A31F:C204</code> = two 2-byte hops;
+empty = 0-hop / direct. Resolve each token against the <code>nodes</code> registry by
+matching the first <code>len(token)/2</code> bytes of a node's <code>prefix</code> — but 1-byte hashes
+collide (1 in 256), so where ambiguous keep the edge as "unknown hop". Paths are
+capped at 16 stored bytes (very long routes truncate).</p>
+<p><strong>Units:</strong> SNR in the wire is × 4 (0.25 dB); RSSI is plain dBm; lat/lon are
+degrees × 1e6.</p>
+<h3 id="14-multi-path-how-to-show-every-route-a-node-reaches-us-by">1.4 Multi-path — how to show every route a node reaches us by</h3>
+<p>A node's advert usually reaches us via <strong>several paths at once</strong> (0-hop direct
+AND relayed by different repeaters). The firmware can't hand you all of them in
+<code>nodes</code>: the mesh dedups by packet hash (payload only — the path is <em>not</em> in the
+hash), so <code>onAdvertRecv</code> fires for only the <strong>first</strong> copy, and <code>nodes</code> keeps one
+representative path. <strong>But <code>rxlog</code> is fed pre-dedup</strong> (<code>logRx</code>, before <code>hasSeen</code>),
+so it logs <strong>every copy</strong> — each with its own <code>path</code> and its own SNR/RSSI.</p>
+<p>All copies of one advert share the same <code>pkthash</code> (FNV of type‖payload). So:</p>
+<ol>
+<li>In your buffered <code>rxlog</code> history, <strong>group records by <code>pkthash</code></strong> → the distinct
+   <code>path</code> values in a group are the <strong>different routes</strong> that frame took to us
+   (including the empty/direct one). Each copy's SNR/RSSI is that route's quality.</li>
+<li>To attach those routes to a <strong>named node</strong>, join on <code>pkthash</code>:
+   <code>nodes[X].pkthash == rxlog[*].pkthash</code>. That gives node X's identity/position
+   (from <code>nodes</code>) plus its full set of current paths (from <code>rxlog</code>).</li>
+</ol>
+<p><strong>Display:</strong> draw the node dot once (from <code>nodes</code> lat/lon); draw <strong>one edge/route
+per distinct path</strong> in the joined group — direct (empty path) as the primary
+us↔node edge, each relayed path as a poly-line through its resolved hops — and
+colour/width each by that copy's SNR. That's the live multi-path view.</p>
+<p>Caveats: each advert <em>broadcast</em> has a fresh timestamp → fresh <code>pkthash</code>, so the
+join tracks the <strong>latest</strong> broadcast's paths (exactly what you want for "current"
+topology). It only works while the copies are still in your <code>rxlog</code> buffer, so
+keep draining <code>rxlog</code> (advance the cursor!) and, on a busy channel, raise
+<code>RXLOG_SIZE</code>. The single <code>nodes.path</code> is a durable fallback when you haven't
+buffered the matching <code>rxlog</code> copies.</p>
+<h3 id="15-pktlog-cursor-raw-frame-feed-community-observer-interop">1.5 <code>pktlog [cursor]</code> — raw-frame feed (community observer interop)</h3>
+<p><code>rxlog</code>'s sibling ring (build flag <code>PKTFEED_SIZE</code>, e.g. 32) that keeps the
+<strong>full raw frame bytes</strong> so a bridge can publish meshcoretomqtt-compatible
+packets to a community analyzer (<code>meshcore/{IATA}/{PUBKEY}/packets</code>). Same
+paging/cursor/trailer semantics as <code>rxlog</code>, fed from the same RX path
+(staged pre-parse in <code>logRxRaw</code>, committed post-parse in <code>logRx</code>, so radio
+garbage never enters the feed).</p>
+<p>Per-record line:</p>
+<pre><code>P,&lt;seq&gt;,&lt;when&gt;,&lt;snr&gt;,&lt;rssi&gt;,&lt;raw&gt;
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seq</code></td>
+<td>monotonic capture sequence (paging cursor, shared rules w/ rxlog)</td>
+</tr>
+<tr>
+<td><code>when</code></td>
+<td>capture time, epoch seconds</td>
+</tr>
+<tr>
+<td><code>snr</code></td>
+<td>SNR × 4 (0.25 dB units)</td>
+</tr>
+<tr>
+<td><code>rssi</code></td>
+<td>RSSI in dBm, signed</td>
+</tr>
+<tr>
+<td><code>raw</code></td>
+<td>full wire frame hex: <code>header ‖ [4B transport] ‖ path_len ‖ path ‖ payload</code></td>
+</tr>
+</tbody>
+</table>
+<p>Trailer: <code>E,&lt;last_seq&gt;,&lt;oldest_seq&gt;,&lt;newest_seq&gt;</code> — identical drop-detection
+rule as <code>rxlog</code>.</p>
+<p>Everything else is <strong>derived bridge-side from <code>raw</code></strong>: route/type from the
+header byte, and the MeshCore packet hash (the analyzer's cross-observer
+correlation key) as <code>SHA256(type ‖ [path_len byte if TRACE] ‖ payload)[:8]</code>
+(= <code>Packet::calculatePacketHash</code>) — so the radio hot path stays SHA-free.</p>
+<p>NOTE: a full-size record line is ~550 chars — bigger than the mesh admin
+CLI's 150 B reply budget. Over the mesh CLI the reply degrades to a bare
+trailer; the intended consumer is the local (USB/BLE) console with ~1000 B
+pages, which always fits at least one record.</p>
+<hr />
+<h2 id="2-bridge-map-spec-for-the-other-agent">2. Bridge + map spec (for the other agent)</h2>
+<h3 id="21-transport-poll-loop">2.1 Transport &amp; poll loop</h3>
+<ul>
+<li>Reuse the existing dopey BLE bridge (meshcore-ble-bridge, bleak, NUS on
+  <code>FA:4F:30:E3:1B:7A</code>; write cmd to <code>6e400002</code> in ≤20-byte chunks + <code>\r</code>, read
+  notifications on <code>6e400003</code>). The console echoes replies prefixed with <code>-&gt;</code>.</li>
+<li>Persist two cursors across restarts: <code>nodes</code> offset is re-derived each poll
+  (walk offset 0→total, it's small); <code>rxlog</code> keep the last <code>seq</code> you consumed.</li>
+<li>Suggested cadence for a quiet home mesh: poll <code>rxlog</code> every ~5 s draining until
+  <code>last_seq == cursor</code>; poll <code>nodes</code> every ~60 s (it changes slowly). Honour the
+  drop-detection rule and log/counter it (do <strong>not</strong> silently skip).</li>
+</ul>
+<h3 id="22-parsing">2.2 Parsing</h3>
+<ul>
+<li>Split each reply into lines; dispatch on the first char (<code>N</code>/<code>R</code>/<code>E</code>).</li>
+<li>For <code>N</code> lines, treat everything after the 9th comma as the name.</li>
+<li>Convert <code>snr/4</code> → dB, keep RSSI as dBm, <code>lat/1e6</code>,<code>lon/1e6</code> → degrees.</li>
+</ul>
+<h3 id="23-hash-node-resolution">2.3 Hash → node resolution</h3>
+<ul>
+<li>Build a local map: <code>pubkey-prefix-byte(s) → {name, type, lat, lon}</code> from the
+  <code>nodes</code> registry.</li>
+<li>Optionally enrich against the public registry
+  <code>https://map.meshcore.io/api/v1/nodes</code> (keyed on full pubkey + location) to
+  resolve hops this node hasn't personally heard an advert from.</li>
+<li>Mark unresolved / colliding hops explicitly rather than guessing.</li>
+</ul>
+<h3 id="24-mqtt-optional-for-interop">2.4 MQTT (optional, for interop)</h3>
+<ul>
+<li>Publish <code>rxlog</code> records in a shape compatible with <code>meshcoretomqtt</code>
+  (<code>meshcore/{region}/{pubkey}/packets</code>, JSON with snr, rssi, type, route,
+  path, hash) so existing tools (CoreScope, MeshCore Hub) can ingest it.</li>
+</ul>
+<h3 id="25-map-leaflet-self-contained">2.5 Map (Leaflet, self-contained)</h3>
+<ul>
+<li><strong>Dots</strong>: nodes from <code>nodes</code> lat/lon, icon by type (repeater vs room).</li>
+<li><strong>Edges</strong>: draw the hop path of each advert / rxlog record as a polyline
+  between resolved repeaters; colour/width by the SNR/RSSI of the final hop to us.</li>
+<li><strong>Coverage heatmap</strong>: anchored at this repeater's own position, from the
+  SNR/RSSI of everything it hears — a genuine local RF-truth / drive-test view.</li>
+<li><strong>Live traffic feed</strong> + <strong>VCR-style replay</strong> over the <code>rxlog</code> timeline (see
+  CoreScope for UX).</li>
+</ul>
+<h3 id="26-prior-art-to-study-stay-compatible-with">2.6 Prior art to study / stay compatible with</h3>
+<ul>
+<li><strong>CoreScope</strong> (github.com/Kpa-clawbot/meshcore-analyzer) — open-source packet
+  viz + VCR replay; MQTT-ingest.</li>
+<li><strong>MeshCore Hub</strong> (github.com/ipnet-mesh/meshcore-hub) — path-hash→node
+  resolution UX.</li>
+<li><strong>MeshSense</strong> (github.com/Affirmatech/MeshSense) — the single-node-BLE analyzer
+  product shape (Meshtastic only; this fills the MeshCore gap).</li>
+<li><strong>MeshMap</strong> (meshmap.net) — dots + neighbour-lines + traceroute map UX.</li>
+<li>The official <strong>map.meshcore.io</strong> does dots only (opt-in manual uploads); the
+  observer analyzers require a USB-tethered node + MQTT broker + server. The
+  differentiator here is <strong>portable, offline, single-node BLE capture with local
+  RF truth</strong> — lean into that.</li>
+</ul>
+<hr />
+<h2 id="27-external-data-sources-where-to-prove-a-packet-got-through">2.7 External data sources — where to prove a packet got through</h2>
+<p>Tenhle dokument popisuje NÁŠ analyzer. Když se ale ptáš „prolezlo to?", jsou
+rychlejší cesty a mají historii. Postup je ve skillu <code>mesh-evidence</code>; tady jsou
+jen API detaily, které stály čas.</p>
+<p><strong>RemoteTerm (black-arch, <code>127.0.0.1:8011</code>, jen loopback)</strong> — jediný zdroj, který
+u přijatých zpráv drží CESTU:</p>
+<pre><code class="language-bash">curl -s &quot;http://127.0.0.1:8011/api/messages?limit=800&quot;
+curl -s &quot;http://127.0.0.1:8011/api/contacts&quot;
+</code></pre>
+<p>Každá zpráva má <code>paths[]</code> = <code>{path: hex, path_len: &lt;počet HOPŮ&gt;, rssi, snr}</code>.
+Šířka hashe se počítá <code>(len(hex)/2) / path_len</code> — <code>path_len</code> <strong>nejsou bajty</strong>.</p>
+<p><strong>Komunitní analyzer <code>analyzer.meshcore.cz</code> (bez tokenu)</strong> — co viděli cizí:</p>
+<pre><code class="language-bash">curl -s &quot;https://analyzer.meshcore.cz/api/nodes?limit=2000&quot;    # BEZ limitu jen 50 z 983!
+curl -s &quot;https://analyzer.meshcore.cz/api/packets?limit=3000&quot;  # okno ~5 h
+curl -s &quot;https://analyzer.meshcore.cz/api/stats&quot;
+</code></pre>
+<p><code>_parsedPath</code> je <strong>už rozsekaný podle šířky</strong> (4znakové položky = 2 B, 2znakové =
+1 B) — nespojovat si to po bajtech, jak jsem zkoušel. <code>observation_count</code> říká,
+kolik pozorování na ten paket bylo; desítky znamenají, že se rozešel po republice.</p>
+<p><strong>MQTT <code>stor.grg:1883</code>, topic <code>meshcore/#</code></strong> — raw pakety z našich mostů
+i observerů, <strong>anonymní odběr funguje</strong> (<code>mosquitto_sub -h stor.grg -t 'meshcore/#' -v</code>).</p>
+<p><strong>Časové zóny:</strong> RemoteTerm a <code>journalctl</code> v CEST, MQTT i analyzer v UTC.</p>
+<h2 id="3-firmware-data-model-reference">3. Firmware data model (reference)</h2>
+<p><code>HeardNode</code> (registry row): <code>pub_prefix[6]</code>, <code>name[24]</code>, <code>lat</code>/<code>lon</code> (int32 ×1e6),
+<code>heard_timestamp</code>, <code>advert_timestamp</code>, <code>pkt_hash</code> (FNV join key), <code>direct_heard</code>
+(epoch of last 0-hop), <code>snr</code> (×4), <code>rssi</code> (dBm), <code>type</code>, <code>path_len</code> (bit-packed),
+<code>path[16]</code>. Direct (0-hop) observations are preferred for the representative path
+for <code>HEARD_DIRECT_TTL_SECS</code>.</p>
+<p><code>RxLogRec</code> (ring record): <code>seq</code>, <code>when</code>, <code>pkt_hash</code> (4 B), <code>snr</code> (×4), <code>rssi</code>,
+<code>header</code>, <code>path_len</code> (bit-packed), <code>path[16]</code>.</p>
+<p>Implementation: <code>examples/simple_repeater/MyMesh.{h,cpp}</code> (<code>putHeardNode</code>,
+<code>captureRx</code>, <code>formatNodesReply</code>, <code>formatRxLogReply</code>, fed from <code>onAdvertRecv</code> and
+<code>logRx</code>). Per-packet RSSI comes from <code>Packet::_rssi</code>, captured at RX in
+<code>Dispatcher::checkRecv</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

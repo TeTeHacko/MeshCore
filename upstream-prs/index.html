@@ -1,0 +1,1385 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/upstream-prs/">
+      
+      
+        <link rel="prev" href="../terminal_chat_cli/">
+      
+      
+        <link rel="next" href="../upstream-v1.17.0/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Co z forku posíláme do upstreamu (19. 8. 2026) - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#co-z-forku-posilame-do-upstreamu-19-8-2026" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Co z forku posíláme do upstreamu (19. 8. 2026)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ble-flash-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ble-lora-coexistence-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BLE/LoRa coexistence — bench reproduction attempt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kiss_modem_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore KISS Modem Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mesh-analyzer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore Passive Mesh Analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mesh-review-2026-08-19/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Revize meshe: šířka path hashe a čas (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../number_allocations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Number Allocations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Payload Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../power-saving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power saving on a solar repeater — what it costs, measured
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Co z forku posíláme do upstreamu (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Co z forku posíláme do upstreamu (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pravidla-upstreamu-ktera-plati-contributingmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pravidla upstreamu, která platí (CONTRIBUTING.md)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hromadka-1-pripravene-vetve-na-forku-nad-origindev" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hromádka 1: připravené větve (na forku, nad origin/dev)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hromádka 1: připravené větve (na forku, nad origin/dev)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#kandidat-22-8-2026-sirka-path-hashe-se-ztraci-ve-vice-tx-cestach-u-nas-opraveno" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kandidát 22. 8. 2026: šířka path hashe se ztrácí ve VÍCE TX cestách (u nás opraveno)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hromadka-2-obecne-ale-chce-to-diskuzi-issue-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hromádka 2: obecné, ale chce to diskuzi (issue first)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hromadka-3-zustava-nam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hromádka 3: zůstává nám
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#postup-az-se-bude-pokracovat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Postup, až se bude pokračovat
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upstream-v1.17.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pravidla-upstreamu-ktera-plati-contributingmd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pravidla upstreamu, která platí (CONTRIBUTING.md)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hromadka-1-pripravene-vetve-na-forku-nad-origindev" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hromádka 1: připravené větve (na forku, nad origin/dev)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hromádka 1: připravené větve (na forku, nad origin/dev)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#kandidat-22-8-2026-sirka-path-hashe-se-ztraci-ve-vice-tx-cestach-u-nas-opraveno" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kandidát 22. 8. 2026: šířka path hashe se ztrácí ve VÍCE TX cestách (u nás opraveno)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hromadka-2-obecne-ale-chce-to-diskuzi-issue-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hromádka 2: obecné, ale chce to diskuzi (issue first)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hromadka-3-zustava-nam" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hromádka 3: zůstává nám
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#postup-az-se-bude-pokracovat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Postup, až se bude pokračovat
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/upstream-prs.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="co-z-forku-posilame-do-upstreamu-19-8-2026">Co z forku posíláme do upstreamu (19. 8. 2026)</h1>
+<p>Triáž všech 87 vlastních commitů nad <code>origin/main</code> (v1.17.1) na tři hromádky:
+<strong>jde nahoru</strong>, <strong>možná nahoru po diskuzi</strong>, <strong>zůstává nám</strong>. Cílem je, aby se
+příště nemuselo znovu rozhodovat, co je obecná oprava a co naše specialita.</p>
+<h2 id="pravidla-upstreamu-ktera-plati-contributingmd">Pravidla upstreamu, která platí (<code>CONTRIBUTING.md</code>)</h2>
+<ul>
+<li><strong>PR se dělá proti <code>dev</code>, ne proti <code>main</code>.</strong> Větve <code>fix/xxx</code>, <code>feature/yyy</code>,
+  <code>docs/whatever</code>.</li>
+<li>Jedna oprava = jeden PR. Malé opravy bez předchozího issue, <strong>větší změny
+  a nové featury nejdřív jako issue</strong> a až po palci od maintainera PR.</li>
+<li>Styl: 2 mezery, <code>camelCase</code>, <code>#define</code> velkými, řádky do ~100 znaků,
+  <code>.clang-format</code> je v repu.</li>
+<li><strong>Agentní PR mají do titulku přidat <code>🤖🤖</code></strong> — upstream to má jako oficiální
+  opt-in do zrychleného review. Není to volitelná zdvořilost, je to jejich
+  proces.</li>
+</ul>
+<p>Pozor při portování: <code>dev</code> je proti <code>main</code> o 17 commitů dál a <strong>část našich
+oprav už tam v jiné podobě je</strong> (viz PR2 níž). Cherry-pick naslepo tedy buď
+konfliktuje, nebo vrací zpátky něco, co upstream vyřešil jinak — každý kus se
+musí proti <code>dev</code> znovu ověřit.</p>
+<h2 id="hromadka-1-pripravene-vetve-na-forku-nad-origindev">Hromádka 1: připravené větve (na forku, nad <code>origin/dev</code>)</h2>
+<table>
+<thead>
+<tr>
+<th>větev</th>
+<th>commit</th>
+<th>co to je</th>
+<th>build</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fix/contact-info-zero-init</code></td>
+<td><code>3d688c7</code></td>
+<td><code>ContactInfo</code> se plní po polích a zbytek zůstane smetí ze stacku — <code>gps_lat/gps_lon</code> u kontaktu přidaného z appky, a <code>shared_secret_valid</code> u <strong>každého</strong> kontaktu při každém bootu (to je ta nebezpečná polovina: nenulový bajt ⇒ DM se zašifruje neinicializovaným klíčem)</td>
+<td><code>t1000e_companion_radio_ble</code>, <code>RAK_4631_terminal_chat</code></td>
+</tr>
+<tr>
+<td><code>fix/trace-path-bounds-check</code></td>
+<td><code>434c54e</code></td>
+<td>dvě čtení za koncem bufferu v <code>Mesh::onRecvPacket()</code> — TRACE s <code>payload_len &lt; 9</code> podteče <code>len</code> a <code>isHashMatch()</code> čte až ~500 B do 184B pole; u PATH <code>hash_size*hash_count</code> může přelézt dešifrovanou délku</td>
+<td><code>t1000e_repeater</code>, <code>t1000e_companion_radio_ble</code></td>
+</tr>
+<tr>
+<td><code>fix/tx-requeue-not-drop</code></td>
+<td><code>92321a8</code></td>
+<td>neúspěšný TX se zahodí bez retry a bez counteru; naměřeno <strong>~40 % ztracených DIRECT forwardů</strong> při nečinném BLE spojení</td>
+<td><code>t1000e_repeater</code>, <code>t1000e_room_server</code>, <code>Heltec_ct62_sensor</code>, <code>t1000e_companion_radio_ble</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="kandidat-22-8-2026-sirka-path-hashe-se-ztraci-ve-vice-tx-cestach-u-nas-opraveno">Kandidát 22. 8. 2026: šířka path hashe se ztrácí ve VÍCE TX cestách (u nás opraveno)</h3>
+<p>Původně nahlášeno jako „<code>sendZeroHop()</code> maže šířku": <code>path_len = 0</code> nuluje celý
+bajt včetně horních dvou bitů šířky (<code>Packet.h:85</code>). Večer 22. 8. se ukázalo, že
+je to širší — <strong><code>sendDirect()</code> s prázdnou cestou dělá totéž</strong> (<code>copyPath</code> vrací
+<code>path_len</code> beze změny a holá 0 se dekóduje jako 1 B), a to je zrovna nejběžnější
+případ: odpověď sousedovi na dosah. A volání <code>send*()</code> bez explicitní šířky
+(companion posílá zerohop výchozím argumentem na třech místech, ACKy a
+PATH-return v BaseChatMesh) tu chybu měla taky.</p>
+<p><strong>Není to bug v routingu</strong> — neprázdná cesta si šířku nese sama (<code>path_len</code> je
+zakódovaný bajt). Je to bug v tom, co uzel o sobě hlásí; na CZ meshi je to
+pravděpodobné vysvětlení velké části uzlů vedených jako „suspected 1 B".</p>
+<p><strong>Naše oprava: <code>3cb16750</code></strong> (meshcore-tth; port do Solo <code>f1728168</code>). Nový
+protected virtual <code>mesh::Mesh::getSelfPathHashSize()</code> (default 1) + výchozí
+hodnota parametru <code>path_hash_size</code> změněná z 1 na 0 = „vem prefs uzlu";
+firmwary s <code>NodePrefs</code> overridují na <code>path_hash_mode + 1</code>. TRACE se nedotýká
+(tam <code>path_len</code> není zakódovaný bajt). <strong>Změřeno na vzduchu</strong>: RESPONSE DIRECT
+z <code>tth-hrebecna</code> šel z <code>path_len=0x00</code> (1 B) na <code>0x40</code> (2 B), 18/18 paketů.
+Kompatibilita: <code>0x40</code> = šířka 2, hopů 0, <code>getPathByteLen()==0</code> — starší uzly
+projdou přes <code>isValidPathLen()</code> a nic navíc nečtou.</p>
+<p>Pro upstream PR: <strong>pozor na přetížení s <code>transport_codes</code></strong> — holá <code>0</code> jako
+delay je zároveň null pointer, volání s literálem chce <code>(uint32_t)0</code>. A proti
+<code>dev</code> znovu ověřit, jestli tam mezitím není jiné řešení.</p>
+<p>Texty PR: <code>../../scratchpad/pr/*.md</code> v session, obsah je i v commit messages.</p>
+<p>Poznámky k jednotlivým:</p>
+<ul>
+<li><strong>PR2 se nedal cherry-picknout.</strong> Upstream na <code>dev</code> mezitím doplnil
+  <code>Packet::isValidPathLen()</code> u PATH (naše polovina) a opravil wrap <code>offset</code> na
+  <code>uint16_t</code> u TRACE. Větev je proto napsaná znovu a obsahuje <strong>jen to, co na
+  <code>dev</code> pořád chybí</strong>: <code>payload_len &lt; 9</code>, kontrola celého hashe a <code>k &gt;= len</code>.</li>
+<li><strong>PR3 mění chování jádra</strong>, takže podle CONTRIBUTING patří spíš do issue.
+  V popisu jsou vypsané věci, na které se má maintainer ptát (airtime, počet
+  retry, řazení ve frontě) a menší varianta „nech drop, přidej jen countery".</li>
+<li>Ve všech třech jsou odstraněné naše značky <code>// CUSTOM (TeTeHacko)</code> a odkazy na
+  náš analyzer. Do upstreamu nesmí jít fork-specifické komentáře.</li>
+</ul>
+<h2 id="hromadka-2-obecne-ale-chce-to-diskuzi-issue-first">Hromádka 2: obecné, ale chce to diskuzi (issue first)</h2>
+<table>
+<thead>
+<tr>
+<th>commit</th>
+<th>co to je</th>
+<th>proč to není hotové</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>89eb71ab</code></td>
+<td>gate na export klíče / PIN přes neautentizovaný USB companion</td>
+<td>bezpečnostní, ale sedí na našem dual-serial rozhraní, které upstream nahradil <code>MultiSerialInterface</code> — musí se přepsat</td>
+</tr>
+<tr>
+<td><code>8e3b72c4</code> (zbytek) + <code>fda7dbbb</code></td>
+<td>bounds-check kopií v CLI</td>
+<td>smíchané s naší featurou <code>sensor read</code>, chce rozdělit</td>
+</tr>
+<tr>
+<td><code>0ef8f7f4</code></td>
+<td>provoz bez DIO1 (<code>LORA_POLL_IRQ</code>) + příkaz <code>dio1</code></td>
+<td>zachránilo nám desku s odpadlým drátkem; obecně užitečné, ale je to nová featura → issue</td>
+</tr>
+<tr>
+<td><code>5462b8d8</code></td>
+<td>duty cycle GPS přijímače</td>
+<td>ušetří 42–45 mA na uzlu, co GPS chce jen na hodiny; nová featura</td>
+</tr>
+<tr>
+<td><code>b9825031</code></td>
+<td>uzel bez GPS startuje na build epoch, ne v roce 2024</td>
+<td>opravuje reálný problém (všechny naše desky byly 811 dní pozadu), ale mění default</td>
+</tr>
+<tr>
+<td><code>563fd83c</code> + <code>568a351d</code></td>
+<td><code>i2c</code> scan z konzole + oprava ořezávání odpovědi</td>
+<td>obecné, malé; půjde nahoru po prvních třech</td>
+</tr>
+<tr>
+<td><code>b4f943df</code></td>
+<td>per-paket RSSI v <code>Packet</code></td>
+<td>3 řádky, ale bez konzumenta se maintainer zeptá „kdo to používá" — má smysl poslat spolu s něčím, co RSSI čte</td>
+</tr>
+<tr>
+<td><code>0b18490a</code>, <code>62627080</code>, <code>5c96b817</code>, <code>7a964c33</code></td>
+<td><code>blink</code>, <code>txpwr</code>, <code>dfu [uf2\|serial\|ota]</code></td>
+<td>obecné příkazy, ale <code>dfu</code> je nRF52-specifický (GPREGRET)</td>
+</tr>
+<tr>
+<td><code>1333aeb9</code> …</td>
+<td>viz PR3</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="hromadka-3-zustava-nam">Hromádka 3: zůstává nám</h2>
+<ul>
+<li><strong>Celé <code>tools/</code></strong> (34 commitů). Upstream <code>tools/</code> vůbec nemá — má <code>bin/</code>,
+  <code>create-uf2.py</code>. Naše skripty navíc předpokládají naši flotilu a naše cesty.</li>
+<li><strong>Analyzer</strong> (<code>nodes</code>, <code>rxlog</code>, <code>pktlog</code>, pktfeed ring) a <strong>kanálový bot</strong> —
+  naše featury pro CoreScope, ne obecný firmware.</li>
+<li><strong>Textová konzole repeateru přes BLE</strong> a všechno ladění spojení nad ní
+  (<code>blepwr</code>, <code>bleconn</code>, conn interval, supervision timeout, non-blocking TX
+  pump). Stojí to na naší úpravě, kterou upstream nemá.</li>
+<li><strong><code>SerialDualInterface</code></strong> — upstream to vyřešil <code>MultiSerialInterface</code>,
+  naše verze je mrtvá větev.</li>
+<li><strong>2bajtový path hash jako default</strong> (<code>34e2f2a0</code>) — to není oprava, to je
+  politika sítě. Upstream má režimy, default si drží sám.</li>
+<li><strong>Úspory zapnuté defaultně</strong> (<code>aef2c97b</code>, <code>7489a5ee</code>) — totéž, mění chování
+  všem.</li>
+<li><strong>Docs, AGENTS.md, CLAUDE.md, INFRA symlink, <code>variants/sensecap_solar</code>,
+  <code>tools/provision/*</code></strong> — popisují naši infru a naše uzly.</li>
+</ul>
+<h2 id="postup-az-se-bude-pokracovat">Postup, až se bude pokračovat</h2>
+<ol>
+<li>Poslat PR1 a PR2 (čisté opravy, malé, bez diskuze).</li>
+<li>PR3 podle toho, co řekne maintainer — buď PR, nebo nejdřív issue s těmi
+   naměřenými čísly.</li>
+<li>Teprve pak hromádku 2, po jednom, každý zvlášť ověřený proti <code>dev</code>
+   (znovu: <code>dev</code> se hýbe, půlka práce je zjistit, co už tam je).</li>
+</ol>
+<hr />
+<h1 id="openhop-a-remoteterm-19-8-2026">openHop a RemoteTerm (19. 8. 2026)</h1>
+<p>Do MeshCore upstreamu <strong>neposíláme nic</strong> (rozhodnuto 19. 8. 2026). Tři větve
+z první části dokumentu zůstávají připravené na forku, ale PR se neotevírají.
+Co se posílá, jde do openHopu a RemoteTermu.</p>
+<h2 id="stav-vetvi">Stav větví</h2>
+<table>
+<thead>
+<tr>
+<th>projekt</th>
+<th>fork</th>
+<th>větev</th>
+<th>proti</th>
+<th>stav</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>openHop</td>
+<td><code>TeTeHacko/openhop_repeater</code></td>
+<td><code>fix/room-advert-node-name</code></td>
+<td><code>dev</code></td>
+<td>pushnuto, 23 testů zelených, PR <strong>neotevřen</strong></td>
+</tr>
+<tr>
+<td>RemoteTerm</td>
+<td><code>TeTeHacko/Remote-Terminal-for-MeshCore</code></td>
+<td><code>feature/configurable-map-tiles</code></td>
+<td><code>main</code></td>
+<td>pushnuto (commit <code>76f81c8</code>), <code>all_quality.sh</code> <strong>nedojel</strong> — před PR znovu pustit</td>
+</tr>
+</tbody>
+</table>
+<p>RemoteTerm chce podle CONTRIBUTING <strong>nejdřív issue</strong>, teprve pak PR
+(„a brand new feature appearing first in a PR is an antipattern"). Text issue je níž.</p>
+<h2 id="openhop-pr-room-advert-name">openHop PR: room advert name</h2>
+<h3 id="problem">Problem</h3>
+<p>A room server adverts under two different names depending on what triggered the advert.</p>
+<p><code>repeater/handler_helpers/room_server.py:149</code> reads</p>
+<pre><code class="language-python">node_name = room_settings.get(&quot;room_name&quot;, room_name)
+</code></pre>
+<p>but <code>room_name</code> is not a documented setting — it appears nowhere in <code>config.yaml.example</code>
+or <code>docs/</code>. Every other advert path reads <code>node_name</code>:</p>
+<ul>
+<li><code>repeater/web/api_endpoints.py:6517</code> — <code>POST /api/send_room_server_advert</code></li>
+<li><code>repeater/main.py:854</code>, <code>:1126</code>, <code>:1540</code> — the periodic advert scheduler</li>
+</ul>
+<p><code>config.yaml.example</code> documents <code>settings.node_name</code>, and so does the existing test
+fixture for this very function (<code>tests/test_handler_helpers_room_server.py</code>:
+<code>settings: {"node_name": "Room Alpha", ...}</code>). So the CLI <code>advert</code> command always falls
+through to the identity's <code>name</code> and ignores the configured one.</p>
+<h3 id="how-it-shows-up">How it shows up</h3>
+<pre><code class="language-yaml">identities:
+  room_servers:
+    - name: RoomServer
+      settings:
+        node_name: &quot;tth-room&quot;
+</code></pre>
+<p>The scheduler and the HTTP endpoint advert as <code>tth-room</code>. An admin typing <code>advert</code> over
+RF adverts as <code>RoomServer</code> — and because clients take the newest advert for a public key,
+the room renames itself for everyone on the mesh.</p>
+<p>That is not hypothetical: this happened to our node today. The room had been <code>tth-room</code>
+for a day; one CLI advert renamed it to <code>RoomServer</code> on every client in range, and it took
+a second advert (after working around the bug in config) to put the name back.</p>
+<h3 id="fix">Fix</h3>
+<p>One line, so the CLI path reads the same key as every other path.</p>
+<p>Plus a regression test asserting <code>create_advert()</code> receives the configured name and
+coordinates. It fails on the old behaviour with <code>+ room-alpha</code>, and the full file passes
+with the fix:</p>
+<pre><code>tests/test_handler_helpers_room_server.py .......................  23 passed
+</code></pre>
+<p>(Run in a container built from this repo's image with <code>pytest</code>/<code>pytest-asyncio</code> added.)</p>
+<h3 id="compatibility">Compatibility</h3>
+<p>Anyone who worked around this by setting <code>room_name</code> would have to switch to <code>node_name</code>.
+The key is undocumented, so that looks safe — but if you would rather not break it, I am
+happy to push <code>room_settings.get("node_name", room_settings.get("room_name", room_name))</code>
+instead. Your call.</p>
+<h2 id="remoteterm-issue-konfigurovatelne-dlazdice">RemoteTerm issue: konfigurovatelné dlaždice</h2>
+<p><strong>Title:</strong> Map tile URL is hardcoded to osm.org in four components — no way to use another tile server</p>
+<h3 id="what-i-ran-into">What I ran into</h3>
+<p>osm.org answers my browser with <code>403</code> for RemoteTerm's map tiles, so every map view is
+blank. I already run a caching tile proxy for other tools, but there is no way to point
+RemoteTerm at it: the URL is hardcoded in four separate places.</p>
+<pre><code>frontend/src/components/MapView.tsx        (the 'light' base layer preset)
+frontend/src/components/PathRouteMap.tsx
+frontend/src/components/NeighborsMiniMap.tsx
+frontend/src/components/ContactInfoPane.tsx
+</code></pre>
+<p>The fourth one is easy to miss — I patched three, rebuilt, and the contact-detail mini map
+still went to osm.org.</p>
+<p>Two reasons this is worth a knob, beyond the 403:</p>
+<ul>
+<li><strong>Caching.</strong> A shared proxy serves tiles from disk, which is faster and much politer to
+  osm.org than every client fetching them directly.</li>
+<li><strong>Deployments that should not reach osm.org at all.</strong> Mine sits on a segment where the
+  browser can talk to my own hosts and nothing else. Right now that means no maps, even
+  though everything else works offline.</li>
+</ul>
+<h3 id="what-i-would-like">What I would like</h3>
+<p>Two env vars, in the same shape as the existing server-side settings:</p>
+<ul>
+<li><code>MESHCORE_MAP_TILE_URL</code> — tile template (<code>{z}/{x}/{y}</code>), empty keeps OpenStreetMap</li>
+<li><code>MESHCORE_MAP_TILE_ATTRIBUTION</code> — optional, defaults to the OSM credit</li>
+</ul>
+<p>Only the <strong>default</strong> base layer would change. The other layer choices are named after
+their providers (CARTO, OpenTopoMap, Esri), so overriding those would make the labels lie.</p>
+<h3 id="note-on-scope-because-of-the-project-principles">Note on scope, because of the project principles</h3>
+<p>This is only about where the <em>browser</em> fetches map imagery. It adds no radio traffic and
+no path from the internet onto the mesh — if anything it removes a network dependency,
+since the instance can then run with no route to osm.org at all.</p>
+<h3 id="offer">Offer</h3>
+<p>I have this implemented and passing <code>./scripts/quality/all_quality.sh</code> (config validation
++ <code>/api/health</code> plumbing + a small context, with backend and frontend tests). Happy to
+open the PR if you want it this way, or to adjust the shape first — filing the issue first
+per CONTRIBUTING.</p>
+<h2 id="remoteterm-pr-referuje-to-issue">RemoteTerm PR (referuje to issue)</h2>
+<p>Closes #<issue></p>
+<h3 id="what">What</h3>
+<p>Adds <code>MESHCORE_MAP_TILE_URL</code> and <code>MESHCORE_MAP_TILE_ATTRIBUTION</code> so the default base map
+can point at another tile server, and replaces the four hardcoded osm.org URLs with a
+single resolved source.</p>
+<p>Default behaviour is unchanged: unset means the built-in OpenStreetMap layer, byte for
+byte the same URL and attribution as before.</p>
+<h3 id="why">Why</h3>
+<p>osm.org answers some clients with <code>403</code>, which leaves every map blank; a caching proxy is
+both a fix and politer to osm.org; and some deployments should not reach osm.org at all.
+Details and discussion in the issue.</p>
+<h3 id="how">How</h3>
+<ul>
+<li><code>app/config.py</code> — the two settings, plus validation: the URL must contain <code>{z}</code>, <code>{x}</code>
+  and <code>{y}</code> (a plain URL would render an empty map, so fail at startup instead), and an
+  attribution without a URL is rejected rather than silently mis-crediting tiles that
+  still come from OSM.</li>
+<li><code>app/routers/health.py</code> — surfaced on <code>/api/health</code>, the same way <code>bots_disabled</code> and
+  <code>basic_auth_enabled</code> already reach the frontend. No new endpoint.</li>
+<li><code>frontend/src/contexts/MapTileContext.tsx</code> — a small context in the shape of the
+  existing ones, with <code>resolveTileLayer()</code> holding the fallback rules.</li>
+<li>The four map components consume <code>useMapTileLayer()</code>.</li>
+<li><code>MapView</code> only substitutes the <code>light</code> preset; CARTO / OpenTopoMap / Esri keep their own
+  URLs, since those labels name their source.</li>
+<li>Docs: README env table and <code>docker-compose.example.yml</code>.</li>
+</ul>
+<p>A custom URL keeps the OpenStreetMap attribution unless an attribution is given too —
+self-hosted tile servers usually proxy OSM data, so dropping the credit would be wrong,
+while a genuinely different source can say so.</p>
+<h3 id="tests">Tests</h3>
+<ul>
+<li><code>tests/test_config.py::TestMapTileOverride</code> — defaults, a valid template, a URL without
+  placeholders, and attribution without a URL.</li>
+<li><code>frontend/src/test/mapTiles.test.ts</code> — fallback for null/undefined/empty/whitespace,
+  override, attribution defaulting, trimming.</li>
+<li><code>./scripts/quality/all_quality.sh</code> passes (ruff, pyright, pytest, eslint, prettier,
+  vitest, frontend build).</li>
+</ul>
+<p>Verified against a real proxy at zoom 13–19 before proposing this: the map renders, and
+with the vars unset the OSM layer is unchanged.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

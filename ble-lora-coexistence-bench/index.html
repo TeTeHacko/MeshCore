@@ -1,0 +1,1552 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/ble-lora-coexistence-bench/">
+      
+      
+        <link rel="prev" href="../ble-flash-plan/">
+      
+      
+        <link rel="next" href="../cli_commands/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>BLE/LoRa coexistence — bench reproduction attempt - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#blelora-coexistence-bench-reproduction-attempt" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              BLE/LoRa coexistence — bench reproduction attempt
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ble-flash-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BLE/LoRa coexistence — bench reproduction attempt
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BLE/LoRa coexistence — bench reproduction attempt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-claim-under-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The claim under test
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#oracle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Oracle
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-was-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What was measured
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What was measured">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-idle-weak-link-does-nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why idle + weak link does nothing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#on-mast-hardware-with-the-file-log-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On mast hardware, with the file log on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#still-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Still open
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#airtime-is-a-hard-limit-and-the-firmware-will-not-enforce-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Airtime is a hard limit, and the firmware will not enforce it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#traps-worth-remembering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Traps worth remembering
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-two-commands-this-bench-added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two commands this bench added
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The two commands this bench added">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bleconn-what-the-link-is-actually-doing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bleconn — what the link is actually doing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blepwr-dbm-hold-connection-tx-power-with-a-way-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        blepwr [dBm [hold]] — connection TX power, with a way back
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kiss_modem_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore KISS Modem Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mesh-analyzer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore Passive Mesh Analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mesh-review-2026-08-19/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Revize meshe: šířka path hashe a čas (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../number_allocations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Number Allocations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Payload Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../power-saving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power saving on a solar repeater — what it costs, measured
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upstream-prs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Co z forku posíláme do upstreamu (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upstream-v1.17.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-claim-under-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The claim under test
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#oracle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Oracle
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-was-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What was measured
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What was measured">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-idle-weak-link-does-nothing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why idle + weak link does nothing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#on-mast-hardware-with-the-file-log-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        On mast hardware, with the file log on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#still-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Still open
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#airtime-is-a-hard-limit-and-the-firmware-will-not-enforce-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Airtime is a hard limit, and the firmware will not enforce it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#traps-worth-remembering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Traps worth remembering
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-two-commands-this-bench-added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two commands this bench added
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The two commands this bench added">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bleconn-what-the-link-is-actually-doing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bleconn — what the link is actually doing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#blepwr-dbm-hold-connection-tx-power-with-a-way-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        blepwr [dBm [hold]] — connection TX power, with a way back
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/ble-lora-coexistence-bench.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="blelora-coexistence-bench-reproduction-attempt">BLE/LoRa coexistence — bench reproduction attempt</h1>
+<p>Working notes for the DIRECT-forward loss seen on <code>tth-ltm</code> (SenseCap Solar,
+<code>SenseCap_Solar_repeater_ble</code>). Written down because the result is mostly
+<strong>negative</strong>, and a negative result is only worth anything if the method and its
+limits are recorded with it.</p>
+<h2 id="the-claim-under-test">The claim under test</h2>
+<p>Commit <code>f6e9aeca</code> widened the BLE connection interval from 15–30 ms to 60–80 ms
+after an A/B on the mast showed ~40 % of DIRECT-route forwards silently lost
+with an <strong>idle</strong> BLE connection at 15–30 ms. The stated mechanism is that the
+SoftDevice's per-connection-event preemption disturbs the SX126x TX path
+(<code>startTransmit</code> fail / send-complete timeout).</p>
+<p>The fix is deployed. What was never established is whether a bench rig can
+<strong>detect</strong> the effect at all — a measurement that reads zero in both the
+treatment and the control has shown nothing.</p>
+<h2 id="rig">Rig</h2>
+<p>Isolated test mesh on <strong>866.5 MHz</strong> (BW 62.5, SF 8, CR 5). Isolation is by
+frequency, not by tx power: a hilltop repeater with <code>RX_BOOSTED_GAIN</code> hears a
+few mW just fine. The override is compile-time (<code>platformio.local.ini</code>) because
+<code>MyMesh.cpp</code> seeds <code>_prefs.freq</code> from <code>LORA_FREQ</code>, so the firmware cannot come
+up on the production frequency even after <code>erase</code>.</p>
+<table>
+<thead>
+<tr>
+<th>node</th>
+<th>board</th>
+<th>role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tth-x1-rpt</code></td>
+<td>XIAO nRF52840 + Wio-SX1262</td>
+<td>forwarder under test</td>
+</tr>
+<tr>
+<td><code>tth-x4-rpt</code></td>
+<td>same</td>
+<td>paired control / radiating witness</td>
+</tr>
+<tr>
+<td><code>tth-x2-cmp</code>, <code>tth-x3-cmp</code></td>
+<td>same</td>
+<td>probe sources</td>
+</tr>
+<tr>
+<td><code>tth-s1-rpt</code></td>
+<td>SenseCap Solar Node</td>
+<td>forwarder, mast-identical hardware</td>
+</tr>
+<tr>
+<td><code>tth-s2-rpt</code></td>
+<td>same</td>
+<td>paired control</td>
+</tr>
+</tbody>
+</table>
+<p>Paired controls differ <strong>only</strong> in <code>ADVERT_NAME</code>, verified by diffing strings in
+the ELF. Any other difference invalidates them.</p>
+<h3 id="oracle">Oracle</h3>
+<p>The measured quantity is the node's own <code>direct_rx − direct_tx</code> from
+<code>stats-packets</code>: how many DIRECT packets it accepted for forwarding versus how
+many it actually sent. This is self-normalising — it does not depend on channel
+conditions or on a receiver hearing anything. <code>tx_start_fail</code> and <code>tx_timeout</code>
+are the mechanism-level counters. A second repeater with <code>repeat off</code> acts as a
+radiating witness, so "counted a TX" can be distinguished from "actually
+radiated".</p>
+<p>Route forcing: a contact is injected into the sender's companion with an
+explicit <code>out_path</code>, so the DM must traverse the node under test.
+<strong><code>out_path_len</code> is not a hop count</strong> — it is a packed byte, top two bits =
+hash size − 1, low six = hop count (<code>Packet.h:85</code>). One hop with a 2-byte hash
+is <code>0x41</code>, not <code>1</code>. The receiver reads the size out of the packet
+(<code>Mesh.cpp:93</code>), so a forced path works regardless of the node's
+<code>path.hash.mode</code>.</p>
+<h2 id="what-was-measured">What was measured</h2>
+<p>All cells at a <strong>verified</strong> 22.50 ms connection interval — <code>bleconn</code> reports the
+parameters actually negotiated, because <code>bleOnSecured()</code> only requests them and
+the central may refuse. Without that read-back none of the null results below
+would mean anything.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>blepwr</code></th>
+<th style="text-align: right;">≈RSSI at central</th>
+<th style="text-align: right;">link up</th>
+<th style="text-align: right;">direct_rx</th>
+<th style="text-align: right;">direct_tx</th>
+<th style="text-align: right;">lost</th>
+<th style="text-align: right;">tx_timeout</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">BLE off</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">0 dBm</td>
+<td style="text-align: right;">−67</td>
+<td style="text-align: right;">100 %</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">−8</td>
+<td style="text-align: right;">−75</td>
+<td style="text-align: right;">100 %</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">−12</td>
+<td style="text-align: right;">−79</td>
+<td style="text-align: right;">100 %</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">−16</td>
+<td style="text-align: right;">−83</td>
+<td style="text-align: right;">87 %</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td style="text-align: right;">−20</td>
+<td style="text-align: right;">−87</td>
+<td style="text-align: right;">27 %</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<p>The −20 dBm row is a bonus condition: the link held only a quarter of the
+window, so the node spent the rest advertising and re-connecting — close to the
+reconnect churn the mast reports as HCI 0x3E.</p>
+<p><strong>Ruled out as the missing factor: BLE link margin.</strong> The whole −75..−90 window
+the mast sits in is covered, at the known-bad interval, with zero loss.</p>
+<h3 id="why-idle-weak-link-does-nothing">Why idle + weak link does nothing</h3>
+<p>In idle the connection events carry empty PDUs, whose retransmission costs
+almost no radio time. The cost of a retransmission scales with payload size, and
+the mast has a bridge actively draining the console. Hence the <code>poll</code> mode in
+the harness.</p>
+<p>Direction matters too, and it is the reason to weaken <strong>our</strong> side rather than
+the central's: a connection event ends as soon as either side misses a packet,
+so if the central misses our PDU we must re-send it at the next anchor — an
+extra slave TX. If we miss the central's PDU we never transmit in that event at
+all, and the SoftDevice uses <em>less</em> radio.</p>
+<h2 id="on-mast-hardware-with-the-file-log-on">On mast hardware, with the file log on</h2>
+<p>Two SenseCap Solar nodes (<code>tth-s1-rpt</code> forwarder, <code>tth-s2-rpt</code> paired control) —
+the same board as the mast, so InternalFS logging, INA226/solar telemetry and
+the SenseCap SPI layout are all in play. Again at a verified 22.50 ms interval
+(<code>bleconn</code>).</p>
+<table>
+<thead>
+<tr>
+<th>file log</th>
+<th>BLE</th>
+<th style="text-align: right;">direct_rx</th>
+<th style="text-align: right;">direct_tx</th>
+<th style="text-align: right;">lost</th>
+<th style="text-align: right;">tx_timeout</th>
+<th style="text-align: right;">witness</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>off</td>
+<td>off</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">+39</td>
+</tr>
+<tr>
+<td>off</td>
+<td>idle, 88 % of window</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">+37</td>
+</tr>
+<tr>
+<td><strong>on</strong></td>
+<td>off</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">+39</td>
+</tr>
+<tr>
+<td><strong>on</strong></td>
+<td>idle, 90 % of window</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">+40</td>
+</tr>
+</tbody>
+</table>
+<p>The logging condition was real, not nominal: <code>log</code> afterwards held 69 entries
+with RX/TX lines timestamped inside the measurement window, i.e. an InternalFS
+write per packet — the mechanism behind the known deaf windows.</p>
+<p><strong>Ten cells, 80 forced forwards, zero lost, <code>tx_timeout</code> and <code>tx_start_fail</code> at
+zero throughout.</strong> Against the mast's reported ~40 % loss rate this is not a
+weak null: a single 8-probe cell would miss a true 40 % effect with probability
+0.6⁸ ≈ 1.7 %, and ten cells make it vanishing. Whatever the mast is doing, it is
+not reproduced by the connection interval, the BLE link margin, the board, or
+InternalFS logging — alone or together.</p>
+<h2 id="still-open">Still open</h2>
+<p><strong>Loaded LoRa channel</strong> is the one uncontrolled difference left. Ours is idle;
+the mast relays flood traffic, so its forwards contend for a busy channel and
+the TX window lands on a BLE connection event far more often. This cannot be
+tested legally here: 866.5 is capped at 1 % duty and the 10 % sub-band
+(869.4–869.65) is where production lives.</p>
+<p>Practical consequence: <strong>f6e9aeca can be neither confirmed nor refuted on the
+bench.</strong> Deciding whether the 60–80 ms interval is still needed requires
+measuring on <code>tth-ltm</code> itself — the counters (<code>stats-packets</code>, and now
+<code>bleconn</code> to prove which interval is actually in force) are all reachable over
+its BLE console.</p>
+<h2 id="airtime-is-a-hard-limit-and-the-firmware-will-not-enforce-it">Airtime is a hard limit, and the firmware will not enforce it</h2>
+<p>866.5 MHz sits in 865–868 (CZ VO-R/10): 25 mW ERP, <strong>1 % duty cycle = 36 s of
+transmission per hour</strong>. The firmware does not police this — <code>airtime_factor</code>
+defaults to 0 (= 100 %) and is clamped to 9, so the lowest duty MeshCore can
+enforce is 10 %. The first sweep consumed <code>tx_air_secs</code> 27 s in 18 minutes of
+uptime, a rate of ~2.5 %. Budget the probes: <code>stats-radio.tx_air_secs</code> is the
+ground truth, and the harness aborts before crossing a configured cap.</p>
+<p><code>stats-core.queue_len</code> and <code>errors</code> are a required control, not decoration: when
+the airtime budget runs out the Dispatcher <strong>defers</strong> a forward
+(<code>next_tx_time</code>, <code>Dispatcher.cpp:101</code>), which looks identical to loss in the
+counters. Both were zero throughout.</p>
+<h2 id="traps-worth-remembering">Traps worth remembering</h2>
+<ul>
+<li><strong>USB and BLE consoles share one <code>command[160]</code>.</strong> Two concurrent consoles
+  interleave into one line and crash the node. The harness keeps a strict
+  sequence: counters over USB → close USB → BLE client → probes → stop BLE →
+  counters over USB.</li>
+<li><strong><code>Bluefruit.setTxPower()</code> is advertising-only</strong> (see the commit message for
+  <code>blepwr</code>); the connection runs at the SoftDevice default 0 dBm.</li>
+<li><strong>Weakening the link can lock you out.</strong> Below about −16 dBm the node's
+  replies stop arriving and the value is re-applied on every reconnect. Hence
+  the auto-revert on <code>blepwr</code>.</li>
+<li><strong>~~Runtime <code>set tx</code> does not change radiated LoRa power~~ — retracted.</strong> The
+  original reading (+2 dBm → RSSI −44.1, −9 dBm → −44.0) was made with an
+  instrument that could not report failure: <code>RadioLibWrapper::setTxPower()</code>
+  discarded RadioLib's status, so a refused request looked exactly like an
+  accepted one. Re-measured 2026-08-04 on the repeater build with <code>txpwr</code>
+  confirming each step, x1 transmitting and x4 as witness:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>txpwr</code></th>
+<th style="text-align: right;">witness <code>last_rssi</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">+22</td>
+<td style="text-align: right;">0 dBm <em>(saturated)</em></td>
+</tr>
+<tr>
+<td style="text-align: right;">+14</td>
+<td style="text-align: right;">−1 dBm <em>(saturated)</em></td>
+</tr>
+<tr>
+<td style="text-align: right;">+6</td>
+<td style="text-align: right;">−7 dBm</td>
+</tr>
+<tr>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">−18 dBm</td>
+</tr>
+<tr>
+<td style="text-align: right;">−9</td>
+<td style="text-align: right;">−28 dBm</td>
+</tr>
+</tbody>
+</table>
+<p>31 dB of command produced 28 dB of RSSI, and the witness <code>recv</code> counter rose
+  by one at every step, so no point was missed. Radiated power does follow the
+  setting. The top two points are saturated — the boards were ~10 cm apart — so
+  the usable range of that particular rig starts around +6 dBm; characterising
+  the top end needs attenuation or distance, not a bigger number.</p>
+<p>The lesson is not about tx power. It is that a null result from an instrument
+  which cannot distinguish "refused" from "no effect" is not a result at all.</p>
+<h2 id="the-two-commands-this-bench-added">The two commands this bench added</h2>
+<p>Both live in <code>examples/simple_repeater/main.cpp</code> and are repeater-only.</p>
+<h3 id="bleconn-what-the-link-is-actually-doing"><code>bleconn</code> — what the link is actually doing</h3>
+<pre><code>bleconn
+-&gt; BLE conn: interval 75.00 ms (req 60-80), latency 0, sup timeout 4000 ms [live]
+</code></pre>
+<p>Reports the <strong>negotiated</strong> connection parameters, not the requested ones. The
+central is free to ignore a peripheral's request, so this is the only way to
+know whether a change like <code>f6e9aeca</code> (widening the requested interval to
+60–80 ms) is in force on a node you cannot see. The trailing <code>[live]</code> /
+<code>[last]</code> says whether a client is connected right now or these are the values
+from the last one; before any client has ever connected it answers
+<code>nothing seen yet</code>.</p>
+<h3 id="blepwr-dbm-hold-connection-tx-power-with-a-way-back"><code>blepwr [dBm [hold]]</code> — connection TX power, with a way back</h3>
+<pre><code>blepwr             # report: BLE conn tx: 0 dBm, adv tx: 4 dBm
+blepwr -20         # weaken the link; auto-reverts after 5 minutes
+blepwr -20 hold    # ... unless you opt out
+</code></pre>
+<p>The reply carries how many live connections accepted the value
+(<code>OK - BLE conn tx -20 dBm (1/1 conn), auto-revert armed</code>) because the
+nRF52840 only takes −40, −20, −16, −12, −8, −4, 0 and 2..8 dBm; anything else
+is rejected by <code>setTxPower()</code> and is <em>not</em> latched, so a typo cannot arm itself
+for the next reconnect.</p>
+<p>Sets <code>BLE_GAP_TX_POWER_ROLE_CONN</code>, which is <strong>independent of</strong>
+<code>Bluefruit.setTxPower()</code> — that one only affects advertising, despite reading
+like a global. The connection otherwise runs at the SoftDevice default of
+0 dBm; the compile-time starting value is <code>RPT_BLE_CONN_TX_POWER</code>.</p>
+<p>The value is re-applied on every 'secured' event, so a setting weak enough to
+break the link would persist across reconnects and lock you out of a node with
+no cable — which is exactly what happened at −40 dBm during this bench. Hence
+the five-minute auto-revert: worst case you wait it out instead of driving to
+the node.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

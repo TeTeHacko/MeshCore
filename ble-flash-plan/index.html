@@ -1,0 +1,1573 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/ble-flash-plan/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../ble-lora-coexistence-bench/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ostry-flash-pres-ble-tth-ltm-tth-plesivec-abertamy-tth-hrebecna" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#poradi-a-proc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pořadí a proč
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#predpoklad-ktery-je-potreba-splnit-driv-nez-cokoliv-jineho" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Předpoklad, který je potřeba splnit dřív než cokoliv jiného
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nejjednodussi-cesta-toolsble_flash_nodesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nejjednodušší cesta: tools/ble_flash_node.sh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nastroj-a-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nástroj a build
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hrebecna-a-plesivec-antena-odpojena" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        hrebecna a Plešivec (anténa ODPOJENÁ)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tth-ltm-v-provozu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tth-ltm (v provozu)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#co-se-muze-pokazit-a-co-s-tim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co se může pokazit a co s tím
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Co se může pokazit a co s tím">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#uzel-ktery-zmizel-z-ble-i-z-meshe-hledej-na-usb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uzel, který zmizel z BLE i z meshe, hledej na USB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wio-tracker-l1-z-e7470-na-chate-uf2-ne-ble" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wio Tracker L1 z e7470 (na chatě) — UF2, ne BLE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jednotky-advert-intervalu-se-lisi-a-chyba-je-ticha" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jednotky advert intervalů se LIŠÍ — a chyba je tichá
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aktivace-na-miste-provedeno-na-hrebecne-21-8-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Aktivace na místě — provedeno na hrebecné 21. 8. 2026
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Aktivace na místě — provedeno na hrebecné 21. 8. 2026">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sonda-dosahu-dva-detektory-zadne-nove-naradi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sonda dosahu: dva detektory, žádné nové nářadí
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#co-v-tomhle-planu-zamerne-neni" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co v tomhle plánu záměrně není
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ble-lora-coexistence-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BLE/LoRa coexistence — bench reproduction attempt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kiss_modem_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore KISS Modem Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mesh-analyzer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore Passive Mesh Analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mesh-review-2026-08-19/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Revize meshe: šířka path hashe a čas (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../number_allocations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Number Allocations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Payload Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../power-saving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power saving on a solar repeater — what it costs, measured
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upstream-prs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Co z forku posíláme do upstreamu (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upstream-v1.17.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#poradi-a-proc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pořadí a proč
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#predpoklad-ktery-je-potreba-splnit-driv-nez-cokoliv-jineho" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Předpoklad, který je potřeba splnit dřív než cokoliv jiného
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nejjednodussi-cesta-toolsble_flash_nodesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nejjednodušší cesta: tools/ble_flash_node.sh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#nastroj-a-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nástroj a build
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hrebecna-a-plesivec-antena-odpojena" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        hrebecna a Plešivec (anténa ODPOJENÁ)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tth-ltm-v-provozu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tth-ltm (v provozu)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#co-se-muze-pokazit-a-co-s-tim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co se může pokazit a co s tím
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Co se může pokazit a co s tím">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#uzel-ktery-zmizel-z-ble-i-z-meshe-hledej-na-usb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Uzel, který zmizel z BLE i z meshe, hledej na USB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wio-tracker-l1-z-e7470-na-chate-uf2-ne-ble" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wio Tracker L1 z e7470 (na chatě) — UF2, ne BLE
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jednotky-advert-intervalu-se-lisi-a-chyba-je-ticha" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jednotky advert intervalů se LIŠÍ — a chyba je tichá
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#aktivace-na-miste-provedeno-na-hrebecne-21-8-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Aktivace na místě — provedeno na hrebecné 21. 8. 2026
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Aktivace na místě — provedeno na hrebecné 21. 8. 2026">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sonda-dosahu-dva-detektory-zadne-nove-naradi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sonda dosahu: dva detektory, žádné nové nářadí
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#co-v-tomhle-planu-zamerne-neni" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co v tomhle plánu záměrně není
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/ble-flash-plan.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="ostry-flash-pres-ble-tth-ltm-tth-plesivec-abertamy-tth-hrebecna">Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna</h1>
+<p><strong>PROVEDENO 22. 8. 2026, a šířeji než plán</strong> — flashovala se celá flotila
+(kvůli opravě šířky path hashe <code>3cb16750</code>): hrebecná <code>tth3cb1675</code> (BLE OTA ze
+sneezy), tth-ltm <code>tthe5b4572</code> (BLE OTA z dopey), Plešivec <code>tthe5b4572</code> (UF2 —
+visel v bootloaderu), probe karta <code>tth18e50ad</code> (nrfutil na bootloader CDC),
+TTH-L1 (UF2 na e7470). Dokument zůstává jako postup; pasti nasbírané při tom
+flashi jsou v něm doplněné a ve skillu <code>flash-node</code>.</p>
+<p>Plán z 19. 8. 2026. Cílem je dostat na tři produkční SenseCapy aktuální build
+(<code>v1.17.1-tth&lt;sha&gt;</code>) — nese rozšířený RF status s <code>tx_start_fail</code>/<code>tx_timeout</code>
+a stamping verze, takže <strong>poprvé půjde z uzlu poznat, který build na něm je</strong>.</p>
+<h2 id="poradi-a-proc">Pořadí a proč</h2>
+<ol>
+<li><strong>hrebecna + Plešivec</strong> (na lavici, anténa odpojená, míří do provozu)</li>
+<li><strong>tth-ltm</strong> (na balkoně, v provozu, na ostrém CZ meshi, krmí Grafanu)</li>
+</ol>
+<p>Obráceně to nedělej: procedura se má nejdřív protočit na uzlech, u kterých
+selhání nic neshodí. tth-ltm je jediný z těch tří, jehož výpadek je vidět
+v dashboardu.</p>
+<h2 id="predpoklad-ktery-je-potreba-splnit-driv-nez-cokoliv-jineho">Předpoklad, který je potřeba splnit dřív než cokoliv jiného</h2>
+<p><strong>hrebecna i Plešivec advertují</strong> a jsou z black-archu připravené k OTA
+(19. 8. 2026, 45s scan): oba stabilně na <strong>−60 dBm</strong>, bondované. tth-ltm ve
+scanu z black-archu není a nebude — je u dopey, flashuje se odtud.</p>
+<p>POZOR na metodu, stálo to falešný poplach: <code>bluetoothctl scan on | grep</code> <strong>nic
+nenajde</strong>, protože objevy vypisuje průběžně a jinak, než čekáš. Skenuj přes
+bleak s callbackem:</p>
+<pre><code class="language-python">from bleak import BleakScanner
+s = BleakScanner(detection_callback=lambda d, ad: print(ad.rssi, d.address, d.name))
+await s.start(); await asyncio.sleep(45); await s.stop()
+</code></pre>
+<p>Když uzel opravdu nikde není, nejčastější důvod je <strong>dock-quiet</strong> (připojené USB
+drží DTR ⇒ BLE neadvertuje — vlastnost, ne závada) nebo vypnuté napájení.</p>
+<h2 id="nejjednodussi-cesta-toolsble_flash_nodesh">Nejjednodušší cesta: <code>tools/ble_flash_node.sh</code></h2>
+<p>Celý postup níž je zabalený do jednoho příkazu, včetně věcí, které se dají
+zapomenout (čistý strom, předletová kontrola prefs, uvolnění linku, ověření
+verze proti obrazu, vrácení služby). Ověřeno 19. 8. 2026 na hrebecné, Plešivci
+a tth-ltm.</p>
+<pre><code class="language-bash"># lavice / uzel s ODPOJENOU antenou
+tools/ble_flash_node.sh --env SenseCap_hreb_rpt --mac CE:72:14:CD:FD:02 --require-silence
+
+# tth-ltm: BLE má metry, takže se flashuje Z DOPEY
+tools/ble_flash_node.sh --env SenseCap_Solar_repeater_ble --mac FA:4F:30:E3:1B:7A \
+    --via dopey.doma --python /opt/meshcore-ble-bridge/venv/bin/python \
+    --stop-service meshcore-ble-bridge.service
+
+# jen se podívat, co na uzlu je (nic nemění)
+tools/ble_flash_node.sh --mac DC:28:1D:8A:04:1A --check-only
+</code></pre>
+<p>Co skript dělá a co ne:</p>
+<ul>
+<li><strong>Odmítne špinavý strom</strong> — verze by dostala <code>+</code> a na stožáru bys nepoznal, co
+  na uzlu je.</li>
+<li><strong>Porovná prefs před a po</strong> (<code>repeat</code>, oba advert intervaly). Flash je
+  nepřepisuje, takže rozdíl znamená, že se něco stalo.</li>
+<li><code>--require-silence</code> <strong>zastaví celý flash</strong>, pokud uzel není tichý. U desky
+  s odpojenou antenou je to ta jediná pojistka, která fakt drží.</li>
+<li><strong>Službu vrací traphem</strong>, ne až na konci — když spadne build nebo DFU, most
+  se nesmí nechat dole.</li>
+<li>Na <code>--via</code> hostu <strong>nic neinstaluje</strong>: použije python, který tam už je
+  (u dopey <code>venv</code> mostu, kde bleak je).</li>
+<li><strong>Neaktivuje uzel.</strong> <code>set repeat on</code> a advert intervaly jsou krok na místě.</li>
+</ul>
+<p>Zbytek téhle stránky je to samé ručně, plus proč jednotlivé kroky existují.</p>
+<h2 id="nastroj-a-build">Nástroj a build</h2>
+<pre><code class="language-bash"># build (z ČISTÉHO stromu, jinak bude ve verzi '+')
+pio run -e SenseCap_hreb_rpt        # nebo _ples_rpt / SenseCap_Solar_repeater_ble
+# DFU balíček je .pio/build/&lt;env&gt;/firmware.zip
+
+tools/ble_dfu.py .pio/build/&lt;env&gt;/firmware.zip &lt;BLE-MAC&gt;
+tools/ble_dfu.py .pio/build/&lt;env&gt;/firmware.zip &lt;BLE-MAC&gt; phase2   # zotavení
+</code></pre>
+<p><code>ble_dfu.py</code> je kanonický, nepiš ho znovu. Fáze 1 překlopí běžící aplikaci do
+bootloaderu (buttonless), fáze 2 přenese obraz a sama se retryuje — po pádu
+pošle RESET a zkusí to znovu, <strong>bez power-cycle</strong>. <code>phase2</code> použij, když uzel
+už v bootloaderu visí (advertuje <code>SCAP_DFU</code>) po přerušeném přenosu.</p>
+<p><strong>MTU rozhoduje o délce</strong>: s velkým MTU je to ~3 min, s malým ~15. Když to
+leze k patnácti, nech to dojet, nepřerušuj.</p>
+<table>
+<thead>
+<tr>
+<th>uzel</th>
+<th>BLE MAC</th>
+<th>env</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tth-ltm</td>
+<td><code>FA:4F:30:E3:1B:7A</code></td>
+<td><code>SenseCap_Solar_repeater_ble</code> (má v sobě identitu stožáru)</td>
+</tr>
+<tr>
+<td>tth-plesivec-abertamy</td>
+<td><code>DC:28:1D:8A:04:1A</code></td>
+<td><code>SenseCap_ples_rpt</code></td>
+</tr>
+<tr>
+<td>tth-hrebecna</td>
+<td><code>CE:72:14:CD:FD:02</code></td>
+<td><code>SenseCap_hreb_rpt</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="hrebecna-a-plesivec-antena-odpojena">hrebecna a Plešivec (anténa ODPOJENÁ)</h2>
+<p><strong>Hlavní riziko není DFU, ale vysílání do odpojené antény</strong> — to poškozuje PA.
+BLE OTA samo je bezpečné (jiná anténa, jiné rádio), problém je, co uzel udělá
+po rebootu.</p>
+<p><code>sensecap_prod_base</code> je mlčící z konstrukce: <code>ENABLE_ADVERT_ON_BOOT=0</code>,
+<code>ADVERT_INTERVAL_DEFAULT=0</code>, <code>FLOOD_ADVERT_INTERVAL_DEFAULT=0</code>,
+<code>DISABLE_FWD_DEFAULT=1</code>. <strong>Ale to jsou build defaulty a prefs je přebijou</strong> —
+platí jen pro uzel bez prefs. Tyhle dva prefs mají, takže:</p>
+<ol>
+<li><strong>Před flashem</strong> si přes BLE konzoli ověř a případně vynuť ticho:
+   <code>get advert.interval        → musí být 0
+   get flood.advert.interval  → musí být 0
+   get repeat                 → musí být off</code>
+   Když ne: <code>set advert.interval 0</code>, <code>set flood.advert.interval 0</code>, <code>set repeat off</code>.</li>
+<li>Flash (<code>ble_dfu.py</code>).</li>
+<li><strong>Po flashi totéž zkontroluj znovu</strong> a <strong>nespouštěj <code>advert</code></strong>. Ten příkaz
+   vysílá okamžitě.</li>
+<li><code>ver</code> musí dát <code>v1.17.1-tth&lt;sha&gt;</code> — to je akceptační test, že na uzlu je
+   build, který si myslíš.</li>
+<li><code>time &lt;epoch&gt;</code> — po flashi jde RTC do května 2024 a klienti pak zahazují
+   odpovědi na timestampu.</li>
+</ol>
+<p>Aktivace (anténa, <code>set repeat on</code>, advert intervaly) je <strong>samostatný krok na
+místě</strong>, ne součást flashe.</p>
+<p>Fallback: oba jsou na lavici, takže když BLE selže, je tu USB DFU. Počítej
+s tím, že SenseCap se po DFU re-enumeruje 60–300 s — nesahej na to dřív.</p>
+<h2 id="tth-ltm-v-provozu">tth-ltm (v provozu)</h2>
+<p>Tady je navíc most, který drží BLE spojení, a <strong>zastavit službu NESTAČÍ</strong> —
+spojení drží BlueZ:</p>
+<pre><code class="language-bash">ssh dopey.doma 'systemctl stop meshcore-ble-bridge.service'
+ssh dopey.doma 'bluetoothctl disconnect FA:4F:30:E3:1B:7A'
+</code></pre>
+<p>Flashuj <strong>z dopey</strong> (je v BLE dosahu, bond tam je). Uzel je na balkoně, tedy
+fyzicky dosažitelný — proto je tohle akceptovatelné riziko a ne výprava na
+stožár.</p>
+<p>Po flashi:</p>
+<ol>
+<li><code>ver</code> → <code>v1.17.1-tth&lt;sha&gt;</code></li>
+<li>ticho ověřovat nemusíš (anténa je připojená a uzel MÁ vysílat), ale zkontroluj
+   <code>get repeat</code> → <code>on</code>, jinak přestane přeposílat.</li>
+<li><code>time &lt;epoch&gt;</code> jako výš.</li>
+<li><code>systemctl start meshcore-ble-bridge.service</code> na dopey.</li>
+<li><strong>Ověř data, ne jen službu</strong>: v Grafaně musí naskočit <code>up{job="meshcore_map"}</code>
+   a svěží <code>meshcore_*</code> s <code>node="tth-ltm.meshcore.cz"</code>. Most sám hlásí
+   <code>full scrape: N sousedů | stats: {...}</code> do journalu.</li>
+<li>Bonus, který tím zapneš: RF status začne nést <code>tx_start_fail</code>/<code>tx_timeout</code>.
+   Konzument je ještě nečte — parser knihovny se u 56 B zastaví, potřebuje
+   těch šest řádků z <code>docs/</code> (viz commit <code>ec20d77e</code>).</li>
+</ol>
+<p>Během výpadku mostu bude v dashboardu díra. To je čekané.</p>
+<p><strong>Provedeno 19. 8. 2026</strong>: <code>v1.17.1-ttha0f3ce9</code> → <code>v1.17.1-ttha29ed62</code>
+(Build: 260819 2121), DFU 408388/408388 B, IMAGE i VALIDATE ok. Prefs přežily
+(<code>repeat on</code>, <code>flood.advert.interval 25</code>, jméno i <code>freq 869.432</code>), hodiny
+19:22 UTC. Po nahození mostu <code>full scrape</code> do dvou minut a v Prometheu spadl
+<code>meshcore_uptime_seconds</code> z 370279 na 105 — tedy ověřeno až v datech, ne jen
+podle běžící služby.</p>
+<h2 id="co-se-muze-pokazit-a-co-s-tim">Co se může pokazit a co s tím</h2>
+<table>
+<thead>
+<tr>
+<th>symptom</th>
+<th>co to je</th>
+<th>co dělat</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>scan nic nevidí</td>
+<td>dock-quiet (USB drží DTR) nebo uzel nejede</td>
+<td>vytáhnout USB, power-cycle</td>
+</tr>
+<tr>
+<td>DFU spadne v půlce</td>
+<td>dropnutá receipt notifikace, BLE DFU je flaky</td>
+<td><code>ble_dfu.py … phase2</code>, bez power-cycle</td>
+</tr>
+<tr>
+<td>uzel advertuje <code>SCAP_DFU</code></td>
+<td>visí v bootloaderu</td>
+<td>totéž — <code>phase2</code></td>
+</tr>
+<tr>
+<td><code>ver</code> hlásí literál bez <code>-tth</code></td>
+<td>flashnul jsi upstreamový env</td>
+<td>přeflashovat správným lokálním envem</td>
+</tr>
+<tr>
+<td>po flashi mlčí i s antenou</td>
+<td>prefs (<code>repeat off</code>, intervaly 0) přežily flash</td>
+<td><code>set repeat on</code>, nastavit intervaly</td>
+</tr>
+<tr>
+<td>login z jiného uzlu tiše selhává</td>
+<td>v prefs je STARÉ <code>ADMIN_PASSWORD</code></td>
+<td>z konzole <code>password &lt;nové&gt;</code></td>
+</tr>
+<tr>
+<td>fáze 1 padá na <code>TimeoutError</code> (connect), ale <code>ble_cli.py ver</code> na tomtéž uzlu projde</td>
+<td>BLE connect je flaky, jeden pokus nestačí</td>
+<td>mít v <code>ble_dfu.py</code> retry (od 22. 8. 2026 tam je); NEdiagnostikovat z toho mrtvou desku</td>
+</tr>
+<tr>
+<td>uzel není ve skenu ani na <code>MAC</code> ani na <code>MAC+1</code>, a NEODPOVÍDÁ ANI PO MESHI</td>
+<td><strong>nejspíš visí v UF2 bootloaderu</strong> — ten nemá LoRa ani BLE aplikaci, takže uzel není vidět ani jednou cestou</td>
+<td><strong>připojit na USB a přečíst <code>idProduct</code></strong> (<code>0044</code> bootloader / <code>8044</code>+ aplikace; bootloader se hlásí BEZ „Studio" v názvu portu a nese UF2 disk). NEdiagnostikovat z toho mrtvou desku a nezkoušet <code>phase2</code> — v UF2 režimu BLE nezapne, takže ho <code>ble_dfu.py</code> nemá jak najít</td>
+</tr>
+</tbody>
+</table>
+<h3 id="uzel-ktery-zmizel-z-ble-i-z-meshe-hledej-na-usb">Uzel, který zmizel z BLE i z meshe, hledej na USB</h3>
+<p>Původně tu stálo „fakt nejede → power-cycle". <strong>To je špatně</strong> a Plešivec to
+22. 8. 2026 vyvrátil o hodinu později: po pádu <code>ble_dfu.py</code> (jehož recovery
+posílá RESET) zůstal v <strong>UF2 bootloaderu</strong>. Ten nemá rádio ani BLE aplikaci,
+takže uzel současně nebyl ve skenu na <code>MAC</code> ani <code>MAC+1</code> A neodpovídal po meshi —
+což vypadá jako mrtvá deska a není to ona. Stačilo ho připojit na USB: <code>2886:0044</code>
+a disk <code>XIAO-BOOT</code>, tedy bootloader připravený vzít UF2.</p>
+<p>Ta kombinace „mlčí na BLE <strong>i</strong> na meshi" je diagnostický signál sama pro sebe.
+Selhání rádia by mlčelo jen na meshi, dock-quiet jen na BLE. Když zmizí obojí
+naráz, uzel neběží jako aplikace — a v bootloaderu se z něj po vzduchu nedostane
+nic, ani <code>phase2</code>.</p>
+<p>Pozn.: solární SenseCAP se v bootloaderu hlásí jako <strong>XIAO nRF52840</strong>
+(<code>Board-ID: nRF52840-SeeedXiao-v1</code>) a není to rozpor —
+<code>boards/seeed_sensecap_solar.json</code> má <code>"variant": "Seeed_XIAO_nRF52840"</code>, ten uzel
+XIAO uvnitř skutečně má. Nezvrhni to na „připojil jsem si špatnou desku".</p>
+<p><strong>Nemountuj UF2 disk na <code>/mnt</code> samotné.</strong> Deska se po zapsání obrazu sama
+rebootne a zařízení zmizí — mount po ní zůstane viset a <code>/mnt</code> je pak mrtvé:
+i <code>sudo mkdir /mnt/cokoliv</code> skončí na <code>Input/output error</code>. Mountuj do
+podadresáře (<code>/mnt/l1</code>) a po <code>sync</code> udělej <code>umount -l</code>. Náprava viselého mountu
+je <code>sudo umount -R -l /mnt</code>, nic se tím nemaže.</p>
+<h3 id="wio-tracker-l1-z-e7470-na-chate-uf2-ne-ble">Wio Tracker L1 z e7470 (na chatě) — UF2, ne BLE</h3>
+<p>L1 má vlastní bootloader, ne Adafruitův, takže se flashuje jako disk. Na chatě
+je v dosahu <code>xhercet@e7470.chata</code> (POZOR: <code>xhercet@</code>, ne root — bez toho si SSH
+řekne o Yubikey a spadne na <code>Too many authentication failures</code>).</p>
+<pre><code class="language-bash">scp .pio/build/WioTrackerL1_companion_solo_dual/firmware.uf2 xhercet@e7470.chata:~/mc/l1.uf2
+# na e7470: 1x krátce RST -&gt; disk 'TRACKER L1' jako /dev/sda za ~10 s
+</code></pre>
+<p><strong>Mount potřebuje root a přes SSH bez terminálu se sudo nezeptá</strong> — <code>udisksctl</code>
+taky ne (polkit chce controlling terminal). Uživatel není ve skupině <code>disk</code> a
+<code>mtools</code> tam nejsou, takže tenhle krok musí spustit člověk v terminálu:</p>
+<pre><code class="language-bash">sudo mkdir -p /mnt/l1 &amp;&amp; sudo mount /dev/sda /mnt/l1
+sudo cp ~/mc/l1.uf2 /mnt/l1/ &amp;&amp; sync
+</code></pre>
+<p>Nepiš to jako <code>D=$(mount | grep -o ...)</code> — <code>grep --color</code> (běžný alias) nasype
+do proměnné ANSI escape sekvence a <code>cp</code> pak hlásí nesmyslnou cestu.</p>
+<p>Ověření: port se vrátí jako <code>usb-Seeed_Studio_Seeed_Wio_Tracker_L1_*</code>, tedy už
+ne UF2 disk. <strong>Companion přitom může mlčet</strong> — <code>create_serial()</code> vrátí <code>None</code> a
+knihovna se ptá „Are you sure your node is a serial companion?". Dvě příčiny a
+ani jedna není porucha: firmware po flashi chvíli nenaběhne (AGENTS.md), a
+hlavně <strong>připojený BLE klient (telefon) USB companion utiší z konstrukce</strong>.</p>
+<h3 id="jednotky-advert-intervalu-se-lisi-a-chyba-je-ticha">Jednotky advert intervalů se LIŠÍ — a chyba je tichá</h3>
+<p><code>set advert.interval</code> bere <strong>minuty</strong>, <code>set flood.advert.interval</code> <strong>hodiny</strong>
+(rozsah 3–168; <code>CommonCLI.cpp:641</code> vs <code>:651</code>, kde se minuty navíc ukládají
+vydělené dvěma). Poslat do floodu minuty vypadá nevinně, ale uzel odpoví
+<code>Error: interval range is 3-168 hours</code> a <strong>nechá tam starou hodnotu</strong> — takže po
+ztišení (<code>0</code>) zůstane na nule a uzel přestane flood adverty posílat úplně.
+Stalo se 22. 8. 2026 na hrebecné při vracení provozu po flashi. Vždycky
+<code>get flood.advert.interval</code> ZKONTROLUJ, nespoléhej na <code>OK</code>.</p>
+<h2 id="aktivace-na-miste-provedeno-na-hrebecne-21-8-2026">Aktivace na místě — provedeno na hrebecné 21. 8. 2026</h2>
+<p>Uzel je na chatě u Hřebečné, tedy <strong>z black-archu nedosažitelný</strong>. BLE dosah na
+něj má <code>sneezy.chata</code>, takže konzole jde odtamtud:</p>
+<pre><code class="language-bash"># na sneezy: bleak + obě BLE utility (venv, ne systémový python)
+python3 -m venv /opt/meshcore-tools/venv &amp;&amp; /opt/meshcore-tools/venv/bin/pip install bleak
+scp tools/ble_cli.py tools/ble_pair.py sneezy.chata:/opt/meshcore-tools/tools/
+# PIN se NIKDY nevypisuje — jen se propíše rourou do souboru 0600 vedle tools/
+grep -E '^\s*ble_pin\s*=' platformio.local.ini | \
+  ssh sneezy.chata 'umask 077; { echo &quot;[secrets]&quot;; cat; } &gt; /opt/meshcore-tools/platformio.local.ini'
+</code></pre>
+<p><strong>Bond je per-adaptér.</strong> Uzel byl bondovaný s black-archem, sneezy je pro něj
+cizí adaptér — takže znovu <code>ble_pair.py</code>, a pak <code>bluetoothctl disconnect</code>, jinak
+uzel neadvertuje a <code>ble_cli.py</code> ho nenajde.</p>
+<pre><code class="language-bash">ssh sneezy.chata 'python3 /opt/meshcore-tools/tools/ble_pair.py CE:72:14:CD:FD:02'
+ssh sneezy.chata 'bluetoothctl disconnect CE:72:14:CD:FD:02'
+ssh sneezy.chata '/opt/meshcore-tools/venv/bin/python /opt/meshcore-tools/tools/ble_cli.py \
+    CE:72:14:CD:FD:02 -f /opt/meshcore-tools/tools/verify-cz-silent.txt'     # předletová
+ssh sneezy.chata '... ble_cli.py CE:72:14:CD:FD:02 -f .../activate-cz-mast.txt'
+</code></pre>
+<p><code>ble_pair.py</code> potřebuje jen stdlib a <code>bluetoothctl</code>, takže běží systémovým
+pythonem; <code>ble_cli.py</code> chce bleak, tedy ten venv.</p>
+<p>Naměřeno: <code>ver</code> = <code>v1.17.1-ttha29ed62</code>, prefs přesně jak je nechal flash
+(<code>repeat off</code>, oba intervaly 0, <code>af 9</code>, <code>powersaving on</code>, <code>gps duty/prefs</code>,
+<code>path.hash.mode 1</code>), hodiny <strong>správné bez zásahu</strong> (<code>clock</code> na minutu sedělo
+s UTC, přestože <code>gps</code> hlásí <code>duty, asleep, no fix</code> — fix tedy někdy předtím
+proběhnout musel). Po aktivaci <code>repeat on / 120 / 25</code>.</p>
+<p><strong>Ověřuj to na cizím rádiu, ne na counterech uzlu.</strong> Svědek byl openHop observer
+<code>tth-ob2</code>, který stojí na téže chatě:</p>
+<ul>
+<li>ruční <code>advert</code> → ob2 ho zachytil jako ADVERT (<code>packet_type 4</code>, RSSI −14 dBm,
+  SNR 12,2), v raw je čitelné <code>tth-hrebecna</code> a payload začíná pubkey <code>5361aa08…</code>;</li>
+<li>za dalších 5 minut ob2 viděl <strong>tři cizí flood TXT dvakrát</strong>: jednou od
+  původce (0 hopů, RSSI −48) a hned nato tutéž <code>hash</code> s cestou <code>5361</code> na začátku
+  — to je hrebecna, jak je přeposílá. <code>stats-packets</code> to potvrdil z druhé
+  strany: <code>flood_tx</code> +3;</li>
+<li>CoreScope si ji do minuty založil jako <code>repeater 5361aa0892…</code>, <code>hash_size 2</code>.
+  Prefix <code>5361</code> je proti 887 známým uzlům nekolizní.</li>
+</ul>
+<p><strong>Pozice: 22. 8. 2026 přenastavena na 50.3800992/12.8217939.</strong> Do té doby uzel
+advertoval 50.382/12.827, vedené v poznámkách jako záměrně hrubá poloha ~1 km.
+Jenže je to pouhé zaokrouhlení skutečných souřadnic chaty na 4 desetinná místa,
+tedy <strong>36 m od domu</strong>, a na mapě to sedělo přímo na něj. <strong>Anonymita musí
+vzniknout POSUNEM, ne zaokrouhlením.</strong> Nová hodnota leží v Polesí mezi Hřebečnou
+a Abertamy, v poli, 427 m od chaty. Mění se za běhu po meshi
+(<code>set lat</code> / <code>set lon</code> zapisují rovnou do prefs, bez rebootu), ale patří i do
+<code>ADVERT_LAT</code>/<code>ADVERT_LON</code> v envu — jinak to příští flash vrátí zpátky.</p>
+<p><strong>Čím uzel zatím NENÍ</strong>: <code>neighbors</code> hlásí jediného souseda, <code>025C68B0</code> (tth-ltm)
+ve stáří 20 h — což je ještě z lavice v Litoměřicích. Z chaty přímého souseda na
+ostrém meshi zatím nemá. Ten −48 dBm původce je podle úrovně signálu blízko
+(22 dBm a volný prostor dá −48 dBm někde kolem 300 m; na 20 km by to bylo −89),
+takže je to nejspíš něčí lokální uzel, ne cesta do sítě. <strong>Dokud nepůjde nahoru
+Plešivec, počítej s tím, že hrebecna může být ostrov</strong> — repeat na ní pak nemá
+co přeposílat směrem k meshi.</p>
+<h3 id="sonda-dosahu-dva-detektory-zadne-nove-naradi">Sonda dosahu: dva detektory, žádné nové nářadí</h3>
+<p>Po aktivaci se hodí vědět, jestli uzel někam dosáhne, aniž bys musel slyšet
+protistranu. Recept:</p>
+<pre><code class="language-bash"># 1. detektor: co je slyšet na místě (observer publikuje syrové pakety)
+mosquitto_sub -h stor.grg -p 1883 -t 'meshcore/&lt;IATA&gt;/+/packets' -v
+
+# 2. detektor: slyšel nás někdo VENKU? (bez tokenu, stejné API jako CoreScope)
+curl -s 'https://analyzer.meshcore.cz/api/nodes?limit=5000'
+
+ble_cli.py &lt;MAC&gt; -w 45 -f &lt;(printf 'advert\nadvert\nadvert\n')   # tři floody
+</code></pre>
+<p>Druhý detektor je ten cenný: <strong>komunitní analyzer chytne i případ, kdy náš
+advert někdo přepošle dál, ale zpátky k nám to nedoletí.</strong> Když se uzel po
+sérii advertů v <code>/api/nodes</code> neobjeví, nikdo z MQTT-přemostěných uzlů ho
+neslyšel. Naopak <code>last_relayed</code> + <code>relay_count_1h</code> u cizího uzlu dokazují, že
+<strong>žije a přeposílá</strong>, i když je jeho vlastní <code>last_heard</code> den starý (u
+<code>flood.advert.interval 25</code> je to normální).</p>
+<p>Cestu poznáš z <code>raw_hex</code>: druhý bajt je <code>path_length</code> — spodních 6 bitů je
+počet hopů, horní dva <code>šířka hashe − 1</code>. Paket s <code>hops ≥ 1</code> je vždycky
+retransmise, originál má 0.</p>
+<p><strong>Změřeno 21. 8. 2026 na hrebecné (anténa na půdě pod střechou):</strong> tři adverty,
+<strong>nula přeposlání, v komunitním analyzeru se neobjevila</strong>. Sedí to s DEM
+analýzou z července — chata → Klínovec je blokovaná hřbetem 1012 m, spoj vede
+46 m pod terénem (≈ −1,6 F1, tedy ~20 dB difrakce navíc k 111 dB na 10,1 km).
+Výkonově by ta trasa byla pohodlná; <strong>problém je čistě terén</strong> a nespraví ho
+ani anténa na střeše. Odemyká to až repeater na Plešivci (3,07 km z chaty,
+LOS 169 % F1).</p>
+<h2 id="co-v-tomhle-planu-zamerne-neni">Co v tomhle plánu záměrně není</h2>
+<ul>
+<li><strong>Změna identity ani jména.</strong> Envy je mají zadrátované; <code>SenseCap_Solar_repeater_ble</code>
+  nese identitu stožáru, takže ho nepoužívej na nic jiného.</li>
+<li><strong>Zapnutí vysílání na Plešivci.</strong> To je aktivace na místě, viz sekci výš —
+  pro hrebecnou je hotová, Plešivec čeká na výlez.</li>
+<li><strong>Flash x1.</strong> Je zaseklá po flashi upstreamovým envem (přišla tím o BLE konzoli)
+  a chce ruce: dvojklik na reset nebo replug, pak <code>pio run -e Xiao_x1_rpt -t upload</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

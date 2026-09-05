@@ -1,0 +1,1388 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/upstream-v1.17.0/">
+      
+      
+        <link rel="prev" href="../upstream-prs/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026) - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#merge-upstreamu-v117x-a-rozvoz-na-flotilu-915-8-2026" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ble-flash-plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ostrý flash přes BLE: tth-ltm, tth-plesivec-abertamy, tth-hrebecna
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ble-lora-coexistence-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BLE/LoRa coexistence — bench reproduction attempt
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kiss_modem_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore KISS Modem Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mesh-analyzer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore Passive Mesh Analyzer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mesh-review-2026-08-19/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Revize meshe: šířka path hashe a čas (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../number_allocations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Number Allocations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Payload Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../power-saving/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power saving on a solar repeater — what it costs, measured
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upstream-prs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Co z forku posíláme do upstreamu (19. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#v1170-910-8-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v1.17.0 (9.–10. 8. 2026)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ktery-tag-je-vlastne-v1170" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Který tag je vlastně "v1.17.0"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rozsah-a-proc-merge-ne-rebase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rozsah a proč merge, ne rebase
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jak-se-rozhodly-konflikty" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jak se rozhodly konflikty
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#co-to-udelalo-s-usb-companionem-regrese-kterou-merge-prinesl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co to udělalo s USB companionem (regrese, kterou merge přinesl)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stamping-verzi-dve-pasti-obe-opravene" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stamping verzí: dvě pasti, obě opravené
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rozvoz-na-flotilu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rozvoz na flotilu
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rozvoz na flotilu">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#co-pri-rozvozu-prekvapilo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co při rozvozu překvapilo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#co-zustalo-otevrene" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co zůstalo otevřené
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#v1170-910-8-2026" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v1.17.0 (9.–10. 8. 2026)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ktery-tag-je-vlastne-v1170" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Který tag je vlastně "v1.17.0"
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rozsah-a-proc-merge-ne-rebase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rozsah a proč merge, ne rebase
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jak-se-rozhodly-konflikty" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jak se rozhodly konflikty
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#co-to-udelalo-s-usb-companionem-regrese-kterou-merge-prinesl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co to udělalo s USB companionem (regrese, kterou merge přinesl)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stamping-verzi-dve-pasti-obe-opravene" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stamping verzí: dvě pasti, obě opravené
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rozvoz-na-flotilu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rozvoz na flotilu
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rozvoz na flotilu">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#co-pri-rozvozu-prekvapilo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co při rozvozu překvapilo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#co-zustalo-otevrene" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Co zůstalo otevřené
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/upstream-v1.17.0.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="merge-upstreamu-v117x-a-rozvoz-na-flotilu-915-8-2026">Merge upstreamu v1.17.x a rozvoz na flotilu (9.–15. 8. 2026)</h1>
+<blockquote>
+<p><strong>v1.17.1 (15. 8. 2026)</strong> je na konci dokumentu — proti níže popsanému mergi
+to byla rutina: 57 souborů, <strong>nula konfliktů</strong>. Ale přejmenovala CLI příkaz,
+který používáme.</p>
+</blockquote>
+<h2 id="v1170-910-8-2026">v1.17.0 (9.–10. 8. 2026)</h2>
+<p>Záznam toho, co merge změnil na chování, jak se konflikty rozhodly a co při
+rozvozu na uzly vylezlo. Cílem není historie commitů (ta je v gitu), ale ty věci,
+které by se jinak musely znovu vypátrat.</p>
+<h2 id="ktery-tag-je-vlastne-v1170">Který tag je vlastně "v1.17.0"</h2>
+<p>Oficiální MeshCore verzuje <strong>per-role</strong>: <code>companion-v1.17.0</code>, <code>repeater-v1.17.0</code>,
+<code>room-server-v1.17.0</code>. Všechny tři sedí na commitu <code>727fc051</code>.</p>
+<p>Tagy <code>v1.23</code>, <code>v1.23.1</code>, <code>v1.24</code> v tomhle repu <strong>nejsou z oficiálního MeshCore</strong>,
+ale ze Solo forku (MarekZegare4) — jiná verzovací linie. Nezaměňovat.</p>
+<p>Podstatné: strom <code>727fc051</code> je <strong>bit-identický</strong> s <code>origin/main</code> (<code>efc527a3</code>),
+jen historie je jiná (upstream si <code>main</code> skládá tak, že commity z <code>dev</code> v něm
+nejsou dosažitelné). Cíl merge je proto prostě <code>origin/main</code>.</p>
+<h2 id="rozsah-a-proc-merge-ne-rebase">Rozsah a proč merge, ne rebase</h2>
+<p>Náš základ byl <code>bbb58cce</code> (7. 7. 2026), tedy <strong>350 souborů / +11 263 / −1 640</strong>
+upstream změn. Vlastních commitů 26 na <code>main</code> a dalších 61 na
+<code>feat/ble-diag-and-2b-path-hash</code>.</p>
+<p>Zvolen <strong>merge</strong>: 87 commitů opakovaně sahá do <code>Mesh.cpp</code> a <code>CommonCLI.cpp</code>, takže
+rebase by tentýž konflikt řešil pořád dokola, a historie je pushnutá na <code>fork</code>
+i <code>rfa</code> — rebase by ji přepsal pod rukama. Reálná cena merge byla <strong>12 hunků /
+~326 řádků</strong> v 9 souborech.</p>
+<p>Zpětné tagy: <code>backup/main-pre-v117-merge</code>, <code>backup/feat-ble-diag-pre-v117-merge</code>.</p>
+<h2 id="jak-se-rozhodly-konflikty">Jak se rozhodly konflikty</h2>
+<table>
+<thead>
+<tr>
+<th>soubor</th>
+<th>rozhodnutí</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/Mesh.cpp</code></td>
+<td>Upstream rozdělil dedup na <code>wasSeen()</code> + explicitní <code>markSeen()</code>. Vzato <strong>obojí</strong>: jejich nová dvojice <strong>a</strong> náš bounds-check na čtení path hashe z TRACE.</td>
+</tr>
+<tr>
+<td><code>examples/companion_radio/main.cpp</code></td>
+<td>Upstream si napsal vlastní <code>MultiSerialInterface</code> — nadmnožina našeho <code>SerialDualInterface</code> (backport PR #1779). Vzat jejich celý.</td>
+</tr>
+<tr>
+<td><code>ui-new/UITask.cpp</code></td>
+<td><code>isSerialEnabled()</code> se upstream jmenuje <code>isBluetoothEnabled()</code>, <code>DisplayDriver::RED</code> → <code>UIColor::warning_txt</code>. Záměr stejný: BT pin na displeji jen když je Bluetooth zapnutý.</td>
+</tr>
+<tr>
+<td><code>src/helpers/NRF52Board.cpp</code></td>
+<td>Upstream nezávisle došel ke <strong>stejnému</strong> <code>sd_temp_get()</code> fixu pro SoftDevice-chráněný TEMP. Vzata jejich forma, ponechán náš komentář — je to jediný záznam <strong>proč</strong> (APP_MEMACC fault → reboot při telemetrii).</td>
+</tr>
+<tr>
+<td><code>EnvironmentSensorManager.cpp</code></td>
+<td>Upstream opravil přetečení <code>millis()</code> na GPS timeru přesně v řádku, kde sedí náš <code>gpsDutyLoop()</code>. Obojí, s jejich wrap-safe porovnáním.</td>
+</tr>
+<tr>
+<td><code>RadioLibWrappers.{h,cpp}</code>, <code>simple_repeater/main.cpp</code></td>
+<td>add/add. Jejich <code>configSideDetectors()</code>/<code>performChannelScan()</code>/external watchdog vedle našeho <code>irqDoneMask()</code>/<code>probeDio1()</code>/BLE pumpy/WDT feedu.</td>
+</tr>
+<tr>
+<td><code>.vscode/extensions.json</code></td>
+<td>Upstream smazal a je v <code>.gitignore</code>; naše změna byl jen komentář. Smazáno.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="co-to-udelalo-s-usb-companionem-regrese-kterou-merge-prinesl">Co to udělalo s USB companionem (regrese, kterou merge přinesl)</h2>
+<p><code>MultiSerialInterface</code> registruje BLE + USB + WiFi + Ethernet vedle sebe, ale
+upstream envs <code>*_companion_radio_ble</code> <strong>USB nezapínají</strong> — kdežto náš backport ho
+tam přidával zdarma. Důsledek: <strong>BLE companion buildy po merge nemají USB
+konzoli.</strong> Projeví se jako</p>
+<pre><code>$ meshcli -s /dev/serial/by-id/… infos
+ERROR: Are you sure your node is a serial companion ?
+</code></pre>
+<p>Týká se <code>T1000E_cmp_cz</code>, který je teď dostupný jen po BLE. Vrací to
+<code>-D ENABLE_USB_INTERFACE</code>, ale <strong>upstream se chová jinak než náš dual</strong>:</p>
+<ul>
+<li><code>writeFrame()</code> <strong>broadcastuje rámec na všechna aktivní rozhraní</strong>, takže USB
+  klient vidí i odpovědi určené BLE klientovi (náš dual si pamatoval, odkud dotaz
+  přišel),</li>
+<li><strong>dock-quiet nemá vůbec.</strong></li>
+</ul>
+<p><code>src/helpers/SerialDualInterface.h</code> je proto ponechán ve stromu jako mrtvý kód —
+ta logika je v něm, kdyby ji bylo potřeba vrátit.</p>
+<h2 id="stamping-verzi-dve-pasti-obe-opravene">Stamping verzí: dvě pasti, obě opravené</h2>
+<p><code>tools/build_version.py</code> skládá verzi z nejnovějšího upstream tagu, ze kterého
+HEAD vychází. Při tomhle mergi to selhalo dvakrát:</p>
+<ol>
+<li><strong><code>backup/*</code> tagy stínily upstream.</strong> <code>backup/feat-ble-diag-pre-v117-merge</code>,
+   zakládaný jako pojistka minutu před mergem, matchoval <code>*v[0-9]*</code> a jako
+   nejnovější tag vyhrál. Proto T1000-E nalitý ten večer hlásí
+   <code>v117-merge-tth7c50c</code> — sha je správná, base je jméno tagu. Pojistka nikdy
+   nesmí pojmenovat firmware, který chránila. Přidán <code>--exclude 'backup/*'</code>.</li>
+<li><strong><code>tag.find("v")</code> chytilo „ser<em>v</em>er"</strong> v <code>room-server-v1.17.0</code> → base
+   <code>ver-v1.17.0</code>. Dřívější upstream tagy (<code>companion-</code>, <code>repeater-</code>) žádné „v"
+   v prefixu neměly, takže to vylezlo až teď. Teď <code>re.search(r"v[0-9]")</code>.</li>
+</ol>
+<p>A do třetice: <strong>release tag nebyl náš předek</strong>, takže <code>git describe</code> v1.17.0
+neviděl vůbec a spadl na cokoli dalšího. Dotaženo přes</p>
+<pre><code>git merge -s ours companion-v1.17.0     # obsah se nezmění ani o bajt
+</code></pre>
+<p><code>-s ours</code> je tady správný nástroj: obsahová otázka je vyřešená (náš strom přišel
+z <code>origin/main</code>, který má stejný strom jako tag), jde jen o to, aby <code>describe</code>
+release viděl. Ověřeno porovnáním tree hashe před a po.</p>
+<h2 id="rozvoz-na-flotilu">Rozvoz na flotilu</h2>
+<p>Postaveno z čistého stromu, verze <code>v1.17.0-tth4c9b4b9</code>, flashováno <strong>po jedné
+a s kontrolou mezi tím</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>uzel</th>
+<th>env</th>
+<th>cesta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>x0 <code>tth-x0</code></td>
+<td><code>Xiao_x0_rpt</code></td>
+<td><code>dfu uf2</code> z konzole → <code>xiao_uf2_flash.sh</code></td>
+</tr>
+<tr>
+<td>x1 <code>tth-x1</code></td>
+<td><code>Xiao_x1_bot</code></td>
+<td>totéž</td>
+</tr>
+<tr>
+<td>x4 <code>tth-x4</code></td>
+<td><code>Xiao_x4_rpt</code></td>
+<td>totéž</td>
+</tr>
+<tr>
+<td>x2 <code>tth-x2-cmp</code></td>
+<td><code>Xiao_x2_cmp</code></td>
+<td><strong>serial DFU</strong> (<code>pio run -t upload</code>)</td>
+</tr>
+<tr>
+<td>x3 <code>tth-x3</code></td>
+<td><code>Xiao_x3_obs</code></td>
+<td>UF2 na dopey, přes SSH</td>
+</tr>
+<tr>
+<td>tth-ltm</td>
+<td><code>SenseCap_Solar_repeater_ble</code></td>
+<td>BLE OTA z dopey</td>
+</tr>
+<tr>
+<td>TTH-L1</td>
+<td><code>WioTrackerL1_companion_solo_dual</code> (Solo, <code>v1.24-tth753df1b</code>)</td>
+<td><code>flash-l1.sh</code></td>
+</tr>
+</tbody>
+</table>
+<p>Hodiny srovnány všude (<code>xiao_uf2_flash.sh</code> to dělá sám, jinak <code>time &lt;epoch&gt;</code> /
+<code>meshcli clock sync</code>).</p>
+<h3 id="co-pri-rozvozu-prekvapilo">Co při rozvozu překvapilo</h3>
+<ul>
+<li><strong>x2 (companion) nešla dvojklikem</strong>, a nemá <code>dfu</code>, protože nemá textovou
+  konzoli. Cesta je <code>pio run -e Xiao_x2_cmp -t upload --upload-port …</code> — serial
+  DFU přes <code>tool-adafruit-nrfutil</code>, <strong>36 s na první pokus</strong>. Viz <code>AGENTS.md</code>.</li>
+<li><strong>Vzdálené uzly: zastavit most nestačí.</strong> U tth-ltm po
+  <code>systemctl stop meshcore-ble-bridge</code> hlásil <code>ble_cli.py</code> pětkrát
+  <code>not advertising (already connected?)</code>, protože spojení držel dál BlueZ na dopey
+  (bonded+trusted). Rozadvertoval ho až <code>bluetoothctl disconnect &lt;MAC&gt;</code>.</li>
+<li><strong>Lokální <code>bluetoothctl devices</code> není dosah.</strong> tth-ltm se z cache vypisoval
+  i tady, ale scan ho nenašel — pozná se podle chybějícího RSSI. Flashovat se
+  musel z dopey.</li>
+<li><strong>Délka BLE DFU závisí na MTU, ne na velikosti obrazu.</strong> tth-ltm: 407 kB za
+  ~3 min (~244 B chunky). T1000-E: 372 kB za ~14 min (MTU 23 → 20 B chunky).</li>
+<li><strong><code>scp</code> bez <code>-p</code> rozbije staleness guard.</strong> <code>xiao_uf2_flash.sh</code> odmítne obraz
+  starší než <code>firmware.elf</code>; bez <code>-p</code> dostanou soubory čas přenosu v pořadí
+  kopírování a <code>.elf</code> vyjde novější. Správně je <code>scp -p</code>.</li>
+<li><strong>Most si reboot uzlu pozná sám</strong> a přehraje ring od nuly
+  (<code>cursor &gt; newest — uzel rebootoval (seq reset)</code>), takže se sběr neztratí.</li>
+</ul>
+<h2 id="co-zustalo-otevrene">Co zůstalo otevřené</h2>
+<p><em>(Stav k v1.17.0. První dva body vyřešil rozvoz v1.17.1 — viz konec dokumentu:
+T1000-E dostal řádnou verzi <code>v1.17.1-…</code> a <code>main</code> byl srovnán na feature větev,
+takže má <code>tools/build_version.py</code> i oba fixy. Otevřená zůstává jen ztráta USB
+companionu na <code>T1000E_cmp_cz</code> a obojí kolem Sola.)</em></p>
+<ul>
+<li><code>T1000E_cmp_cz</code> běží <code>v117-merge-tth7c50c</code> (nekonvenční base) a <strong>bez USB
+  companionu</strong>. Oprava obojího = reflash, tj. ~15 min OTA.</li>
+<li><strong><code>main</code> stampuje verzi po staru.</strong> Má <code>variants/sensecap_solar/build_version.py</code>
+  s hardcoded literálem <code>v1.16.0</code> — přesun do <code>tools/</code>, base z git tagu i oba
+  dnešní fixy jsou jen na <code>feat/ble-diag-and-2b-path-hash</code>. Build z <code>main</code> by se
+  tedy hlásil jako <code>v1.16.0-tth-&lt;sha&gt;</code>, což je od téhle chvíle lež. Release tag
+  je na <code>main</code> dotažený (<code>-s ours</code>), aby ho <code>describe</code> viděl, ale samotný stamping
+  se srovná až sloučením s feature větví. <strong>Flashuj z feature větve.</strong></li>
+<li><code>MeshCore-solo/flash-l1.sh</code> je netrackovaný a ověřuje jen návrat portu, ne
+  verzi. Stálo by za to dotáhnout ho do gitu a přidat čtení verze, jak to dělá
+  <code>xiao_uf2_flash.sh</code>.</li>
+<li><code>build.sh</code> v Solo repu dělá <code>rm -rf out</code> <strong>před</strong> validací argumentů, takže
+  spadne na chybějící <code>FIRMWARE_VERSION</code> a stejně ti smaže předchozí artefakt.</li>
+</ul>
+<hr />
+<h1 id="v1171-15-8-2026">v1.17.1 (15. 8. 2026)</h1>
+<p>Malý release, a merge to potvrdil: <strong>57 souborů, +825/−200, nula konfliktů.</strong>
+Zpětný tag <code>backup/feat-ble-diag-pre-v1171-merge</code>.</p>
+<p>Dva rozdíly proti v1.17.0, oba usnadňují práci:</p>
+<ul>
+<li><strong>Release tagy sedí přímo na <code>origin/main</code></strong> (<code>d9296435 * version 1.17.1</code>), takže
+  <code>git merge -s ours</code> tentokrát potřeba nebyl — <code>git describe</code> release vidí sám.</li>
+<li><strong>Fix <code>--exclude 'backup/*'</code> ve stampingu se ostře osvědčil.</strong> Záložní tag byl
+  založen minutu před mergem a base verze přesto zůstala <code>companion-v1.17.1</code>.
+  Bez toho fixu by se firmware jmenoval po pojistce, jako se to stalo u 1.17.0.</li>
+</ul>
+<p>Nalito jako <code>v1.17.1-ttha0f3ce9</code>.</p>
+<h2 id="rxgain-se-prejmenoval-na-radiorxgain"><code>rxgain</code> se přejmenoval na <code>radio.rxgain</code></h2>
+<p>Release notes žádají, ať si repeater admini po updatu ověří <code>radio.rxgain</code>.
+Důvod je konkrétnější, než se z nich zdá: <strong>starý název <code>rxgain</code> firmware už
+nezná</strong> a odpoví <code>??: rxgain</code>. Každý skript nebo provisioning soubor, který ho
+používá, tedy tiše přestane fungovat — příkaz se nevykoná a nic nespadne.</p>
+<p>Ověřeno na celé flotile po flashi: hodnota přechod přežila, <code>radio.rxgain</code> je
+<code>on</code> na x0, x1, x4, x3 i tth-ltm. Pro repeatery je to správně; <code>off</code> je jen ta
+úsporná varianta (0,7 mA za cenu citlivosti), kterou na stožár nechceme.</p>
+<p>Opraveno v <code>AGENTS.md</code>; soubory v <code>tools/provision/</code> starý název nepoužívaly.</p>
+<h2 id="co-dal-se-tyka-nasich-desek">Co dál se týká našich desek</h2>
+<ul>
+<li><strong>Rx gain se resetoval po AGC</strong> — fix mění <code>CustomSX1262Wrapper.h</code> (XIAO)
+  i <code>CustomLR1110Wrapper.h</code> (T1000-E), takže ne jen Station G3, kvůli které
+  vznikl.</li>
+<li><strong><code>resetAGC()</code> je teď virtuální hook <code>doResetAGC()</code>.</strong> Náš reset noise-floor
+  sběru kolem něj se slil bez konfliktu a je na místě
+  (<code>RadioLibWrappers.cpp</code>) — bez něj se zaseknutý <code>_noise_floor</code> na −120
+  sám udržuje.</li>
+<li><strong>CC310 crypto se inicializuje jednou</strong> místo při každém volání a RNG míchá
+  entropii z rádia s CC310. Týká se všech nRF52, tedy celé flotily.</li>
+<li>Nové <code>get/set radio.fem.rxgain/txgain</code> se nás netýkají (žádná naše deska FEM
+  nemá) a companion je stejně zatím konfigurovat neumí.</li>
+</ul>
+<h2 id="rozvoz">Rozvoz</h2>
+<p>Stejnou cestou jako u 1.17.0 a bez překvapení: bench XIAO přes <code>dfu uf2</code> →
+<code>xiao_uf2_flash.sh</code>, <strong>x2 rovnou serial DFU</strong> (<code>pio run -t upload</code>, 36 s — žádné
+ťukání, viz <code>AGENTS.md</code>), x3 přes SSH na dopey, tth-ltm a T1000-E po BLE OTA.
+Mosty na dopey zastavit a vrátit; u BLE nezapomenout na <code>bluetoothctl disconnect</code>.</p>
+<h2 id="stozarove-sensecapy-15-8-2026">Stožárové SenseCapy (15. 8. 2026)</h2>
+<p>Plešivec i Hřebečná dostaly <code>v1.17.1-tth1a6b0db</code> ještě na stole, před montáží.
+Prefs přežily: jméno, 869.432, <code>repeat off</code>, <code>advert.interval 0</code> — tedy pořád
+tiché, aktivace patří až na místo.</p>
+<p>Cesta byla <code>pio run -e &lt;env&gt; -t upload --upload-port &lt;by-id&gt;</code> (SenseCap má
+<code>upload_protocol = nrfutil</code> stejně jako XIAO). Na Plešivci 36 s a hotovo,
+na Hřebečné to dopadlo hůř a stojí to za zapamatování:</p>
+<ul>
+<li><code>SUCCESS</code> za 28 s, ale <strong>bez <code>Activating new firmware</code> / <code>Device programmed</code></strong>.
+  Obraz se nenalil, deska jen skočila do DFU. Ten tichý úspěch je jediný signál.</li>
+<li><strong>Druhý pokus přes <code>pio -t upload</code> byl chyba</strong>: touch se dělá vždycky, takže
+  desku už sedící v bootloaderu vykopne ven (<code>Couldn't find a board</code>) — a je to
+  zároveň ten zakázaný druhý touch. Na desku v DFU patří ruční
+  <code>adafruit-nrfutil</code>, který netouchuje.</li>
+<li>Ruční nrfutil pak hlásil <code>Device programmed.</code>, ale aplikace nenaskočila ani po
+  třech minutách; kopie UF2 na <code>XIAO-BOOT</code> se napoprvé nezapsala a napodruhé
+  desku shodila z USB. <strong>Replug to vyřešil</strong> — deska naběhla na v1.17.1, takže
+  některý ze zápisů dosedl a chyběl jen reboot.</li>
+</ul>
+<p>Poučení: po <code>Device programmed.</code> bez návratu aplikace chtít <strong>replug hned</strong>,
+ne třetí cestu.</p>
+<h3 id="oprava-v-xiao_uf2_flashsh">Oprava v <code>xiao_uf2_flash.sh</code></h3>
+<p>Skript ten SenseCap obraz odmítl s „obraz nema verzi od build_version.py", a
+přitom ji měl (<code>v1.17.1-tth1a6b0db</code> byla v ELF). Kontrola grepovala <strong>syrový
+UF2</strong>, jenže ten je 512 B bloky (32 B hlavička + 256 B dat), takže řetězec může
+padnout na hranici bloku a zmizet — u SenseCap buildu padl, u XIAO ne. Skript
+teď payload skládá zpátky a hledá v něm; ověřeno, že SenseCap i XIAO obrazy
+projdou.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
